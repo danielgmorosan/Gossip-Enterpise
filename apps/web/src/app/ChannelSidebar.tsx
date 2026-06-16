@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, useParams } from "react-router-dom";
 import {
   Hash,
@@ -13,8 +13,11 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { Avatar, Badge } from "@gossip/ui";
-import { channels, dms, memberById } from "@/data/mock";
+import { channels } from "@/data/mock";
 import { cn, truncateHandle } from "@/lib/utils";
+import { useContacts } from "@/stores/useContacts";
+import { useSession } from "@/stores/useSession";
+import { NewDmDialog } from "@/components/chat/NewDmDialog";
 
 function Row({
   to,
@@ -97,6 +100,17 @@ export function ChannelSidebar() {
   const base = `/w/${workspaceId}`;
   const [showCh, setShowCh] = useState(true);
   const [showDm, setShowDm] = useState(true);
+  const [newDm, setNewDm] = useState(false);
+  const sessionStatus = useSession((s) => s.status);
+  const contacts = useContacts((s) => s.contacts);
+  const refreshContacts = useContacts((s) => s.refresh);
+
+  useEffect(() => {
+    if (sessionStatus !== "open") return;
+    refreshContacts();
+    const unsub = useContacts.getState().subscribe();
+    return unsub;
+  }, [sessionStatus, refreshContacts]);
 
   return (
     <aside className="flex h-full w-[264px] shrink-0 flex-col border-r border-border bg-surface">
@@ -162,34 +176,41 @@ export function ChannelSidebar() {
           ))}
 
         {/* Direct messages */}
-        <GroupLabel label="Direct messages" open={showDm} onToggle={() => setShowDm((v) => !v)} onAdd={() => {}} />
+        <GroupLabel label="Direct messages" open={showDm} onToggle={() => setShowDm((v) => !v)} onAdd={() => setNewDm(true)} />
         {showDm && (
           <Row to={`${base}/dm/dm_self`} active={dmId === "dm_self"}>
             <span className="grid size-5 shrink-0 place-items-center rounded-full bg-accent text-accent-ink">
               <ShieldCheck className="size-3" />
             </span>
             <span className="min-w-0 flex-1 truncate">Notes to Self</span>
-            <Badge tone="accent" className="ml-auto py-0">
-              live
-            </Badge>
+            <Badge tone="accent" className="ml-auto py-0">live</Badge>
           </Row>
         )}
         {showDm &&
-          dms.map((d) => {
-            const m = memberById(d.memberId);
-            return (
-              <Row key={d.id} to={`${base}/dm/${d.id}`} active={d.id === dmId} unread={d.unread}>
-                <Avatar name={m.displayName} id={m.id} size={20} presence={m.presence} />
-                <span className="min-w-0 flex-1 truncate">{m.displayName}</span>
-                <ShieldCheck className="size-3 shrink-0 text-accent/60" />
-              </Row>
-            );
-          })}
+          contacts.map((c) => (
+            <Row key={c.userId} to={`${base}/dm/${encodeURIComponent(c.userId)}`} active={dmId === c.userId}>
+              <Avatar name={c.name} id={c.userId} size={20} />
+              <span className="min-w-0 flex-1 truncate">{c.name}</span>
+              <ShieldCheck className="size-3 shrink-0 text-accent/60" />
+            </Row>
+          ))}
+        {showDm && contacts.length === 0 && (
+          <button
+            onClick={() => setNewDm(true)}
+            className="mt-1 flex w-full items-center gap-2 rounded-lg px-2.5 py-[7px] text-[13px] text-faint hover:bg-surface-raised hover:text-text"
+          >
+            <Plus className="size-4" /> New message
+          </button>
+        )}
 
         <div className="mt-2 px-2.5 py-2 font-mono text-[10px] leading-relaxed text-faint">
-          {truncateHandle(memberById("u_me").handle, 12, 6)}
+          {sessionStatus === "open"
+            ? truncateHandle(useSession.getState().userId ?? "", 12, 6)
+            : "session locked"}
         </div>
       </div>
+
+      {newDm && <NewDmDialog onClose={() => setNewDm(false)} />}
     </aside>
   );
 }

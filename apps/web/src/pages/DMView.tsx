@@ -6,6 +6,11 @@ import { Avatar, Badge } from "@gossip/ui";
 import { dms, memberById } from "@/data/mock";
 import { cn, truncateHandle } from "@/lib/utils";
 import { RealDmView } from "@/components/chat/RealDmView";
+import { useContacts } from "@/stores/useContacts";
+
+function contactName(userId: string): string | undefined {
+  return useContacts.getState().contacts.find((c) => c.userId === userId)?.name;
+}
 
 interface Bubble {
   mine: boolean;
@@ -26,8 +31,9 @@ const convo: Bubble[] = [
 export function DMView() {
   const { workspaceId = "w_gossip", dmId = "dm_kev" } = useParams();
 
-  // The "Notes to Self" conversation is backed by the real gossip-sdk.
-  if (dmId === "dm_self") return <RealDmView />;
+  // Real, SDK-backed conversations.
+  if (dmId === "dm_self") return <RealDmView peerId="self" />;
+  if (dmId.startsWith("gossip1")) return <RealDmView peerId={dmId} peerName={contactName(dmId)} />;
 
   const dm = dms.find((d) => d.id === dmId) ?? dms[0];
   const peer = memberById(dm.memberId);

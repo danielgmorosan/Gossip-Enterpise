@@ -46,6 +46,17 @@ export default defineConfig({
     // Allow serving the gossip-sdk that lives in the submodule (outside apps/web).
     fs: { allow: [path.resolve(__dirname, "../..")] },
     headers: coopCoep,
+    // Proxy the Gossip relay so the browser talks same-origin (api.usegossip.com
+    // blocks CORS from localhost). The SDK uses protocolBaseUrl="/gossip-relay" in dev.
+    proxy: {
+      "/gossip-relay": {
+        target: "https://api.usegossip.com",
+        changeOrigin: true,
+        secure: true,
+        // The relay's API lives under /api (root returns "Gossip API v1 …").
+        rewrite: (p) => p.replace(/^\/gossip-relay/, "/api"),
+      },
+    },
   },
   preview: { headers: coopCoep },
   build: { target: "esnext" },
