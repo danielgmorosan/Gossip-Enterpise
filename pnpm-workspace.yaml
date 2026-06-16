@@ -2,3 +2,5 @@ packages:
   - "apps/*"
   - "packages/*"
   - "services/*"
+  # Consume the gossip-sdk built inside the submodule (do not glob all of vendor/gossip).
+  - "vendor/gossip/gossip-sdk"

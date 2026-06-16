@@ -13,6 +13,7 @@
     "@gossip/miniapp-sdk": "workspace:*",
     "@gossip/openclaw-bridge": "workspace:*",
     "@gossip/ui": "workspace:*",
+    "@massalabs/gossip-sdk": "workspace:*",
     "clsx": "^2.1.1",
     "lucide-react": "^0.460.0",
     "motion": "^11.13.1",
