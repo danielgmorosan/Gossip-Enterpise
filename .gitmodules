@@ -1,0 +1,4 @@
+[submodule "vendor/gossip"]
+	path = vendor/gossip
+	url = https://github.com/massalabs/gossip
+	branch = dev
