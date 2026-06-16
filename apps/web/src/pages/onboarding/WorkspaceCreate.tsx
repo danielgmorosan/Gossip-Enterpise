@@ -1,13 +1,32 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Server, ChevronDown } from "lucide-react";
+import { ArrowLeft, ArrowRight, Server, ChevronDown, Loader2 } from "lucide-react";
 import { Button, Field, Input } from "@gossip/ui";
 import { cn } from "@/lib/utils";
+import { useSession } from "@/stores/useSession";
 
 export function WorkspaceCreate() {
   const nav = useNavigate();
+  const { mnemonic, unlock } = useSession();
   const [name, setName] = useState("");
   const [advanced, setAdvanced] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mnemonic) {
+      // No identity in memory (e.g. refresh) — go back to create one.
+      nav("/identity/create");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    const ok = await unlock(mnemonic);
+    setBusy(false);
+    if (ok) nav("/w/w_gossip/c/c_design");
+    else setError("Couldn't open a session. Check your connection and try again.");
+  };
 
   return (
     <div>
@@ -19,13 +38,7 @@ export function WorkspaceCreate() {
       <h2 className="mt-1 font-display text-[28px] font-bold tracking-tight text-text">Name your workspace</h2>
       <p className="mt-1.5 text-[14px] text-muted">You can change this anytime in settings.</p>
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          nav("/w/w_gossip/c/c_design");
-        }}
-        className="mt-7 space-y-5"
-      >
+      <form onSubmit={submit} className="mt-7 space-y-5">
         <Field label="Workspace name">
           <Input
             autoFocus
@@ -56,8 +69,18 @@ export function WorkspaceCreate() {
           )}
         </div>
 
-        <Button block size="lg" type="submit" disabled={!name.trim()}>
-          Create workspace <ArrowRight className="size-4" />
+        {error && <p className="text-[13px] text-danger">{error}</p>}
+
+        <Button block size="lg" type="submit" disabled={!name.trim() || busy}>
+          {busy ? (
+            <>
+              <Loader2 className="size-4 animate-spin" /> Creating your identity…
+            </>
+          ) : (
+            <>
+              Create workspace <ArrowRight className="size-4" />
+            </>
+          )}
         </Button>
       </form>
     </div>

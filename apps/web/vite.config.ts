@@ -1,16 +1,53 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import { nodePolyfills } from "vite-plugin-node-polyfills";
+// @ts-expect-error — vite-plugin-cross-origin-isolation has no .d.ts
+import crossOriginIsolation from "vite-plugin-cross-origin-isolation";
 import path from "node:path";
 
+// COOP/COEP headers are required for SharedArrayBuffer, which the gossip-sdk
+// secure-storage WASM (wasm-bindgen-rayon) needs. localhost is a secure context,
+// so no HTTPS/mkcert is required in dev.
+const coopCoep = {
+  "Cross-Origin-Opener-Policy": "same-origin",
+  "Cross-Origin-Embedder-Policy": "require-corp",
+};
+
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    crossOriginIsolation(),
+    nodePolyfills({ protocolImports: true }),
+  ],
   resolve: {
+    dedupe: ["react", "react-dom"],
     alias: {
       "@": path.resolve(__dirname, "src"),
+      // Consume the SDK *source* so Vite processes its `new URL('*.wasm', import.meta.url)`
+      // and serves the WASM correctly (mirrors gossip's own app). Types still come from
+      // the package's dist .d.ts via tsc. The submodule must be built first.
+      "@massalabs/gossip-sdk": path.resolve(
+        __dirname,
+        "../../vendor/gossip/gossip-sdk/src",
+      ),
     },
+  },
+  assetsInclude: ["**/*.wasm"],
+  optimizeDeps: {
+    // wa-sqlite ships a .wasm that the dep optimizer doesn't relocate to
+    // .vite/deps, so its runtime fetch 404s → HTML. Exclude it so it's served
+    // from node_modules with its wasm intact. Same for the SDK (consumed as source).
+    exclude: ["wa-sqlite", "@massalabs/gossip-sdk"],
   },
   server: {
     port: 5173,
+    // Allow serving the gossip-sdk that lives in the submodule (outside apps/web).
+    fs: { allow: [path.resolve(__dirname, "../..")] },
+    headers: coopCoep,
   },
+  preview: { headers: coopCoep },
+  build: { target: "esnext" },
+  worker: { format: "es" },
 });

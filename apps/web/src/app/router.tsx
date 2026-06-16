@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppShell } from "./AppShell";
+import { SdkSmoke } from "@/pages/dev/SdkSmoke";
 import { OnboardingLayout } from "@/pages/onboarding/OnboardingLayout";
 import { Welcome } from "@/pages/onboarding/Welcome";
 import { IdentityCreate } from "@/pages/onboarding/IdentityCreate";
@@ -28,6 +29,7 @@ const WS = "w_gossip";
 
 export const router = createBrowserRouter([
   { path: "/", element: <Navigate to="/welcome" replace /> },
+  { path: "/dev/sdk-smoke", element: <SdkSmoke /> },
   {
     element: <OnboardingLayout />,
     children: [

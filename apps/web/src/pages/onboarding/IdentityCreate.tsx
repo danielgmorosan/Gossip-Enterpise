@@ -3,22 +3,27 @@ import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Copy, RefreshCw, Check, ShieldCheck, Eye, EyeOff } from "lucide-react";
 import { Button } from "@gossip/ui";
 import { cn } from "@/lib/utils";
-
-const WORDS = [
-  "harbor", "cipher", "willow", "quartz", "ember", "nimbus",
-  "saffron", "vellum", "cobalt", "thistle", "marrow", "zephyr",
-];
+import { useSession } from "@/stores/useSession";
 
 export function IdentityCreate() {
   const nav = useNavigate();
+  const createIdentity = useSession((s) => s.createIdentity);
   const [revealed, setRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
+  // Generate a real BIP39 mnemonic once on mount (stored in the session store).
+  const [mnemonic, setMnemonic] = useState(() => createIdentity());
+  const WORDS = mnemonic.split(/\s+/);
 
   const copy = () => {
-    navigator.clipboard?.writeText(WORDS.join(" "));
+    navigator.clipboard?.writeText(mnemonic);
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
+  };
+
+  const regenerate = () => {
+    setMnemonic(createIdentity());
+    setSaved(false);
   };
 
   return (
@@ -66,7 +71,7 @@ export function IdentityCreate() {
           {copied ? <Check className="size-4 text-accent" /> : <Copy className="size-4" />}
           {copied ? "Copied" : "Copy"}
         </Button>
-        <Button variant="ghost" size="sm" disabled={!revealed}>
+        <Button variant="ghost" size="sm" disabled={!revealed} onClick={regenerate}>
           <RefreshCw className="size-4" /> Regenerate
         </Button>
       </div>

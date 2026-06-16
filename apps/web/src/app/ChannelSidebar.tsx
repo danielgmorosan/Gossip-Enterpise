@@ -163,6 +163,17 @@ export function ChannelSidebar() {
 
         {/* Direct messages */}
         <GroupLabel label="Direct messages" open={showDm} onToggle={() => setShowDm((v) => !v)} onAdd={() => {}} />
+        {showDm && (
+          <Row to={`${base}/dm/dm_self`} active={dmId === "dm_self"}>
+            <span className="grid size-5 shrink-0 place-items-center rounded-full bg-accent text-accent-ink">
+              <ShieldCheck className="size-3" />
+            </span>
+            <span className="min-w-0 flex-1 truncate">Notes to Self</span>
+            <Badge tone="accent" className="ml-auto py-0">
+              live
+            </Badge>
+          </Row>
+        )}
         {showDm &&
           dms.map((d) => {
             const m = memberById(d.memberId);

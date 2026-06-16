@@ -5,6 +5,7 @@ import { Composer } from "@/components/chat/Composer";
 import { Avatar, Badge } from "@gossip/ui";
 import { dms, memberById } from "@/data/mock";
 import { cn, truncateHandle } from "@/lib/utils";
+import { RealDmView } from "@/components/chat/RealDmView";
 
 interface Bubble {
   mine: boolean;
@@ -24,6 +25,10 @@ const convo: Bubble[] = [
 
 export function DMView() {
   const { workspaceId = "w_gossip", dmId = "dm_kev" } = useParams();
+
+  // The "Notes to Self" conversation is backed by the real gossip-sdk.
+  if (dmId === "dm_self") return <RealDmView />;
+
   const dm = dms.find((d) => d.id === dmId) ?? dms[0];
   const peer = memberById(dm.memberId);
 
