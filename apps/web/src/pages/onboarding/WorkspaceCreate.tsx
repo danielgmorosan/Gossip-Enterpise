@@ -7,8 +7,9 @@ import { useSession } from "@/stores/useSession";
 
 export function WorkspaceCreate() {
   const nav = useNavigate();
-  const { mnemonic, unlock } = useSession();
+  const { mnemonic, unlock, setDisplayName } = useSession();
   const [name, setName] = useState("");
+  const [yourName, setYourName] = useState("");
   const [advanced, setAdvanced] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,6 +21,7 @@ export function WorkspaceCreate() {
       nav("/identity/create");
       return;
     }
+    if (yourName.trim()) setDisplayName(yourName.trim());
     setBusy(true);
     setError(null);
     const ok = await unlock(mnemonic);
@@ -39,9 +41,12 @@ export function WorkspaceCreate() {
       <p className="mt-1.5 text-[14px] text-muted">You can change this anytime in settings.</p>
 
       <form onSubmit={submit} className="mt-7 space-y-5">
+        <Field label="Your name" hint="Shown to others in group channels.">
+          <Input autoFocus placeholder="e.g. Daniel" value={yourName} onChange={(e) => setYourName(e.target.value)} />
+        </Field>
+
         <Field label="Workspace name">
           <Input
-            autoFocus
             placeholder="e.g. Gossip Labs"
             value={name}
             onChange={(e) => setName(e.target.value)}

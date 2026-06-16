@@ -8,8 +8,11 @@ interface SessionState {
   userId: string | null;
   /** Held in memory only (not persisted) for the lifetime of the app load. */
   mnemonic: string | null;
+  /** Friendly name shown to others in group channels (persisted locally). */
+  displayName: string;
   error: string | null;
 
+  setDisplayName: (name: string) => void;
   /** Generate a brand-new BIP39 identity (does not open a session yet). */
   createIdentity: () => string;
   /** Open a real E2E session from a mnemonic / recovery passphrase. */
@@ -23,7 +26,13 @@ export const useSession = create<SessionState>((set) => ({
   status: gossipSdk.isSessionOpen ? "open" : "locked",
   userId: gossipSdk.isSessionOpen ? gossipSdk.userId : null,
   mnemonic: null,
+  displayName: localStorage.getItem("gossip-display-name") ?? "",
   error: null,
+
+  setDisplayName: (name: string) => {
+    localStorage.setItem("gossip-display-name", name);
+    set({ displayName: name });
+  },
 
   createIdentity: () => {
     const mnemonic = generateMnemonic(128); // 12 words, matches the onboarding UI

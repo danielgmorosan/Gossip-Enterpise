@@ -2,8 +2,22 @@ import { useState } from "react";
 import { Plus, Smile, AtSign, Paperclip, SendHorizontal, Sparkles, Bold, Italic, Code } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export function Composer({ placeholder, e2e }: { placeholder: string; e2e?: boolean }) {
+export function Composer({
+  placeholder,
+  e2e,
+  onSend,
+}: {
+  placeholder: string;
+  e2e?: boolean;
+  onSend?: (text: string) => void;
+}) {
   const [value, setValue] = useState("");
+  const submit = () => {
+    const text = value.trim();
+    if (!text) return;
+    onSend?.(text);
+    setValue("");
+  };
   return (
     <div className="px-4 pb-4 pt-1">
       <div className="rounded-xl border border-border bg-surface-inset focus-within:border-[color:var(--accent)] focus-within:ring-2 focus-within:ring-[color:var(--accent-glow)]">
@@ -17,6 +31,12 @@ export function Composer({ placeholder, e2e }: { placeholder: string; e2e?: bool
         <textarea
           value={value}
           onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              submit();
+            }
+          }}
           rows={1}
           placeholder={placeholder}
           className="max-h-44 min-h-[44px] w-full resize-none bg-transparent px-3.5 py-2.5 text-[14.5px] text-text outline-none placeholder:text-faint"
@@ -35,6 +55,7 @@ export function Composer({ placeholder, e2e }: { placeholder: string; e2e?: bool
               {e2e ? "🔒 End-to-end encrypted" : "🛡 Workspace-confidential"}
             </span>
             <button
+              onClick={submit}
               disabled={!value.trim()}
               className={cn(
                 "grid size-8 place-items-center rounded-lg transition-colors",

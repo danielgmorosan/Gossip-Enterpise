@@ -43,6 +43,8 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    host: true, // bind 0.0.0.0 so a tunnel (cloudflared) can reach it
+    allowedHosts: true, // accept the temporary *.trycloudflare.com host
     // Allow serving the gossip-sdk that lives in the submodule (outside apps/web).
     fs: { allow: [path.resolve(__dirname, "../..")] },
     headers: coopCoep,
@@ -55,6 +57,12 @@ export default defineConfig({
         secure: true,
         // The relay's API lives under /api (root returns "Gossip API v1 …").
         rewrite: (p) => p.replace(/^\/gossip-relay/, "/api"),
+      },
+      // Our own channel relay (group chats), WebSocket — see services/relay.
+      "/group-ws": {
+        target: "ws://localhost:8788",
+        ws: true,
+        rewrite: (p) => p.replace(/^\/group-ws/, ""),
       },
     },
   },
