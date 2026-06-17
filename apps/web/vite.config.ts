@@ -64,6 +64,9 @@ export default defineConfig({
         ws: true,
         rewrite: (p) => p.replace(/^\/group-ws/, ""),
       },
+      // LiveKit token (signed server-side) + config, served by the relay.
+      "/livekit-token": { target: "http://localhost:8788", rewrite: (p) => p.replace(/^\/livekit-token/, "/token") },
+      "/livekit-config": { target: "http://localhost:8788" },
     },
   },
   preview: { headers: coopCoep },

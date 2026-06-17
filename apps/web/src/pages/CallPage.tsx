@@ -1,113 +1,120 @@
-import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { Mic, MicOff, Video, VideoOff, Monitor, PhoneOff, Sparkles, ShieldCheck, Circle } from "lucide-react";
-import { Avatar, Badge, Toggle } from "@gossip/ui";
-import { members } from "@/data/mock";
-import { cn, colorForId } from "@/lib/utils";
+import { useEffect, useState } from "react";
+import { useParams, useNavigate, Link } from "react-router-dom";
+import { Video, Loader2, ServerCog, ArrowLeft } from "lucide-react";
+import "@livekit/components-styles";
+import { LiveKitRoom, VideoConference } from "@livekit/components-react";
+import { Button } from "@gossip/ui";
+import { useSession } from "@/stores/useSession";
+import { useRelay } from "@/stores/useRelay";
 
-const participants = members.filter((m) => !m.isAi).slice(0, 4);
+type State =
+  | { phase: "loading" }
+  | { phase: "unconfigured" }
+  | { phase: "error"; message: string }
+  | { phase: "ready"; token: string; url: string };
 
 export function CallPage() {
-  const { workspaceId = "w_gossip", channelId = "c_design" } = useParams();
+  const { workspaceId = "", channelId = "" } = useParams();
   const nav = useNavigate();
-  const [mic, setMic] = useState(true);
-  const [cam, setCam] = useState(false);
-  const [notetaker, setNotetaker] = useState(true);
+  const userId = useSession((s) => s.userId);
+  const displayName = useSession((s) => s.displayName);
+  const workspace = useRelay((s) => s.workspace);
+  const channel = workspace?.channels.find((c) => c.id === channelId);
+  const [state, setState] = useState<State>({ phase: "loading" });
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const cfg = await fetch("/livekit-config").then((r) => r.json());
+        if (!cfg.configured) {
+          if (active) setState({ phase: "unconfigured" });
+          return;
+        }
+        const room = `${workspaceId}:${channelId}`;
+        const identity = userId ?? `guest-${Math.random().toString(36).slice(2, 8)}`;
+        const res = await fetch("/livekit-token", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ room, identity, name: displayName || "Guest" }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "token request failed");
+        if (active) setState({ phase: "ready", token: data.token, url: data.url });
+      } catch (e) {
+        if (active) setState({ phase: "error", message: e instanceof Error ? e.message : "Failed to start call" });
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [workspaceId, channelId, userId, displayName]);
+
+  const back = () => nav(`/w/${workspaceId}/c/${channelId}`);
+
+  if (state.phase === "ready") {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col" data-lk-theme="default" style={{ background: "#0a0c0f" }}>
+        <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4">
+          <span className="grid size-6 place-items-center rounded-md bg-[color:var(--accent-faint)] text-accent">
+            <Video className="size-3.5" />
+          </span>
+          <span className="font-display text-[14px] font-bold text-text">Huddle · #{channel?.name ?? channelId}</span>
+          <span className="ml-1 font-mono text-[10px] text-faint">LiveKit · E2E-capable</span>
+        </header>
+        <div className="min-h-0 flex-1">
+          <LiveKitRoom
+            token={state.token}
+            serverUrl={state.url}
+            connect
+            video
+            audio
+            onDisconnected={back}
+            style={{ height: "100%" }}
+          >
+            <VideoConference />
+          </LiveKitRoom>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-[#0a0c0f]">
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
-        <span className="grid size-7 place-items-center rounded-lg bg-[color:var(--accent-faint)] text-accent">
-          <Video className="size-4" />
-        </span>
-        <div>
-          <div className="font-display text-[15px] font-bold text-text">Huddle · #{channelId.replace("c_", "")}</div>
-          <div className="font-mono text-[10px] text-faint">LiveKit · self-hosted · E2E</div>
-        </div>
-        <Badge tone="accent" className="ml-1" dot>
-          {participants.length} in call
-        </Badge>
-        {notetaker && (
-          <Badge tone="danger" className="ml-1">
-            <Circle className="size-2 animate-pulse fill-current" /> recording for notes
-          </Badge>
+    <div className="grid min-h-0 flex-1 place-items-center bg-[#0a0c0f] p-6">
+      <div className="max-w-md text-center">
+        {state.phase === "loading" && (
+          <>
+            <Loader2 className="mx-auto size-7 animate-spin text-accent" />
+            <p className="mt-3 text-[14px] text-muted">Connecting to the huddle…</p>
+          </>
         )}
-      </header>
-
-      {/* Consent banner */}
-      {notetaker && (
-        <div className="flex items-center gap-2 bg-[color:var(--accent-faint)] px-4 py-2 text-[12.5px] text-text">
-          <ShieldCheck className="size-4 shrink-0 text-accent" />
-          The AI notetaker is on. Audio is transcribed locally with whisper.cpp — everyone can see
-          this banner.
-        </div>
-      )}
-
-      {/* Stage */}
-      <div className="grid min-h-0 flex-1 grid-cols-2 gap-3 p-4">
-        {participants.map((p) => (
-          <div
-            key={p.id}
-            className="relative grid place-items-center overflow-hidden rounded-2xl border border-border"
-            style={{ background: `radial-gradient(circle at 50% 40%, ${colorForId(p.id)}22, #0a0c0f 70%)` }}
-          >
-            <Avatar name={p.displayName} id={p.id} size={88} />
-            <div className="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-lg bg-black/40 px-2 py-1 text-[12px] text-white backdrop-blur">
-              {p.id === "u_me" && !mic ? <MicOff className="size-3.5 text-danger" /> : <Mic className="size-3.5" />}
-              {p.displayName}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* AI notetaker control */}
-      <div className="mx-4 mb-3 flex items-center gap-3 rounded-xl border border-border bg-surface/80 px-4 py-3 backdrop-blur">
-        <Sparkles className="size-4 text-accent" />
-        <div className="flex-1">
-          <div className="text-[13.5px] font-medium text-text">OpenClaw notetaker</div>
-          <div className="text-[12px] text-muted">Transcribe locally → summary + action items posted to the channel.</div>
-        </div>
-        <Toggle checked={notetaker} onChange={setNotetaker} />
-      </div>
-
-      {/* Controls */}
-      <div className="flex items-center justify-center gap-2 pb-5">
-        <CtrlButton on={mic} onToggle={() => setMic((v) => !v)} onIcon={<Mic className="size-5" />} offIcon={<MicOff className="size-5" />} />
-        <CtrlButton on={cam} onToggle={() => setCam((v) => !v)} onIcon={<Video className="size-5" />} offIcon={<VideoOff className="size-5" />} />
-        <button className="grid size-12 place-items-center rounded-2xl bg-surface-raised text-muted hover:text-text">
-          <Monitor className="size-5" />
-        </button>
-        <button
-          onClick={() => nav(`/w/${workspaceId}/c/${channelId}`)}
-          className="ml-2 grid h-12 w-16 place-items-center rounded-2xl bg-danger text-white hover:opacity-90"
-        >
-          <PhoneOff className="size-5" />
-        </button>
+        {state.phase === "error" && (
+          <>
+            <p className="text-[15px] font-semibold text-danger">Couldn't start the call</p>
+            <p className="mt-1 font-mono text-[12px] text-muted">{state.message}</p>
+            <Button className="mt-4" variant="secondary" onClick={back}>
+              <ArrowLeft className="size-4" /> Back to channel
+            </Button>
+          </>
+        )}
+        {state.phase === "unconfigured" && (
+          <>
+            <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-[color:var(--accent-faint)] text-accent">
+              <ServerCog className="size-6" />
+            </span>
+            <h2 className="mt-3 font-display text-xl font-bold text-text">Calls need a LiveKit project</h2>
+            <p className="mt-1 text-[14px] leading-relaxed text-muted">
+              Add a free LiveKit Cloud project's URL, API key, and secret to{" "}
+              <span className="font-mono text-text">services/relay/.env</span> and restart the relay.
+            </p>
+            <Link to={`/w/${workspaceId}/c/${channelId}`}>
+              <Button className="mt-4" variant="secondary">
+                <ArrowLeft className="size-4" /> Back to channel
+              </Button>
+            </Link>
+          </>
+        )}
       </div>
     </div>
-  );
-}
-
-function CtrlButton({
-  on,
-  onToggle,
-  onIcon,
-  offIcon,
-}: {
-  on: boolean;
-  onToggle: () => void;
-  onIcon: React.ReactNode;
-  offIcon: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onToggle}
-      className={cn(
-        "grid size-12 place-items-center rounded-2xl transition-colors",
-        on ? "bg-surface-raised text-text hover:bg-slate" : "bg-danger/15 text-danger",
-      )}
-    >
-      {on ? onIcon : offIcon}
-    </button>
   );
 }

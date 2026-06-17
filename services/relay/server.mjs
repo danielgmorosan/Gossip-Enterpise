@@ -9,14 +9,37 @@
  * Run: node services/relay/server.mjs   (PORT env, default 8788)
  */
 import { WebSocketServer } from "ws";
+import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { AccessToken } from "livekit-server-sdk";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+
+// Load services/relay/.env (KEY=VALUE) if present — keeps the LiveKit secret server-side.
+const ENV_FILE = join(HERE, ".env");
+if (existsSync(ENV_FILE)) {
+  for (const line of readFileSync(ENV_FILE, "utf8").split("\n")) {
+    const t = line.trim();
+    if (!t || t.startsWith("#")) continue;
+    const eq = t.indexOf("=");
+    if (eq === -1) continue;
+    const k = t.slice(0, eq).trim();
+    const v = t.slice(eq + 1).trim().replace(/^["']|["']$/g, "");
+    if (!(k in process.env)) process.env[k] = v;
+  }
+}
 
 const PORT = Number(process.env.PORT ?? 8788);
 const HISTORY_CAP = 500;
-const DATA_FILE = join(dirname(fileURLToPath(import.meta.url)), ".data.json");
+const DATA_FILE = join(HERE, ".data.json");
+
+const LIVEKIT_URL = process.env.LIVEKIT_URL ?? "";
+const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY ?? "";
+const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET ?? "";
+const livekitConfigured = Boolean(LIVEKIT_URL && LIVEKIT_API_KEY && LIVEKIT_API_SECRET);
 
 /** Persistent state. */
 let db = { workspaces: {}, messages: {} }; // workspaces[id], messages[`${wsId}/${chId}`] = []
@@ -95,8 +118,44 @@ function addChannel(ws, { name, type, topic, createdBy }) {
   return ws.channels[id];
 }
 
-const wss = new WebSocketServer({ port: PORT });
-console.log(`[relay] listening on ws://localhost:${PORT}  (${Object.keys(db.workspaces).length} workspaces loaded)`);
+// HTTP server: LiveKit token + config (and shares the port with the WebSocket relay).
+function readBody(req) {
+  return new Promise((resolve) => {
+    let b = "";
+    req.on("data", (c) => (b += c));
+    req.on("end", () => resolve(b));
+  });
+}
+const httpServer = createServer(async (req, res) => {
+  const json = (code, obj) => {
+    res.writeHead(code, { "content-type": "application/json" });
+    res.end(JSON.stringify(obj));
+  };
+  if (req.method === "GET" && req.url === "/livekit-config") {
+    return json(200, { configured: livekitConfigured, url: LIVEKIT_URL });
+  }
+  if (req.method === "POST" && req.url === "/token") {
+    if (!livekitConfigured) return json(503, { error: "LiveKit not configured. Set creds in services/relay/.env" });
+    try {
+      const { room, identity, name } = JSON.parse((await readBody(req)) || "{}");
+      if (!room || !identity) return json(400, { error: "room and identity required" });
+      const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, { identity, name: name || identity, ttl: "2h" });
+      at.addGrant({ roomJoin: true, room, canPublish: true, canSubscribe: true });
+      return json(200, { token: await at.toJwt(), url: LIVEKIT_URL });
+    } catch (e) {
+      return json(500, { error: String(e) });
+    }
+  }
+  if (req.method === "GET" && req.url === "/health") return json(200, { ok: true, livekit: livekitConfigured });
+  res.writeHead(404);
+  res.end();
+});
+
+const wss = new WebSocketServer({ server: httpServer });
+httpServer.listen(PORT);
+console.log(
+  `[relay] http+ws on :${PORT}  (${Object.keys(db.workspaces).length} workspaces, livekit ${livekitConfigured ? "configured" : "NOT configured"})`,
+);
 
 wss.on("connection", (ws) => {
   const client = { ws, userId: null, name: "Someone", wsSubs: new Set(), chSubs: new Set() };
