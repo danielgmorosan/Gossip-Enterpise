@@ -65,10 +65,10 @@ export default defineConfig({
         rewrite: (p) => p.replace(/^\/group-ws/, ""),
       },
       // LiveKit token (signed server-side) + config, served by the relay.
-      "/livekit-token": { target: "http://localhost:8788", rewrite: (p) => p.replace(/^\/livekit-token/, "/token") },
+      "/livekit-token": { target: "http://localhost:8788" },
       "/livekit-config": { target: "http://localhost:8788" },
       // OpenClaw AI gateway (lives in the relay; only sees channel data, never DMs).
-      "/openclaw": { target: "http://localhost:8788", rewrite: (p) => p.replace(/^\/openclaw/, "/ai") },
+      "/openclaw": { target: "http://localhost:8788" },
     },
   },
   preview: { headers: coopCoep },

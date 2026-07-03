@@ -214,7 +214,7 @@ const httpServer = createServer(async (req, res) => {
   if (req.method === "GET" && req.url === "/livekit-config") {
     return json(200, { configured: livekitConfigured, url: LIVEKIT_URL });
   }
-  if (req.method === "POST" && req.url === "/token") {
+  if (req.method === "POST" && req.url === "/livekit-token") {
     if (!livekitConfigured) return json(503, { error: "LiveKit not configured. Set creds in services/relay/.env" });
     try {
       const { room, identity, name } = JSON.parse((await readBody(req)) || "{}");
@@ -226,7 +226,7 @@ const httpServer = createServer(async (req, res) => {
       return json(500, { error: String(e) });
     }
   }
-  if (req.method === "GET" && req.url === "/ai/health") {
+  if (req.method === "GET" && req.url === "/openclaw/health") {
     let ollamaUp = false;
     let hasModel = false;
     try {
@@ -241,7 +241,7 @@ const httpServer = createServer(async (req, res) => {
     }
     return json(200, { ok: ollamaUp && hasModel, route: AI_ROUTE, model: AI_MODEL, ollama: ollamaUp, hasModel });
   }
-  if (req.method === "POST" && req.url === "/ai/jobs") {
+  if (req.method === "POST" && req.url === "/openclaw/jobs") {
     try {
       const body = JSON.parse((await readBody(req)) || "{}");
       if (!body.workspaceId) return json(400, { error: "workspaceId required" });
