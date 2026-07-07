@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { Video, Loader2, ServerCog, ArrowLeft } from "lucide-react";
 import "@livekit/components-styles";
 import { LiveKitRoom, VideoConference } from "@livekit/components-react";
-import { Button } from "@gossip/ui";
+import { Button } from "@gossip/ui/stack";
 import { useSession } from "@/stores/useSession";
 import { useRelay } from "@/stores/useRelay";
 import { relayUrl } from "@/lib/relayBase";
@@ -56,12 +56,12 @@ export function CallPage() {
   if (state.phase === "ready") {
     return (
       <div className="flex min-h-0 flex-1 flex-col" data-lk-theme="default" style={{ background: "#0a0c0f" }}>
-        <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4">
-          <span className="grid size-6 place-items-center rounded-md bg-[color:var(--accent-faint)] text-accent">
+        <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line bg-paper px-4 font-stack">
+          <span className="grid size-6 place-items-center rounded-control bg-field text-ink">
             <Video className="size-3.5" />
           </span>
-          <span className="font-display text-[14px] font-bold text-text">Huddle · #{channel?.name ?? channelId}</span>
-          <span className="ml-1 font-mono text-[10px] text-faint">LiveKit · E2E-capable</span>
+          <span className="text-[14px] font-semibold text-ink">Huddle · #{channel?.name ?? channelId}</span>
+          <span className="ml-1 font-mono text-[10px] text-ink-faint">LiveKit · E2E-capable</span>
         </header>
         <div className="min-h-0 flex-1">
           <LiveKitRoom
@@ -81,18 +81,18 @@ export function CallPage() {
   }
 
   return (
-    <div className="grid min-h-0 flex-1 place-items-center bg-[#0a0c0f] p-6">
+    <div className="grid min-h-0 flex-1 place-items-center bg-paper p-6 font-stack">
       <div className="max-w-md text-center">
         {state.phase === "loading" && (
           <>
-            <Loader2 className="mx-auto size-7 animate-spin text-accent" />
-            <p className="mt-3 text-[14px] text-muted">Connecting to the huddle…</p>
+            <Loader2 className="mx-auto size-7 animate-spin text-ink-mute" />
+            <p className="mt-3 text-[14px] text-ink-mute">Connecting to the huddle…</p>
           </>
         )}
         {state.phase === "error" && (
           <>
-            <p className="text-[15px] font-semibold text-danger">Couldn't start the call</p>
-            <p className="mt-1 font-mono text-[12px] text-muted">{state.message}</p>
+            <p className="text-[15px] font-semibold text-negative">Couldn't start the call</p>
+            <p className="mt-1 font-mono text-[12px] text-ink-mute">{state.message}</p>
             <Button className="mt-4" variant="secondary" onClick={back}>
               <ArrowLeft className="size-4" /> Back to channel
             </Button>
@@ -100,13 +100,13 @@ export function CallPage() {
         )}
         {state.phase === "unconfigured" && (
           <>
-            <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-[color:var(--accent-faint)] text-accent">
+            <span className="mx-auto grid size-12 place-items-center rounded-card bg-field text-ink">
               <ServerCog className="size-6" />
             </span>
-            <h2 className="mt-3 font-display text-xl font-bold text-text">Calls need a LiveKit project</h2>
-            <p className="mt-1 text-[14px] leading-relaxed text-muted">
+            <h2 className="mt-3 text-xl font-bold tracking-tight text-ink">Calls need a LiveKit project</h2>
+            <p className="mt-1 text-[14px] leading-relaxed text-ink-mute">
               Add a free LiveKit Cloud project's URL, API key, and secret to{" "}
-              <span className="font-mono text-text">services/relay/.env</span> and restart the relay.
+              <span className="font-mono text-ink">services/relay/.env</span> and restart the relay.
             </p>
             <Link to={`/w/${workspaceId}/c/${channelId}`}>
               <Button className="mt-4" variant="secondary">

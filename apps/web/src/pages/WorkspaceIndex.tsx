@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Hash, Loader2, Plus } from "lucide-react";
-import { Button } from "@gossip/ui";
+import { Button } from "@gossip/ui/stack";
 import { useRelay } from "@/stores/useRelay";
 import { CreateChannelDialog } from "@/components/chat/CreateChannelDialog";
 
@@ -31,7 +31,7 @@ export function WorkspaceIndex() {
 
   if (loading) {
     return (
-      <div className="grid flex-1 place-items-center text-muted">
+      <div className="grid flex-1 place-items-center text-ink-mute">
         <Loader2 className="size-6 animate-spin" />
       </div>
     );
@@ -41,11 +41,11 @@ export function WorkspaceIndex() {
   return (
     <div className="grid flex-1 place-items-center p-6">
       <div className="max-w-sm text-center">
-        <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-[color:var(--accent-faint)] text-accent">
+        <span className="mx-auto grid size-12 place-items-center rounded-card bg-field text-ink">
           <Hash className="size-6" />
         </span>
-        <h2 className="mt-3 font-display text-xl font-bold text-text">No channels yet</h2>
-        <p className="mt-1 text-[14px] text-muted">Create the first channel to start the conversation.</p>
+        <h2 className="mt-3 text-xl font-bold tracking-tight text-ink">No channels yet</h2>
+        <p className="mt-1 text-[14px] text-ink-mute">Create the first channel to start the conversation.</p>
         <Button className="mt-4" onClick={() => setShowCreate(true)}>
           <Plus className="size-4" /> Create a channel
         </Button>

@@ -186,7 +186,7 @@ export const AiPromptComposer = forwardRef<HTMLTextAreaElement, AiPromptComposer
         />
 
         <div className="flex items-center justify-between gap-3 px-3 pb-3">
-          <div ref={skillsRef} className="relative">
+          <div ref={skillsRef} className={cn("relative", skills.length === 0 && "invisible")}>
             <button
               type="button"
               onClick={() => setSkillsOpen((o) => !o)}

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Sparkles, X, ArrowUp, ShieldCheck, FileText, ListChecks, Search, Loader2 } from "lucide-react";
-import { Badge } from "@gossip/ui";
 import { runAiJob } from "@/lib/ai";
 
 const quick: { icon: typeof FileText; label: string; type: "recap" | "notes" | "qa"; prompt?: string }[] = [
@@ -39,27 +38,27 @@ export function AiSidePanel({
   };
 
   return (
-    <aside className="flex w-[360px] shrink-0 flex-col border-l border-border bg-surface">
-      <header className="flex h-14 items-center gap-2 border-b border-border px-4">
-        <span className="grid size-7 place-items-center rounded-lg bg-accent text-accent-ink">
+    <aside className="flex w-[360px] shrink-0 flex-col border-l border-line bg-paper-2 font-stack">
+      <header className="flex h-12 items-center gap-2 border-b border-line px-4">
+        <span className="grid size-7 place-items-center rounded-control bg-ink text-paper">
           <Sparkles className="size-4" />
         </span>
         <div className="leading-tight">
-          <div className="text-[14px] font-semibold text-text">OpenClaw</div>
-          <div className="font-mono text-[10px] text-faint">local model</div>
+          <div className="text-[14px] font-semibold text-ink">OpenClaw</div>
+          <div className="font-mono text-[10px] text-ink-faint">local model</div>
         </div>
-        <Badge tone="accent" className="ml-1" dot>
-          private
-        </Badge>
-        <button onClick={onClose} className="ml-auto grid size-8 place-items-center rounded-lg text-muted hover:bg-surface-raised hover:text-text">
+        <span className="ml-1 inline-flex items-center gap-1 rounded-control bg-field px-2 py-0.5 text-[11px] font-medium text-positive">
+          <span className="size-1.5 rounded-full bg-positive" /> private
+        </span>
+        <button onClick={onClose} aria-label="Close" className="ml-auto grid size-8 place-items-center rounded-control text-ink-faint hover:bg-field hover:text-ink">
           <X className="size-4" />
         </button>
       </header>
 
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
-        <div className="rounded-xl border border-border bg-surface-inset p-3 text-[13px] leading-relaxed text-muted">
-          <div className="mb-1 flex items-center gap-1.5 font-medium text-text">
-            <ShieldCheck className="size-4 text-accent" /> Scoped to #{channelName}
+        <div className="rounded-card border border-line bg-paper p-3 text-[13px] leading-relaxed text-ink-mute">
+          <div className="mb-1 flex items-center gap-1.5 font-medium text-ink">
+            <ShieldCheck className="size-4 text-positive" /> Scoped to #{channelName}
           </div>
           Runs locally; reads only this channel's history, never DMs.
         </div>
@@ -70,29 +69,29 @@ export function AiSidePanel({
               key={q.label}
               onClick={() => run(q.type, q.prompt)}
               disabled={busy}
-              className="flex w-full items-center gap-2.5 rounded-lg border border-border bg-surface-raised px-3 py-2.5 text-left text-[13.5px] text-text transition-colors hover:border-[color:var(--accent)]/40 hover:bg-[color:var(--accent-faint)] disabled:opacity-50"
+              className="flex w-full items-center gap-2.5 rounded-control border border-line bg-paper px-3 py-2.5 text-left text-[13px] text-ink transition-colors hover:border-line-strong hover:bg-field disabled:opacity-50"
             >
-              <q.icon className="size-4 shrink-0 text-accent" />
+              <q.icon className="size-4 shrink-0 text-ink-mute" />
               {q.label}
             </button>
           ))}
         </div>
 
         {busy && (
-          <div className="flex items-center gap-2 text-[13px] text-muted">
-            <Loader2 className="size-4 animate-spin text-accent" /> Reading #{channelName}…
+          <div className="flex items-center gap-2 text-[13px] text-ink-mute">
+            <Loader2 className="size-4 animate-spin" /> Reading #{channelName}…
           </div>
         )}
         {answer && (
-          <div className="rounded-xl bg-[color:var(--accent-faint)] p-3">
-            <div className="mb-1.5 font-mono text-[10px] uppercase tracking-wider text-accent">OpenClaw</div>
-            <p className="whitespace-pre-wrap text-[13.5px] leading-relaxed text-text/90">{answer}</p>
+          <div className="rounded-card bg-field p-3">
+            <div className="mb-1.5 font-mono text-[10px] uppercase tracking-wider text-ink-mute">OpenClaw</div>
+            <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-ink">{answer}</p>
           </div>
         )}
       </div>
 
-      <div className="border-t border-border p-3">
-        <div className="flex items-center gap-2 rounded-xl border border-border bg-surface-inset px-3 py-2">
+      <div className="border-t border-line p-3">
+        <div className="flex items-center gap-2 rounded-card border border-line bg-paper px-3 py-2 transition-colors focus-within:border-line-strong focus-within:ring-2 focus-within:ring-[color:var(--st-ring)]">
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -103,7 +102,7 @@ export function AiSidePanel({
               }
             }}
             placeholder="Ask about this channel…"
-            className="min-w-0 flex-1 bg-transparent text-[13.5px] text-text outline-none placeholder:text-faint"
+            className="min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none placeholder:text-ink-faint"
           />
           <button
             onClick={() => {
@@ -113,7 +112,8 @@ export function AiSidePanel({
               }
             }}
             disabled={busy}
-            className="grid size-7 place-items-center rounded-lg bg-accent text-accent-ink hover:bg-accent-bright disabled:opacity-50"
+            aria-label="Ask"
+            className="grid size-7 place-items-center rounded-control bg-ink text-paper hover:bg-ink-hover disabled:opacity-50"
           >
             <ArrowUp className="size-4" />
           </button>

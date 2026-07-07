@@ -1,62 +1,74 @@
-import { useState } from "react";
-import { Search, Hash, ShieldCheck } from "lucide-react";
+import { useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { Hash, ShieldCheck, SearchX } from "lucide-react";
 import { PaneHeader } from "@/components/chat/PaneHeader";
-import { Avatar, Badge, Input } from "@gossip/ui";
-import { memberById } from "@/data/mock";
-
-const results = [
-  { id: "r1", channel: "design", author: "u_mara", body: "Locked the dark theme tokens — near-black canvas with the mint accent reads really premium.", ts: "09:02" },
-  { id: "r2", channel: "engineering", author: "u_kev", body: "Relay seam is in. services/relay is optional — defaults to api.usegossip.com.", ts: "11:20" },
-  { id: "r3", channel: "general", author: "u_me", body: "The AI assistant only reads channels it's added to. It never sees DMs.", ts: "08:41" },
-];
+import { SearchHeader, SearchResultRow, PaneEmptyState } from "@gossip/ui/stack";
+import { useRelay } from "@/stores/useRelay";
+import { formatTime } from "@/lib/utils";
 
 export function SearchPage() {
-  const [q, setQ] = useState("relay");
+  const { workspaceId = "" } = useParams();
+  const nav = useNavigate();
+  const [q, setQ] = useState("");
+  const workspace = useRelay((s) => s.workspace);
+  const messagesByChannel = useRelay((s) => s.messagesByChannel);
+
+  const results = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return [];
+    const channelName = (id: string) => workspace?.channels.find((c) => c.id === id)?.name ?? id;
+    return Object.values(messagesByChannel)
+      .flat()
+      .filter((m) => m.workspaceId === workspaceId && m.body.toLowerCase().includes(needle))
+      .sort((a, b) => b.ts - a.ts)
+      .slice(0, 50)
+      .map((m) => ({ ...m, channelName: channelName(m.channelId) }));
+  }, [q, messagesByChannel, workspace, workspaceId]);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <PaneHeader title="Search" subtitle="Across channels you can access" />
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl px-6 py-6">
-          <Input
-            icon={<Search />}
-            placeholder="Search messages, files, and people…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            className="h-12 text-[15px]"
-          />
-          <div className="mt-3 flex items-center gap-2 rounded-lg bg-[color:var(--accent-faint)] px-3 py-2 text-[12.5px] text-muted">
-            <ShieldCheck className="size-4 shrink-0 text-accent" />
-            Search never includes your end-to-end encrypted DMs — only channel content you already
-            have access to.
-          </div>
+      <SearchHeader
+        value={q}
+        onChange={setQ}
+        placeholder="Search channel messages…"
+      />
+      <div className="flex items-center gap-2 border-b border-line bg-paper-2 px-4 py-2 text-[12.5px] text-ink-mute">
+        <ShieldCheck className="size-4 shrink-0 text-positive" />
+        Search never includes your end-to-end encrypted DMs — only channel content you already have access to.
+      </div>
 
-          <div className="mt-5 space-y-2">
-            <div className="font-mono text-[10px] uppercase tracking-[0.15em] text-faint">
-              {results.length} results
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {q.trim() === "" ? (
+          <PaneEmptyState
+            icon={<SearchX />}
+            title="Search your channels"
+            description="Type above to find messages in the channels of this workspace."
+          />
+        ) : results.length === 0 ? (
+          <PaneEmptyState
+            icon={<SearchX />}
+            title="No matches"
+            description={`Nothing in your loaded channels matches "${q.trim()}". Open a channel to load its history.`}
+          />
+        ) : (
+          <div>
+            <div className="px-4 py-2 font-mono text-[10px] uppercase tracking-[0.15em] text-ink-faint">
+              {results.length} result{results.length === 1 ? "" : "s"}
             </div>
-            {results.map((r) => {
-              const m = memberById(r.author);
-              return (
-                <div key={r.id} className="rounded-xl border border-border bg-surface p-4 hover:border-border-strong">
-                  <div className="mb-1.5 flex items-center gap-2 text-[12.5px] text-muted">
-                    <Badge tone="neutral">
-                      <Hash className="size-3" />
-                      {r.channel}
-                    </Badge>
-                    <span className="text-faint">{r.ts}</span>
-                  </div>
-                  <div className="flex items-start gap-2.5">
-                    <Avatar name={m.displayName} id={m.id} size={28} />
-                    <div>
-                      <span className="font-medium text-text">{m.displayName}</span>
-                      <p className="text-[14px] text-text/80">{r.body}</p>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            {results.map((r) => (
+              <SearchResultRow
+                key={r.id}
+                type="message"
+                icon={<Hash />}
+                meta={`#${r.channelName} · ${r.senderName}`}
+                title={r.body.length > 120 ? r.body.slice(0, 120) + "…" : r.body}
+                time={formatTime(new Date(r.ts))}
+                onClick={() => nav(`/w/${workspaceId}/c/${r.channelId}`)}
+              />
+            ))}
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

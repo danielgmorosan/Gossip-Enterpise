@@ -1,44 +1,64 @@
-import { Server, ShieldAlert, Users, Crown } from "lucide-react";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { ShieldAlert, Crown, LogOut } from "lucide-react";
 import { SettingsPage } from "./SettingsLayout";
 import { SettingGroup, SettingRow } from "./parts";
-import { Avatar, Badge, Button, Field, Input, Toggle } from "@gossip/ui";
-import { members } from "@/data/mock";
+import { Avatar, Button, CopyField, DangerZone, DangerRow, ConfirmDestructiveModal } from "@gossip/ui/stack";
+import { useRelay } from "@/stores/useRelay";
+import { truncateHandle } from "@/lib/utils";
 
 export function WorkspaceSettings() {
-  return (
-    <SettingsPage title="Workspace" desc="Manage your workspace identity, transport, and membership.">
-      <SettingGroup title="General">
-        <div className="space-y-4 px-4 py-4">
-          <Field label="Workspace name">
-            <Input defaultValue="Gossip Labs" />
-          </Field>
-          <Field label="URL slug" hint="Used in invite links.">
-            <Input mono defaultValue="gossip-labs" />
-          </Field>
-        </div>
-      </SettingGroup>
+  const nav = useNavigate();
+  const workspace = useRelay((s) => s.workspace);
+  const myWorkspaces = useRelay((s) => s.myWorkspaces);
+  const leaveWorkspace = useRelay((s) => s.leaveWorkspace);
+  const current = workspace ?? null;
+  const wsId = current?.id ?? myWorkspaces[0]?.id ?? "";
+  const name = current?.name ?? myWorkspaces[0]?.name ?? "—";
+  const code = current?.code ?? myWorkspaces[0]?.code ?? "";
+  const members = current?.members ?? [];
+  const [copied, setCopied] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [typedName, setTypedName] = useState("");
+  const [acknowledged, setAcknowledged] = useState(false);
+  const [leaveError, setLeaveError] = useState<string | null>(null);
 
-      <SettingGroup title="Message transport">
-        <SettingRow
-          label="Relay base URL"
-          desc="Channel transport routes through here. Point it at a self-hosted relay for full data control — E2E DMs are unaffected."
-        >
-          <div className="mt-3 max-w-md">
-            <Input mono icon={<Server />} defaultValue="https://api.usegossip.com" />
-          </div>
-        </SettingRow>
-        <SettingRow
-          label="Self-hosted relay"
-          desc="Run services/relay so the org owns message transport and the channel store."
-          control={<Toggle checked={false} onChange={() => {}} />}
-        />
+  const confirmLeave = async () => {
+    if (typedName.trim() !== name) return;
+    const res = await leaveWorkspace(wsId);
+    if (!res.ok) {
+      setLeaveError(res.error);
+      return;
+    }
+    setConfirming(false);
+    const remaining = useRelay.getState().myWorkspaces;
+    nav(remaining[0] ? `/w/${remaining[0].id}` : "/welcome");
+  };
+
+  return (
+    <SettingsPage title="Workspace" desc="Your workspace identity, transport, and membership.">
+      <SettingGroup title="General">
+        <SettingRow label="Name" desc="Set when the workspace was created." control={<span className="text-[14px] font-medium text-ink">{name}</span>} />
+        <div className="px-4 py-4">
+          <div className="mb-2 text-[14px] font-medium text-ink">Invite code</div>
+          <div className="mb-2 text-[12.5px] text-ink-mute">Share it to let people join this workspace.</div>
+          <CopyField
+            value={copied ? "Copied!" : code || "no invite code"}
+            onCopy={() => {
+              if (!code) return;
+              navigator.clipboard?.writeText(code);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1200);
+            }}
+          />
+        </div>
       </SettingGroup>
 
       <SettingGroup title="Channel privacy">
         <div className="flex items-start gap-3 px-4 py-4">
-          <ShieldAlert className="mt-0.5 size-5 shrink-0 text-warning" />
-          <p className="text-[13px] leading-relaxed text-muted">
-            <span className="font-medium text-text">Channels are workspace-confidential, not E2E in v1.</span>{" "}
+          <ShieldAlert className="mt-0.5 size-5 shrink-0 text-ink-mute" />
+          <p className="text-[13px] leading-relaxed text-ink-mute">
+            <span className="font-medium text-ink">Channels are workspace-confidential, not E2E in v1.</span>{" "}
             Transport is TLS and contents persist to the relay store. DMs remain end-to-end
             encrypted. A group-E2E upgrade (fan-out → MLS) is on the roadmap.
           </p>
@@ -46,30 +66,66 @@ export function WorkspaceSettings() {
       </SettingGroup>
 
       <SettingGroup title={`Members · ${members.length}`}>
-        {members.slice(0, 4).map((m) => (
+        {members.map((m) => (
           <SettingRow
-            key={m.id}
+            key={m.userId}
             label={
               <div className="flex items-center gap-3">
-                <Avatar name={m.displayName} id={m.id} size={32} presence={m.presence} />
+                <Avatar name={m.name} id={m.userId} className="!size-8 !text-[12px]" />
                 <div>
-                  <div className="flex items-center gap-1.5 text-[14px] font-medium text-text">
-                    {m.displayName}
-                    {m.role === "owner" && <Crown className="size-3.5 text-accent" />}
+                  <div className="flex items-center gap-1.5 text-[14px] font-medium text-ink">
+                    {m.name}
+                    {m.role === "owner" && <Crown className="size-3.5 text-ink-mute" />}
                   </div>
-                  <div className="font-mono text-[11px] text-faint">{m.handle.slice(0, 18)}…</div>
+                  <div className="font-mono text-[11px] text-ink-faint">{truncateHandle(m.userId, 14, 6)}</div>
                 </div>
               </div>
             }
-            control={<Badge tone="neutral" className="capitalize">{m.role}</Badge>}
+            control={<span className="rounded-control bg-field px-2 py-0.5 text-[11px] font-medium capitalize text-ink-mute">{m.role}</span>}
           />
         ))}
-        <div className="px-4 py-3">
-          <Button variant="secondary" size="sm">
-            <Users className="size-4" /> Manage all members
-          </Button>
-        </div>
+        {members.length === 0 && (
+          <div className="px-4 py-6 text-center text-[13px] text-ink-faint">
+            Open the workspace to load its member list.
+          </div>
+        )}
       </SettingGroup>
+
+      {wsId && (
+        <DangerZone>
+          <DangerRow
+            label="Leave this workspace"
+            description="Removes you from the member list and from this device. Rejoin anytime with the invite code."
+            action={
+              <Button variant="danger" size="sm" onClick={() => { setTypedName(""); setAcknowledged(false); setLeaveError(null); setConfirming(true); }}>
+                <LogOut className="size-4" /> Leave
+              </Button>
+            }
+          />
+        </DangerZone>
+      )}
+
+      {confirming && (
+        <ConfirmDestructiveModal
+          title={`Leave ${name}?`}
+          description={
+            <>
+              You'll be removed from the member list and this workspace disappears from your
+              sidebar. Your channel messages stay. You can rejoin with the invite code.
+              {leaveError && <span className="mt-2 block text-negative">{leaveError}</span>}
+            </>
+          }
+          codeLabel={`Type the workspace name (${name}) to confirm`}
+          codeValue={typedName}
+          onCodeChange={setTypedName}
+          acknowledgeLabel="I understand I'll need an invite code to rejoin."
+          acknowledged={acknowledged}
+          onAcknowledgeChange={setAcknowledged}
+          confirmLabel="Leave workspace"
+          onConfirm={confirmLeave}
+          onClose={() => setConfirming(false)}
+        />
+      )}
     </SettingsPage>
   );
 }

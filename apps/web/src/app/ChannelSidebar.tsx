@@ -13,7 +13,7 @@ import {
   Copy,
   Check,
 } from "lucide-react";
-import { Avatar, Badge } from "@gossip/ui";
+import { Avatar, NavBadge } from "@gossip/ui/stack";
 import { cn, truncateHandle } from "@/lib/utils";
 import { useContacts } from "@/stores/useContacts";
 import { useSession } from "@/stores/useSession";
@@ -21,6 +21,7 @@ import { useRelay } from "@/stores/useRelay";
 import { NewDmDialog } from "@/components/chat/NewDmDialog";
 import { CreateChannelDialog } from "@/components/chat/CreateChannelDialog";
 
+/** NavLink styled like the Stack kit's NavItem (kept as a real link for router semantics). */
 function Row({
   to,
   active,
@@ -35,10 +36,11 @@ function Row({
       to={to}
       className={({ isActive }) =>
         cn(
-          "group flex items-center gap-2 rounded-lg px-2.5 py-[7px] text-[14px] transition-colors",
+          "flex w-full items-center gap-2 rounded-control px-2 py-1.5 text-[13px] transition-colors outline-none",
+          "focus-visible:ring-2 focus-visible:ring-[color:var(--st-ring)]",
           isActive || active
-            ? "bg-[color:var(--accent-faint)] text-text font-medium"
-            : "text-muted hover:bg-surface-raised hover:text-text",
+            ? "bg-field font-medium text-ink"
+            : "text-ink-mute hover:bg-field/60 hover:text-ink",
         )
       }
     >
@@ -50,12 +52,12 @@ function Row({
 function GroupLabel({ label, open, onToggle, onAdd }: { label: string; open: boolean; onToggle: () => void; onAdd?: () => void }) {
   return (
     <div className="flex items-center gap-1 px-2 pb-1 pt-3">
-      <button onClick={onToggle} className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-faint hover:text-muted">
+      <button onClick={onToggle} className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-ink-faint hover:text-ink-mute">
         <ChevronDown className={cn("size-3 transition-transform", !open && "-rotate-90")} />
         {label}
       </button>
       {onAdd && (
-        <button onClick={onAdd} className="ml-auto grid size-5 place-items-center rounded text-faint hover:bg-surface-raised hover:text-text">
+        <button onClick={onAdd} className="ml-auto grid size-5 place-items-center rounded text-ink-faint hover:bg-field hover:text-ink">
           <Plus className="size-3.5" />
         </button>
       )}
@@ -86,11 +88,11 @@ export function ChannelSidebar() {
   }, [sessionStatus, refreshContacts]);
 
   return (
-    <aside className="flex h-full w-[264px] shrink-0 flex-col border-r border-border bg-surface">
+    <aside className="flex h-full w-[264px] shrink-0 flex-col border-r border-line bg-paper-2 font-stack">
       {/* Workspace header */}
-      <div className="flex items-center gap-2 border-b border-border px-3 py-3">
+      <div className="flex items-center gap-2 border-b border-line px-3 py-3">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 font-display text-[15px] font-bold text-text">
+          <div className="flex items-center gap-1.5 text-[14px] font-semibold text-ink">
             <span className="truncate">{workspace?.name ?? "Workspace"}</span>
           </div>
           {workspace?.code && (
@@ -100,34 +102,34 @@ export function ChannelSidebar() {
                 setCopiedCode(true);
                 setTimeout(() => setCopiedCode(false), 1500);
               }}
-              className="mt-0.5 inline-flex items-center gap-1 font-mono text-[10px] text-faint hover:text-accent"
+              className="mt-0.5 inline-flex items-center gap-1 font-mono text-[10px] text-ink-faint hover:text-ink"
               title="Copy invite code"
             >
               invite: {workspace.code}
-              {copiedCode ? <Check className="size-3 text-accent" /> : <Copy className="size-3" />}
+              {copiedCode ? <Check className="size-3 text-positive" /> : <Copy className="size-3" />}
             </button>
           )}
         </div>
-        <Badge tone="accent" className="shrink-0" dot>
-          E2E DMs
-        </Badge>
+        <span className="inline-flex shrink-0 items-center gap-1 rounded-control bg-field px-2 py-0.5 text-[11px] font-medium text-positive">
+          <span className="size-1.5 rounded-full bg-positive" /> E2E DMs
+        </span>
       </div>
 
       {/* Quick nav */}
       <div className="space-y-0.5 px-2 pt-2">
         <Row to={`${base}/ai`}>
-          <Sparkles className="size-4 text-accent" />
+          <Sparkles className="size-4 shrink-0" />
           <span>OpenClaw AI</span>
-          <Badge tone="accent" className="ml-auto py-0">local</Badge>
+          <NavBadge>local</NavBadge>
         </Row>
         <Row to={`${base}/members`}>
-          <Users className="size-4 text-faint" /> Members
+          <Users className="size-4 shrink-0" /> Members
         </Row>
         <Row to={`${base}/threads`}>
-          <MessagesSquare className="size-4 text-faint" /> Threads
+          <MessagesSquare className="size-4 shrink-0" /> Threads
         </Row>
         <Row to={`${base}/search`}>
-          <Search className="size-4 text-faint" /> Search
+          <Search className="size-4 shrink-0" /> Search
         </Row>
       </div>
 
@@ -137,12 +139,12 @@ export function ChannelSidebar() {
         {showCh &&
           channels.map((c) => (
             <Row key={c.id} to={`${base}/c/${c.id}`} active={c.id === channelId}>
-              {c.type === "private" ? <Lock className="size-4 shrink-0 text-faint" /> : <Hash className="size-4 shrink-0 text-faint" />}
+              {c.type === "private" ? <Lock className="size-4 shrink-0" /> : <Hash className="size-4 shrink-0" />}
               <span className="truncate">{c.name}</span>
             </Row>
           ))}
         {showCh && channels.length === 0 && (
-          <button onClick={() => setNewChannel(true)} className="mt-1 flex w-full items-center gap-2 rounded-lg px-2.5 py-[7px] text-[13px] text-faint hover:bg-surface-raised hover:text-text">
+          <button onClick={() => setNewChannel(true)} className="mt-1 flex w-full items-center gap-2 rounded-control px-2 py-1.5 text-[13px] text-ink-faint hover:bg-field hover:text-ink">
             <Plus className="size-4" /> Create a channel
           </button>
         )}
@@ -151,28 +153,28 @@ export function ChannelSidebar() {
         <GroupLabel label="Direct messages" open={showDm} onToggle={() => setShowDm((v) => !v)} onAdd={() => setNewDm(true)} />
         {showDm && (
           <Row to={`${base}/dm/dm_self`} active={dmId === "dm_self"}>
-            <span className="grid size-5 shrink-0 place-items-center rounded-full bg-accent text-accent-ink">
+            <span className="grid size-5 shrink-0 place-items-center rounded-full bg-ink text-paper">
               <ShieldCheck className="size-3" />
             </span>
             <span className="min-w-0 flex-1 truncate">Notes to Self</span>
-            <Badge tone="accent" className="ml-auto py-0">live</Badge>
+            <NavBadge>live</NavBadge>
           </Row>
         )}
         {showDm &&
           contacts.map((c) => (
             <Row key={c.userId} to={`${base}/dm/${encodeURIComponent(c.userId)}`} active={dmId === c.userId}>
-              <Avatar name={c.name} id={c.userId} size={20} />
+              <Avatar name={c.name} id={c.userId} size="sm" />
               <span className="min-w-0 flex-1 truncate">{c.name}</span>
-              <ShieldCheck className="size-3 shrink-0 text-accent/60" />
+              <ShieldCheck className="size-3 shrink-0 text-positive/70" />
             </Row>
           ))}
         {showDm && contacts.length === 0 && (
-          <button onClick={() => setNewDm(true)} className="mt-1 flex w-full items-center gap-2 rounded-lg px-2.5 py-[7px] text-[13px] text-faint hover:bg-surface-raised hover:text-text">
+          <button onClick={() => setNewDm(true)} className="mt-1 flex w-full items-center gap-2 rounded-control px-2 py-1.5 text-[13px] text-ink-faint hover:bg-field hover:text-ink">
             <Plus className="size-4" /> New message
           </button>
         )}
 
-        <div className="mt-2 px-2.5 py-2 font-mono text-[10px] leading-relaxed text-faint">
+        <div className="mt-2 px-2.5 py-2 font-mono text-[10px] leading-relaxed text-ink-faint">
           {sessionStatus === "open" ? truncateHandle(useSession.getState().userId ?? "", 12, 6) : "session locked"}
         </div>
       </div>

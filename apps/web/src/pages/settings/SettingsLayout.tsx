@@ -1,7 +1,8 @@
 import { NavLink, Outlet, Link } from "react-router-dom";
 import { User, Building2, Plug, Cpu, ShieldCheck, Bell, Palette, ArrowLeft } from "lucide-react";
-import { GossipMark } from "@gossip/ui";
+import { BrandLogo } from "@gossip/ui/stack";
 import { cn } from "@/lib/utils";
+import { useRelay } from "@/stores/useRelay";
 
 const groups = [
   {
@@ -24,21 +25,24 @@ const groups = [
 ];
 
 export function SettingsLayout() {
+  const myWorkspaces = useRelay((s) => s.myWorkspaces);
+  const backTo = myWorkspaces[0] ? `/w/${myWorkspaces[0].id}` : "/welcome";
+
   return (
-    <div className="relative z-10 flex h-screen w-screen overflow-hidden">
-      <aside className="flex w-[280px] shrink-0 flex-col border-r border-border bg-surface">
-        <div className="flex items-center gap-2.5 border-b border-border px-4 py-4">
-          <GossipMark size={32} />
+    <div className="relative z-10 flex h-screen w-screen overflow-hidden bg-paper font-stack text-ink">
+      <aside className="flex w-[260px] shrink-0 flex-col border-r border-line bg-paper-2">
+        <div className="flex items-center gap-2.5 border-b border-line px-4 py-4">
+          <BrandLogo src="/icon-mark.png" height={24} />
           <div>
-            <div className="font-display text-[15px] font-bold text-text">Settings</div>
-            <div className="text-[11px] text-faint">Gossip Labs</div>
+            <div className="text-[14px] font-semibold text-ink">Settings</div>
+            <div className="text-[11px] text-ink-faint">{myWorkspaces[0]?.name ?? "Gossip"}</div>
           </div>
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           {groups.map((g) => (
             <div key={g.label} className="mb-5">
-              <div className="px-2 pb-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-faint">
+              <div className="mb-1 px-2 text-[11px] font-medium uppercase tracking-wider text-ink-faint">
                 {g.label}
               </div>
               <div className="space-y-0.5">
@@ -48,10 +52,11 @@ export function SettingsLayout() {
                     to={it.to}
                     className={({ isActive }) =>
                       cn(
-                        "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[14px] transition-colors",
+                        "flex items-center gap-2.5 rounded-control px-2.5 py-1.5 text-[13px] transition-colors outline-none",
+                        "focus-visible:ring-2 focus-visible:ring-[color:var(--st-ring)]",
                         isActive
-                          ? "bg-[color:var(--accent-faint)] font-medium text-text"
-                          : "text-muted hover:bg-surface-raised hover:text-text",
+                          ? "bg-field font-medium text-ink"
+                          : "text-ink-mute hover:bg-field/60 hover:text-ink",
                       )
                     }
                   >
@@ -65,14 +70,14 @@ export function SettingsLayout() {
         </nav>
 
         <Link
-          to="/w/w_gossip/c/c_design"
-          className="m-3 flex items-center gap-2 rounded-lg border border-border px-3 py-2.5 text-[13.5px] text-muted hover:bg-surface-raised hover:text-text"
+          to={backTo}
+          className="m-3 flex items-center gap-2 rounded-control border border-line px-3 py-2.5 text-[13px] text-ink-mute transition-colors hover:bg-field hover:text-ink"
         >
           <ArrowLeft className="size-4" /> Back to workspace
         </Link>
       </aside>
 
-      <main className="min-w-0 flex-1 overflow-y-auto bg-canvas">
+      <main className="min-w-0 flex-1 overflow-y-auto bg-paper">
         <div className="mx-auto max-w-3xl px-8 py-10">
           <Outlet />
         </div>
@@ -91,9 +96,9 @@ export function SettingsPage({
   children: React.ReactNode;
 }) {
   return (
-    <div className="animate-rise">
-      <h1 className="font-display text-[26px] font-bold tracking-tight text-text">{title}</h1>
-      {desc && <p className="mt-1 text-[14px] text-muted">{desc}</p>}
+    <div>
+      <h1 className="text-2xl font-bold tracking-tight text-ink">{title}</h1>
+      {desc && <p className="mt-1.5 text-[14px] text-ink-mute">{desc}</p>}
       <div className="mt-8 space-y-6">{children}</div>
     </div>
   );

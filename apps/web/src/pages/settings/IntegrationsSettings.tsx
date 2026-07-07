@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Mail, Calendar, FileText, NotebookPen, Video, ShieldCheck, ShieldAlert, Monitor, Ban, Check } from "lucide-react";
+import { Mail, Calendar, FileText, NotebookPen, Video, ShieldCheck, ShieldAlert } from "lucide-react";
 import { SettingsPage } from "./SettingsLayout";
-import { Badge, Button, Segmented } from "@gossip/ui";
+import { SearchFilterTabs } from "@gossip/ui/stack";
 import { integrations, type IntegrationDef } from "@/data/mock";
 import { cn } from "@/lib/utils";
 
@@ -13,36 +13,25 @@ const kindMeta = {
   notes: { icon: NotebookPen, label: "Notes" },
 } as const;
 
-const privacyMeta: Record<IntegrationDef["privacy"], { label: string; tone: "accent" | "info" | "warning" }> = {
-  "self-hosted": { label: "self-hosted", tone: "accent" },
-  e2e: { label: "end-to-end", tone: "accent" },
-  standards: { label: "open standard", tone: "info" },
-  bridge: { label: "bridge", tone: "warning" },
+const privacyMeta: Record<IntegrationDef["privacy"], string> = {
+  "self-hosted": "self-hosted",
+  e2e: "end-to-end",
+  standards: "open standard",
+  bridge: "bridge",
 };
 
-function StatusButton({ status }: { status: IntegrationDef["status"] }) {
-  if (status === "connected")
-    return (
-      <Button variant="secondary" size="sm">
-        <Check className="size-4 text-accent" /> Connected
-      </Button>
-    );
-  if (status === "available") return <Button size="sm">Connect</Button>;
-  if (status === "desktop-only")
-    return (
-      <Button variant="outline" size="sm" disabled>
-        <Monitor className="size-4" /> Desktop only
-      </Button>
-    );
+function StatusPill({ status }: { status: IntegrationDef["status"] }) {
+  const label =
+    status === "desktop-only" ? "desktop only" : status === "unavailable" ? "unavailable" : "planned";
   return (
-    <Button variant="outline" size="sm" disabled>
-      <Ban className="size-4" /> Unavailable
-    </Button>
+    <span className="rounded-control bg-field px-2 py-0.5 text-[11px] font-medium text-ink-mute">
+      {label}
+    </span>
   );
 }
 
 export function IntegrationsSettings() {
-  const [filter, setFilter] = useState<"all" | IntegrationDef["kind"]>("all");
+  const [filter, setFilter] = useState<string>("all");
   const list = integrations.filter((i) => filter === "all" || i.kind === filter);
 
   return (
@@ -51,64 +40,57 @@ export function IntegrationsSettings() {
       desc="Privacy-respecting mini-apps. We build against open protocols, so your own provider drops in."
     >
       {/* Design principle banner */}
-      <div className="flex items-start gap-3 rounded-xl border border-[color:var(--accent)]/25 bg-[color:var(--accent-faint)] p-4">
-        <ShieldCheck className="mt-0.5 size-5 shrink-0 text-accent" />
-        <p className="text-[13px] leading-relaxed text-muted">
-          <span className="font-medium text-text">The sweet spot is self-hostable open source:</span>{" "}
+      <div className="flex items-start gap-3 rounded-card border border-line bg-paper-2 p-4">
+        <ShieldCheck className="mt-0.5 size-5 shrink-0 text-positive" />
+        <p className="text-[13px] leading-relaxed text-ink-mute">
+          <span className="font-medium text-ink">The sweet spot is self-hostable open source:</span>{" "}
           you run the server, so you own the data and still get a real API. Closed E2E suites
           (Proton, Tuta) are handled as desktop-bridge special cases — we never promise an API that
           doesn't exist.
         </p>
       </div>
 
-      <Segmented
+      <SearchFilterTabs
         value={filter}
         onChange={setFilter}
-        size="sm"
-        options={[
-          { value: "all", label: "All" },
-          { value: "calls", label: "Calls" },
-          { value: "files", label: "Files" },
-          { value: "mail", label: "Mail" },
-          { value: "calendar", label: "Calendar" },
-          { value: "notes", label: "Notes" },
+        items={[
+          { id: "all", label: "All" },
+          { id: "calls", label: "Calls" },
+          { id: "files", label: "Files" },
+          { id: "mail", label: "Mail" },
+          { id: "calendar", label: "Calendar" },
+          { id: "notes", label: "Notes" },
         ]}
       />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {list.map((it) => {
           const Kind = kindMeta[it.kind].icon;
-          const pm = privacyMeta[it.privacy];
           const dim = it.status === "unavailable" || it.status === "desktop-only";
           return (
             <div
               key={it.id}
               className={cn(
-                "flex flex-col rounded-2xl border border-border bg-surface-raised/60 p-4",
-                dim && "opacity-75",
+                "flex flex-col rounded-card border border-line bg-paper p-4",
+                dim && "opacity-70",
               )}
             >
               <div className="flex items-start justify-between">
-                <span className="grid size-10 place-items-center rounded-xl bg-surface-inset text-accent">
+                <span className="grid size-10 place-items-center rounded-control bg-field text-ink">
                   <Kind className="size-5" />
                 </span>
-                <Badge tone={pm.tone}>
+                <span className="inline-flex items-center gap-1 rounded-control bg-field px-2 py-0.5 text-[11px] font-medium text-ink-mute">
                   {it.privacy === "bridge" ? <ShieldAlert className="size-3" /> : <ShieldCheck className="size-3" />}
-                  {pm.label}
-                </Badge>
+                  {privacyMeta[it.privacy]}
+                </span>
               </div>
               <div className="mt-3 flex items-center gap-2">
-                <span className="font-display text-[15px] font-bold text-text">{it.name}</span>
+                <span className="text-[15px] font-semibold text-ink">{it.name}</span>
               </div>
-              <div className="font-mono text-[10.5px] text-faint">{it.protocol}</div>
-              <p className="mt-1.5 flex-1 text-[13px] leading-relaxed text-muted">{it.blurb}</p>
-              <div className="mt-3 flex items-center justify-between">
-                {it.note ? (
-                  <span className="font-mono text-[10.5px] text-accent">{it.note}</span>
-                ) : (
-                  <span />
-                )}
-                <StatusButton status={it.status} />
+              <div className="font-mono text-[10.5px] text-ink-faint">{it.protocol}</div>
+              <p className="mt-1.5 flex-1 text-[13px] leading-relaxed text-ink-mute">{it.blurb}</p>
+              <div className="mt-3 flex items-center justify-end">
+                <StatusPill status={it.status} />
               </div>
             </div>
           );

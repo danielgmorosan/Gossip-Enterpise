@@ -15,19 +15,19 @@ export function PaneHeader({
   actions?: ReactNode;
 }) {
   return (
-    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-canvas/80 px-4 backdrop-blur">
+    <header className="flex h-12 shrink-0 items-center gap-3 border-b border-line bg-paper px-4">
       <div className="flex min-w-0 items-center gap-2">
         {icon}
-        <h1 className="truncate font-display text-[16px] font-bold text-text">{title}</h1>
+        <h1 className="truncate text-[15px] font-semibold text-ink">{title}</h1>
         {badge}
       </div>
       {subtitle && (
         <>
-          <div className="h-4 w-px bg-border" />
-          <div className="hidden min-w-0 truncate text-[13px] text-muted md:block">{subtitle}</div>
+          <div className="h-4 w-px bg-line" />
+          <div className="hidden min-w-0 truncate text-[13px] text-ink-mute md:block">{subtitle}</div>
         </>
       )}
-      <div className="ml-auto flex items-center gap-1.5">{actions}</div>
+      <div className="ml-auto flex items-center gap-1">{actions}</div>
     </header>
   );
 }
@@ -46,12 +46,14 @@ export function HeaderIconButton({
   return (
     <button
       title={label}
+      aria-label={label}
       onClick={onClick}
       className={cn(
-        "grid size-9 place-items-center rounded-lg border transition-colors",
+        "grid size-8 place-items-center rounded-control transition-colors outline-none",
+        "focus-visible:ring-2 focus-visible:ring-[color:var(--st-ring)]",
         active
-          ? "border-[color:var(--accent)]/40 bg-[color:var(--accent-faint)] text-accent"
-          : "border-transparent text-muted hover:border-border hover:bg-surface-raised hover:text-text",
+          ? "bg-field text-ink"
+          : "text-ink-faint hover:bg-field hover:text-ink",
       )}
     >
       {children}
