@@ -92,9 +92,12 @@ function GossipMarkPattern() {
 export function DecorPanel({
   children,
   className,
+  align = "center",
 }: {
   children?: ReactNode;
   className?: string;
+  /** Horizontal placement of `children` in the panel. Defaults to centered. */
+  align?: "center" | "start";
 }) {
   return (
     <div
@@ -106,7 +109,14 @@ export function DecorPanel({
     >
       <GossipMarkPattern />
       {children && (
-        <div className="relative flex h-full items-center justify-center p-12">{children}</div>
+        <div
+          className={cn(
+            "relative flex h-full p-12",
+            align === "start" ? "items-start justify-start" : "items-center justify-center",
+          )}
+        >
+          {children}
+        </div>
       )}
     </div>
   );
@@ -163,7 +173,11 @@ export function AuthLayout({
     <div className="flex min-h-dvh flex-col bg-paper font-stack text-ink">
       <div className="grid flex-1 lg:grid-cols-2">
         <div className="flex flex-col">
-          {brand && <header className="p-7">{brand}</header>}
+          {brand && (
+            <header className="px-6 pt-7">
+              <div className="mx-auto w-full max-w-[400px]">{brand}</div>
+            </header>
+          )}
           <main className="flex flex-1 items-center justify-center px-6 py-10">
             <div className="w-full max-w-[400px]">{children}</div>
           </main>

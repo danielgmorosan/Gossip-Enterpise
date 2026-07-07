@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { ArrowRight, Fingerprint, KeyRound, Loader2 } from "lucide-react";
-import { Button, Field, Input } from "@gossip/ui";
-import { GossipMark } from "@gossip/ui";
+import { ArrowRight, Fingerprint, Loader2 } from "lucide-react";
+import { Field, PasswordInput, Button, LabeledDivider, textLinkClass } from "@gossip/ui/stack";
 import { useSession } from "@/stores/useSession";
 import { useRelay } from "@/stores/useRelay";
 import { validateMnemonic } from "@/lib/sdk";
@@ -36,24 +35,22 @@ export function IdentityUnlock() {
 
   return (
     <div>
-      <div className="mb-6 flex flex-col items-center text-center">
-        <GossipMark size={56} className="glow-accent" />
-        <h2 className="mt-4 font-display text-[26px] font-bold tracking-tight text-text">Welcome back</h2>
-        <p className="mt-1 font-mono text-[12px] text-faint">Enter your recovery passphrase to unlock</p>
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold tracking-tight text-ink">Welcome back</h1>
+        <p className="mt-1.5 text-[14px] text-ink-mute">Enter your recovery passphrase to unlock</p>
       </div>
 
-      <form onSubmit={submit} className="space-y-4">
+      <form onSubmit={submit} className="space-y-5">
         <Field label="Passphrase" hint="Your 12-word BIP39 recovery phrase.">
-          <Input
-            type="password"
+          <PasswordInput
             placeholder="word word word …"
-            icon={<KeyRound />}
             autoFocus
             value={passphrase}
             onChange={(e) => setPassphrase(e.target.value)}
+            invalid={!!error}
           />
         </Field>
-        {error && <p className="text-[13px] text-danger">{error}</p>}
+        {error && <p className="text-sm text-negative">{error}</p>}
         <Button block size="lg" type="submit" disabled={busy}>
           {busy ? (
             <>
@@ -67,23 +64,20 @@ export function IdentityUnlock() {
         </Button>
       </form>
 
-      <div className="my-5 flex items-center gap-3">
-        <div className="h-px flex-1 bg-border" />
-        <span className="text-[12px] text-faint">or</span>
-        <div className="h-px flex-1 bg-border" />
-      </div>
+      <LabeledDivider label="or" className="my-6" />
 
       <button
+        type="button"
         disabled
         title="Available on the desktop/mobile build"
-        className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-border bg-surface-raised py-3 text-[14px] font-medium text-muted opacity-60"
+        className="flex w-full items-center justify-center gap-2.5 rounded-control border border-line bg-field py-3 text-[14px] font-medium text-ink-mute opacity-60"
       >
-        <Fingerprint className="size-5 text-accent" /> Unlock with biometrics
+        <Fingerprint className="size-5" /> Unlock with biometrics
       </button>
 
-      <p className="mt-6 text-center text-[13px] text-muted">
+      <p className="mt-6 text-center text-[14px] text-ink-mute">
         Use a different identity?{" "}
-        <Link to="/welcome" className="font-medium text-accent hover:underline">
+        <Link to="/welcome" className={textLinkClass}>
           Start over
         </Link>
       </p>

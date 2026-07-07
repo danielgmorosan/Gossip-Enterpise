@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Copy, RefreshCw, Check, ShieldCheck, Eye, EyeOff, Loader2 } from "lucide-react";
-import { Button, Field, Input } from "@gossip/ui";
+import { Button, Field, Input } from "@gossip/ui/stack";
 import { cn } from "@/lib/utils";
 import { useSession } from "@/stores/useSession";
 
@@ -43,16 +43,16 @@ export function IdentityCreate() {
 
   return (
     <div>
-      <Link to="/welcome" className="mb-5 inline-flex items-center gap-1.5 text-[13px] text-muted hover:text-text">
+      <Link to="/welcome" className="mb-5 inline-flex items-center gap-1.5 text-[13px] text-ink-mute hover:text-ink">
         <ArrowLeft className="size-4" /> Back
       </Link>
 
-      <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-faint">Step 1 of 2 · Identity</div>
-      <h2 className="mt-1 font-display text-[28px] font-bold tracking-tight text-text">
+      <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-ink-faint">Step 1 of 2 · Identity</div>
+      <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink">
         Your recovery passphrase
-      </h2>
-      <p className="mt-1.5 text-[14px] leading-relaxed text-muted">
-        This 12-word phrase <span className="text-text">is</span> your identity. There's no email to
+      </h1>
+      <p className="mt-1.5 text-[14px] leading-relaxed text-ink-mute">
+        This 12-word phrase <span className="text-ink">is</span> your identity. There's no email to
         reset it — write it down and keep it offline.
       </p>
 
@@ -63,20 +63,20 @@ export function IdentityCreate() {
       </div>
 
       <div className="relative mt-6">
-        <div className={cn("grid grid-cols-3 gap-2 rounded-2xl border border-border bg-surface-inset p-3", !revealed && "blur-sm select-none")}>
+        <div className={cn("grid grid-cols-3 gap-2 rounded-card border border-line bg-field p-3", !revealed && "blur-sm select-none")}>
           {WORDS.map((w, i) => (
-            <div key={i} className="flex items-center gap-2 rounded-lg bg-surface px-2.5 py-2">
-              <span className="font-mono text-[11px] text-faint">{String(i + 1).padStart(2, "0")}</span>
-              <span className="font-mono text-[13px] text-text">{w}</span>
+            <div key={i} className="flex items-center gap-2 rounded-control bg-paper px-2.5 py-2">
+              <span className="font-mono text-[11px] text-ink-faint">{String(i + 1).padStart(2, "0")}</span>
+              <span className="font-mono text-[13px] text-ink">{w}</span>
             </div>
           ))}
         </div>
         {!revealed && (
           <button
             onClick={() => setRevealed(true)}
-            className="absolute inset-0 grid place-items-center rounded-2xl"
+            className="absolute inset-0 grid place-items-center rounded-card"
           >
-            <span className="inline-flex items-center gap-2 rounded-xl bg-surface-raised px-4 py-2 text-[13px] font-medium text-text shadow-lg ring-1 ring-border">
+            <span className="inline-flex items-center gap-2 rounded-control bg-paper px-4 py-2 text-[13px] font-medium text-ink shadow-[var(--st-shadow-card)] ring-1 ring-line">
               <Eye className="size-4" /> Tap to reveal
             </span>
           </button>
@@ -89,7 +89,7 @@ export function IdentityCreate() {
           {revealed ? "Hide" : "Reveal"}
         </Button>
         <Button variant="ghost" size="sm" onClick={copy} disabled={!revealed}>
-          {copied ? <Check className="size-4 text-accent" /> : <Copy className="size-4" />}
+          {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
           {copied ? "Copied" : "Copy"}
         </Button>
         <Button variant="ghost" size="sm" disabled={!revealed} onClick={regenerate}>
@@ -97,11 +97,11 @@ export function IdentityCreate() {
         </Button>
       </div>
 
-      <div className="mt-4 rounded-xl bg-[color:var(--accent-faint)] p-3">
+      <div className="mt-4 rounded-card bg-field p-3">
         <div className="flex items-start gap-2.5">
-          <ShieldCheck className="mt-0.5 size-4 shrink-0 text-accent" />
-          <p className="text-[12.5px] leading-relaxed text-muted">
-            Your handle <span className="font-mono text-text">gossip34ngsdf9n…l8dhuj</span> is derived
+          <ShieldCheck className="mt-0.5 size-4 shrink-0 text-ink-mute" />
+          <p className="text-[12.5px] leading-relaxed text-ink-mute">
+            Your handle <span className="font-mono text-ink">gossip34ngsdf9n…l8dhuj</span> is derived
             from this phrase. We never see it.
           </p>
         </div>
@@ -112,18 +112,18 @@ export function IdentityCreate() {
           type="button"
           onClick={() => setSaved((v) => !v)}
           className={cn(
-            "mt-0.5 grid size-5 shrink-0 place-items-center rounded-md border transition-colors",
-            saved ? "border-accent bg-accent text-accent-ink" : "border-border-strong",
+            "mt-0.5 grid size-5 shrink-0 place-items-center rounded-[6px] border transition-colors",
+            saved ? "border-ink bg-ink text-paper" : "border-line-strong",
           )}
         >
           {saved && <Check className="size-3.5" />}
         </button>
-        <span className="text-[13px] text-muted">
+        <span className="text-[13px] text-ink-mute">
           I've saved my recovery passphrase somewhere safe. I understand it cannot be recovered.
         </span>
       </label>
 
-      {error && <p className="mt-4 text-[13px] text-danger">{error}</p>}
+      {error && <p className="mt-4 text-[13px] text-negative">{error}</p>}
 
       <Button block size="lg" className="mt-6" disabled={!saved || !revealed || !name.trim() || busy} onClick={cont}>
         {busy ? (

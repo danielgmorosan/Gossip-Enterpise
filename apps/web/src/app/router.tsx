@@ -27,8 +27,14 @@ import { SecuritySettings } from "@/pages/settings/SecuritySettings";
 import { NotificationsSettings } from "@/pages/settings/NotificationsSettings";
 import { AppearanceSettings } from "@/pages/settings/AppearanceSettings";
 
+/** Returning visitors (identity created on this browser before) land on unlock, not welcome. */
+function Entry() {
+  const hasIdentity = !!localStorage.getItem("gossip-display-name");
+  return <Navigate to={hasIdentity ? "/identity/unlock" : "/welcome"} replace />;
+}
+
 export const router = createBrowserRouter([
-  { path: "/", element: <Navigate to="/welcome" replace /> },
+  { path: "/", element: <Entry /> },
   { path: "/dev/sdk-smoke", element: <SdkSmoke /> },
   { path: "/dev", element: <Navigate to="/dev/styleguide" replace /> },
   { path: "/dev/styleguide", element: <Styleguide /> },
