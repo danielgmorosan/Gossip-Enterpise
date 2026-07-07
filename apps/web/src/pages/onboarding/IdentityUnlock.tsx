@@ -5,6 +5,7 @@ import { Field, PasswordInput, Button, LabeledDivider, textLinkClass } from "@go
 import { useSession } from "@/stores/useSession";
 import { useRelay } from "@/stores/useRelay";
 import { validateMnemonic } from "@/lib/sdk";
+import { peekPendingInvite } from "@/lib/invite";
 
 export function IdentityUnlock() {
   const nav = useNavigate();
@@ -14,6 +15,10 @@ export function IdentityUnlock() {
   const [error, setError] = useState<string | null>(null);
 
   const goToApp = () => {
+    if (peekPendingInvite()) {
+      nav("/workspace/join"); // invite link pending — finish the join, prefilled
+      return;
+    }
     const mine = useRelay.getState().myWorkspaces;
     nav(mine.length > 0 ? `/w/${mine[0].id}` : "/workspace/create");
   };

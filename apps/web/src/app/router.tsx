@@ -8,6 +8,7 @@ import { IdentityCreate } from "@/pages/onboarding/IdentityCreate";
 import { IdentityUnlock } from "@/pages/onboarding/IdentityUnlock";
 import { WorkspaceCreate } from "@/pages/onboarding/WorkspaceCreate";
 import { WorkspaceJoin } from "@/pages/onboarding/WorkspaceJoin";
+import { JoinInvite } from "@/pages/onboarding/JoinInvite";
 import { WorkspaceIndex } from "@/pages/WorkspaceIndex";
 import { ChannelView } from "@/pages/ChannelView";
 import { DMView } from "@/pages/DMView";
@@ -35,6 +36,7 @@ function Entry() {
 
 export const router = createBrowserRouter([
   { path: "/", element: <Entry /> },
+  { path: "/join/:code", element: <JoinInvite /> },
   { path: "/dev/sdk-smoke", element: <SdkSmoke /> },
   { path: "/dev", element: <Navigate to="/dev/styleguide" replace /> },
   { path: "/dev/styleguide", element: <Styleguide /> },

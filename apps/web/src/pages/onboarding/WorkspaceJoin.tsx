@@ -4,12 +4,13 @@ import { ArrowLeft, ArrowRight, Ticket, Loader2 } from "lucide-react";
 import { Button, Field, Input, textLinkClass } from "@gossip/ui/stack";
 import { useSession } from "@/stores/useSession";
 import { useRelay } from "@/stores/useRelay";
+import { peekPendingInvite, clearPendingInvite } from "@/lib/invite";
 
 export function WorkspaceJoin() {
   const nav = useNavigate();
   const status = useSession((s) => s.status);
   const joinWorkspace = useRelay((s) => s.joinWorkspace);
-  const [code, setCode] = useState("");
+  const [code, setCode] = useState(() => peekPendingInvite() ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,8 +25,10 @@ export function WorkspaceJoin() {
     setError(null);
     const res = await joinWorkspace(code.trim());
     setBusy(false);
-    if (res.ok) nav(`/w/${res.workspace.id}`);
-    else setError(res.error);
+    if (res.ok) {
+      clearPendingInvite();
+      nav(`/w/${res.workspace.id}`);
+    } else setError(res.error);
   };
 
   return (

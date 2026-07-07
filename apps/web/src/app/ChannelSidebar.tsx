@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Avatar, NavBadge } from "@gossip/ui/stack";
 import { cn, truncateHandle } from "@/lib/utils";
+import { inviteLink } from "@/lib/invite";
 import { useContacts } from "@/stores/useContacts";
 import { useSession } from "@/stores/useSession";
 import { useRelay } from "@/stores/useRelay";
@@ -98,14 +99,14 @@ export function ChannelSidebar() {
           {workspace?.code && (
             <button
               onClick={() => {
-                navigator.clipboard?.writeText(workspace.code);
+                navigator.clipboard?.writeText(inviteLink(workspace.code));
                 setCopiedCode(true);
                 setTimeout(() => setCopiedCode(false), 1500);
               }}
               className="mt-0.5 inline-flex items-center gap-1 font-mono text-[10px] text-ink-faint hover:text-ink"
-              title="Copy invite code"
+              title="Copy invite link"
             >
-              invite: {workspace.code}
+              {copiedCode ? "link copied!" : `invite: ${workspace.code}`}
               {copiedCode ? <Check className="size-3 text-positive" /> : <Copy className="size-3" />}
             </button>
           )}

@@ -6,6 +6,7 @@ import { useRelay } from "@/stores/useRelay";
 import { useSession } from "@/stores/useSession";
 import { truncateHandle } from "@/lib/utils";
 import { useStartDm } from "@/lib/useStartDm";
+import { inviteLink } from "@/lib/invite";
 
 export function MembersPage() {
   const workspace = useRelay((s) => s.workspace);
@@ -26,13 +27,13 @@ export function MembersPage() {
               size="sm"
               variant="outline"
               onClick={() => {
-                navigator.clipboard?.writeText(workspace.code);
+                navigator.clipboard?.writeText(inviteLink(workspace.code));
                 setCopied(true);
                 setTimeout(() => setCopied(false), 1500);
               }}
             >
               {copied ? <Check className="size-4" /> : <UserPlus className="size-4" />}
-              {copied ? "Copied" : `Invite · ${workspace.code}`}
+              {copied ? "Link copied" : "Copy invite link"}
             </Button>
           ) : undefined
         }

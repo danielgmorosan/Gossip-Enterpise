@@ -6,6 +6,7 @@ import { SettingGroup, SettingRow } from "./parts";
 import { Avatar, Button, CopyField, DangerZone, DangerRow, ConfirmDestructiveModal } from "@gossip/ui/stack";
 import { useRelay } from "@/stores/useRelay";
 import { truncateHandle } from "@/lib/utils";
+import { inviteLink } from "@/lib/invite";
 
 export function WorkspaceSettings() {
   const nav = useNavigate();
@@ -40,13 +41,15 @@ export function WorkspaceSettings() {
       <SettingGroup title="General">
         <SettingRow label="Name" desc="Set when the workspace was created." control={<span className="text-[14px] font-medium text-ink">{name}</span>} />
         <div className="px-4 py-4">
-          <div className="mb-2 text-[14px] font-medium text-ink">Invite code</div>
-          <div className="mb-2 text-[12.5px] text-ink-mute">Share it to let people join this workspace.</div>
+          <div className="mb-2 text-[14px] font-medium text-ink">Invite link</div>
+          <div className="mb-2 text-[12.5px] text-ink-mute">
+            Anyone with this link lands in the join flow with the code ({code || "—"}) prefilled.
+          </div>
           <CopyField
-            value={copied ? "Copied!" : code || "no invite code"}
+            value={copied ? "Copied!" : code ? inviteLink(code) : "no invite code"}
             onCopy={() => {
               if (!code) return;
-              navigator.clipboard?.writeText(code);
+              navigator.clipboard?.writeText(inviteLink(code));
               setCopied(true);
               setTimeout(() => setCopied(false), 1200);
             }}
