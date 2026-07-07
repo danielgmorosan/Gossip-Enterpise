@@ -65,6 +65,7 @@ interface RelayState {
   rememberWorkspace: (w: MyWorkspace) => void;
   createWorkspace: (name: string) => Promise<{ ok: true; workspace: RelayWorkspace } | { ok: false; error: string }>;
   joinWorkspace: (key: string) => Promise<{ ok: true; workspace: RelayWorkspace } | { ok: false; error: string }>;
+  leaveWorkspace: (workspaceId: string) => Promise<{ ok: true } | { ok: false; error: string }>;
   openWorkspace: (workspaceId: string) => Promise<RelayWorkspace | null>;
   createChannel: (workspaceId: string, name: string, type?: "public" | "private", topic?: string) => Promise<{ ok: true; channel: RelayChannel } | { ok: false; error: string }>;
   joinChannel: (workspaceId: string, channelId: string) => void;
@@ -86,6 +87,7 @@ interface RelayMsg {
   messages?: ChannelMsg[];
   message?: ChannelMsg;
   member?: RelayMember;
+  userId?: string;
   count?: number;
   error?: string;
 }
@@ -168,6 +170,13 @@ export const useRelay = create<RelayState>((set, get) => ({
               : st,
           );
           break;
+        case "memberLeft":
+          set((st) =>
+            st.workspace && st.workspace.id === m.workspaceId && m.userId
+              ? { workspace: { ...st.workspace, members: st.workspace.members.filter((x) => x.userId !== m.userId) } }
+              : st,
+          );
+          break;
         case "history":
           if (m.channelId) set((st) => ({ messagesByChannel: { ...st.messagesByChannel, [m.channelId!]: m.messages ?? [] } }));
           break;
@@ -195,7 +204,11 @@ export const useRelay = create<RelayState>((set, get) => ({
   },
 
   rememberWorkspace: (w) => {
-    const list = [w, ...get().myWorkspaces.filter((x) => x.id !== w.id)];
+    // Keep a stable order: update in place if known, append if new (no reshuffle on open).
+    const cur = get().myWorkspaces;
+    const list = cur.some((x) => x.id === w.id)
+      ? cur.map((x) => (x.id === w.id ? w : x))
+      : [...cur, w];
     saveMyWorkspaces(list);
     set({ myWorkspaces: list });
   },
@@ -218,6 +231,20 @@ export const useRelay = create<RelayState>((set, get) => ({
     get().rememberWorkspace({ id: m.workspace.id, name: m.workspace.name, code: m.workspace.code });
     set({ workspace: m.workspace });
     return { ok: true, workspace: m.workspace };
+  },
+
+  leaveWorkspace: async (workspaceId) => {
+    get().connect();
+    sendHello();
+    const m = await request({ type: "leaveWorkspace", workspaceId });
+    if (m.type === "error") return { ok: false, error: m.error ?? "Couldn't leave the workspace" };
+    const list = get().myWorkspaces.filter((x) => x.id !== workspaceId);
+    saveMyWorkspaces(list);
+    set((st) => ({
+      myWorkspaces: list,
+      workspace: st.workspace?.id === workspaceId ? null : st.workspace,
+    }));
+    return { ok: true };
   },
 
   openWorkspace: async (workspaceId) => {

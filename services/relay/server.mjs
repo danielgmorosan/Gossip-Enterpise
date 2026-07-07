@@ -348,6 +348,22 @@ wss.on("connection", (ws) => {
         break;
       }
 
+      case "leaveWorkspace": {
+        const workspace = db.workspaces[m.workspaceId];
+        if (!workspace) {
+          send(ws, { type: "error", ref: m.ref, message: "Workspace not found." });
+          break;
+        }
+        if (client.userId && workspace.members[client.userId]) {
+          delete workspace.members[client.userId];
+          save();
+          broadcastWorkspace(workspace.id, { type: "memberLeft", workspaceId: workspace.id, userId: client.userId });
+        }
+        client.wsSubs.delete(workspace.id);
+        send(ws, { type: "left", ref: m.ref, workspaceId: workspace.id });
+        break;
+      }
+
       case "createChannel": {
         const workspace = db.workspaces[m.workspaceId];
         if (!workspace) {
