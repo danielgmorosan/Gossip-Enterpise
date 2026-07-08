@@ -4,7 +4,7 @@ import { AuthLayout, DecorPanel, BrandLogo } from "@gossip/ui/stack";
 
 const pillars = [
   { icon: ShieldCheck, title: "Truly private DMs", desc: "Post-quantum end-to-end encryption. No server can read them." },
-  { icon: Cpu, title: "Your own AI", desc: "OpenClaw runs on a local model. Sensitive reasoning never leaves your machines." },
+  { icon: Cpu, title: "Your own AI", desc: "Gossip AI runs on a local model. Sensitive reasoning never leaves your machines." },
   { icon: Network, title: "No vendor to subpoena", desc: "Self-hostable relay and on-chain resilience on the Massa network." },
 ];
 

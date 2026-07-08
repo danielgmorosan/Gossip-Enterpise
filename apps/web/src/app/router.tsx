@@ -9,6 +9,7 @@ import { IdentityUnlock } from "@/pages/onboarding/IdentityUnlock";
 import { WorkspaceCreate } from "@/pages/onboarding/WorkspaceCreate";
 import { WorkspaceJoin } from "@/pages/onboarding/WorkspaceJoin";
 import { JoinInvite } from "@/pages/onboarding/JoinInvite";
+import { ContactLanding } from "@/pages/ContactLanding";
 import { WorkspaceIndex } from "@/pages/WorkspaceIndex";
 import { ChannelView } from "@/pages/ChannelView";
 import { DMView } from "@/pages/DMView";
@@ -26,6 +27,7 @@ import { IntegrationsSettings } from "@/pages/settings/IntegrationsSettings";
 import { AiEngineSettings } from "@/pages/settings/AiEngineSettings";
 import { SecuritySettings } from "@/pages/settings/SecuritySettings";
 import { NotificationsSettings } from "@/pages/settings/NotificationsSettings";
+import { CallSettings } from "@/pages/settings/CallSettings";
 import { AppearanceSettings } from "@/pages/settings/AppearanceSettings";
 
 /** Returning visitors (identity created on this browser before) land on unlock, not welcome. */
@@ -37,6 +39,7 @@ function Entry() {
 export const router = createBrowserRouter([
   { path: "/", element: <Entry /> },
   { path: "/join/:code", element: <JoinInvite /> },
+  { path: "/contact/:handle", element: <ContactLanding /> },
   { path: "/dev/sdk-smoke", element: <SdkSmoke /> },
   { path: "/dev", element: <Navigate to="/dev/styleguide" replace /> },
   { path: "/dev/styleguide", element: <Styleguide /> },
@@ -63,6 +66,7 @@ export const router = createBrowserRouter([
       { path: "ai", element: <AiPage /> },
       { path: "apps", element: <AppsPage /> },
       { path: "apps/:appId", element: <MiniAppHost /> },
+      { path: "call/dm/:peerId", element: <CallPage /> },
       { path: "call/:channelId", element: <CallPage /> },
     ],
   },
@@ -77,6 +81,7 @@ export const router = createBrowserRouter([
       { path: "ai-engine", element: <AiEngineSettings /> },
       { path: "security", element: <SecuritySettings /> },
       { path: "notifications", element: <NotificationsSettings /> },
+      { path: "calls", element: <CallSettings /> },
       { path: "appearance", element: <AppearanceSettings /> },
     ],
   },

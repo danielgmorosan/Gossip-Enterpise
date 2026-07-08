@@ -1,4 +1,4 @@
-import type { AiJobRequest, AiJobResult, GatewayHealth } from "./types";
+import type { AiJobRequest, AiJobResult, GatewayHealth, RewriteRequest, RewriteResult } from "./types";
 
 export interface OpenClawClientOptions {
   /** Base URL of the OpenClaw gateway, e.g. http://127.0.0.1:8787 */
@@ -24,7 +24,10 @@ export class OpenClawClient {
     this.baseUrl = opts.baseUrl.replace(/\/$/, "");
     this.token = opts.token;
     this.mock = opts.mock ?? false;
-    this.fetchImpl = opts.fetchImpl ?? globalThis.fetch;
+    // Bind fetch to globalThis — storing it as a class property and calling
+    // `this.fetchImpl(...)` would otherwise invoke it with `this` = the client
+    // instance ("'fetch' called on an object that does not implement Window").
+    this.fetchImpl = (opts.fetchImpl ?? globalThis.fetch).bind(globalThis);
   }
 
   async health(): Promise<GatewayHealth> {
@@ -36,6 +39,18 @@ export class OpenClawClient {
   async runJob(req: AiJobRequest): Promise<AiJobResult> {
     if (this.mock) return mockJob(req);
     return this.post<AiJobResult>("/jobs", req);
+  }
+
+  /**
+   * Rewrite the user's OWN unsent draft. Local route only (typed + enforced
+   * by the gateway) — never cloud, never persisted, never logged.
+   */
+  async rewriteDraft(req: RewriteRequest): Promise<RewriteResult> {
+    if (this.mock) {
+      await delay(300);
+      return { text: req.draft.trim(), route: "local", createdAt: new Date().toISOString() };
+    }
+    return this.post<RewriteResult>("/rewrite", req);
   }
 
   /** Stream tokens for an interactive ask. Falls back to runJob when not streaming. */

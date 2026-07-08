@@ -1,29 +1,81 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
+import type { RoomOptions } from "livekit-client";
 import { Video, Loader2, ServerCog, ArrowLeft } from "lucide-react";
 import "@livekit/components-styles";
-import { LiveKitRoom, VideoConference } from "@livekit/components-react";
+import { RoomContext, VideoConference } from "@livekit/components-react";
 import { Button } from "@gossip/ui/stack";
 import { useSession } from "@/stores/useSession";
 import { useRelay } from "@/stores/useRelay";
+import { useContacts } from "@/stores/useContacts";
+import { useAudioSettings } from "@/stores/useAudioSettings";
+import { useCall, sameTarget, type CallTarget } from "@/stores/useCall";
 import { relayUrl } from "@/lib/relayBase";
+import { dmRoomName } from "@/lib/call";
+import { truncateHandle } from "@/lib/utils";
 
 type State =
   | { phase: "loading" }
   | { phase: "unconfigured" }
   | { phase: "error"; message: string }
-  | { phase: "ready"; token: string; url: string };
+  | { phase: "ready" };
 
+/**
+ * Call surface. The LiveKit Room itself lives in the global call store (T-14),
+ * NOT in this component — navigating away keeps the call alive (the CallDock
+ * takes over audio + controls); coming back re-binds the UI to the same room.
+ */
 export function CallPage() {
-  const { workspaceId = "", channelId = "" } = useParams();
+  // Channel call: /w/:workspaceId/call/:channelId — DM call: /w/:workspaceId/call/dm/:peerId
+  const { workspaceId = "", channelId = "", peerId = "" } = useParams();
+  const isDm = !!peerId;
   const nav = useNavigate();
   const userId = useSession((s) => s.userId);
   const displayName = useSession((s) => s.displayName);
   const workspace = useRelay((s) => s.workspace);
   const channel = workspace?.channels.find((c) => c.id === channelId);
+  const peerName = useContacts((s) => s.contacts.find((c) => c.userId === peerId)?.name);
+  const callRoom = useCall((s) => s.room);
+  const callStatus = useCall((s) => s.status);
+  const callTarget = useCall((s) => s.target);
   const [state, setState] = useState<State>({ phase: "loading" });
 
+  const target = useMemo<CallTarget>(
+    () =>
+      isDm
+        ? { kind: "dm", workspaceId, peerId, label: peerName || truncateHandle(peerId, 10, 4) }
+        : { kind: "channel", workspaceId, channelId, label: channel?.name ?? channelId },
+    [isDm, workspaceId, channelId, peerId, peerName, channel?.name],
+  );
+
+  // Persisted audio prefs (Settings → Calls & audio) → LiveKit room options.
+  const audio = useAudioSettings();
+  const roomOptions = useMemo<RoomOptions>(
+    () => ({
+      audioCaptureDefaults: {
+        deviceId: audio.inputId || undefined,
+        echoCancellation: audio.echoCancellation,
+        noiseSuppression: audio.noiseSuppression,
+        autoGainControl: audio.autoGainControl,
+      },
+      ...(audio.outputId ? { audioOutput: { deviceId: audio.outputId } } : {}),
+    }),
+    [audio.inputId, audio.outputId, audio.echoCancellation, audio.noiseSuppression, audio.autoGainControl],
+  );
+
+  const back = () =>
+    nav(isDm ? `/w/${workspaceId}/dm/${encodeURIComponent(peerId)}` : `/w/${workspaceId}/c/${channelId}`);
+
+  // Join (or re-bind to) the call. Idempotent: if the store is already on this
+  // target the connect() is a no-op and we just render the existing room.
+  const ran = useRef(false);
   useEffect(() => {
+    if (useCall.getState().status !== "idle" && sameTarget(useCall.getState().target, target)) {
+      setState({ phase: "ready" });
+      return;
+    }
+    if (ran.current) return;
+    ran.current = true;
     let active = true;
     (async () => {
       try {
@@ -32,7 +84,14 @@ export function CallPage() {
           if (active) setState({ phase: "unconfigured" });
           return;
         }
-        const room = `${workspaceId}:${channelId}`;
+        let room: string;
+        if (isDm) {
+          if (!userId) throw new Error("Unlock your session to start a DM call.");
+          // Opaque digest of the sorted pair — both sides derive the same room.
+          room = await dmRoomName(userId, peerId);
+        } else {
+          room = `${workspaceId}:${channelId}`;
+        }
         const identity = userId ?? `guest-${Math.random().toString(36).slice(2, 8)}`;
         const res = await fetch(relayUrl("/livekit-token"), {
           method: "POST",
@@ -41,7 +100,8 @@ export function CallPage() {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "token request failed");
-        if (active) setState({ phase: "ready", token: data.token, url: data.url });
+        await useCall.getState().connect({ url: data.url, token: data.token, target, options: roomOptions });
+        if (active) setState({ phase: "ready" });
       } catch (e) {
         if (active) setState({ phase: "error", message: e instanceof Error ? e.message : "Failed to start call" });
       }
@@ -49,32 +109,45 @@ export function CallPage() {
     return () => {
       active = false;
     };
-  }, [workspaceId, channelId, userId, displayName]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- join once per mount; store handles idempotency
+  }, []);
 
-  const back = () => nav(`/w/${workspaceId}/c/${channelId}`);
+  // If the call ends while we're on this page (dock leave, in-call leave,
+  // server disconnect), bounce back to the conversation.
+  const wasLive = useRef(false);
+  useEffect(() => {
+    if (callStatus !== "idle") wasLive.current = true;
+    else if (wasLive.current) back();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [callStatus]);
 
-  if (state.phase === "ready") {
+  const boundToThisCall = callRoom && callStatus !== "idle" && sameTarget(callTarget, target);
+
+  if (state.phase === "ready" && boundToThisCall) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col" data-lk-theme="default" style={{ background: "#0a0c0f" }}>
+      <div className="flex min-h-0 flex-1 flex-col bg-paper font-stack" data-lk-theme="default">
         <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line bg-paper px-4 font-stack">
           <span className="grid size-6 place-items-center rounded-control bg-field text-ink">
             <Video className="size-3.5" />
           </span>
-          <span className="text-[14px] font-semibold text-ink">Huddle · #{channel?.name ?? channelId}</span>
+          <span className="text-[14px] font-semibold text-ink">
+            {isDm ? `Call · ${peerName || truncateHandle(peerId, 10, 4)}` : `Huddle · #${channel?.name ?? channelId}`}
+          </span>
           <span className="ml-1 font-mono text-[10px] text-ink-faint">LiveKit · E2E-capable</span>
+          <span className="ml-auto text-[11px] text-ink-faint">navigating away keeps the call running</span>
         </header>
         <div className="min-h-0 flex-1">
-          <LiveKitRoom
-            token={state.token}
-            serverUrl={state.url}
-            connect
-            video
-            audio
-            onDisconnected={back}
-            style={{ height: "100%" }}
-          >
-            <VideoConference />
-          </LiveKitRoom>
+          {callStatus === "connected" ? (
+            <RoomContext.Provider value={callRoom}>
+              <VideoConference />
+            </RoomContext.Provider>
+          ) : (
+            <div className="grid h-full place-items-center text-ink-mute">
+              <span className="inline-flex items-center gap-2 text-[14px]">
+                <Loader2 className="size-5 animate-spin" /> Connecting…
+              </span>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -108,9 +181,9 @@ export function CallPage() {
               Add a free LiveKit Cloud project's URL, API key, and secret to{" "}
               <span className="font-mono text-ink">services/relay/.env</span> and restart the relay.
             </p>
-            <Link to={`/w/${workspaceId}/c/${channelId}`}>
+            <Link to={isDm ? `/w/${workspaceId}/dm/${encodeURIComponent(peerId)}` : `/w/${workspaceId}/c/${channelId}`}>
               <Button className="mt-4" variant="secondary">
-                <ArrowLeft className="size-4" /> Back to channel
+                <ArrowLeft className="size-4" /> {isDm ? "Back to conversation" : "Back to channel"}
               </Button>
             </Link>
           </>

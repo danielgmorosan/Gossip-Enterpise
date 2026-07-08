@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { RouterProvider } from "react-router-dom";
 import { router } from "./app/router";
 import { useSession } from "./stores/useSession";
+import { CallDock } from "./components/CallDock";
 import "./lib/devLivekit";
 import "./index.css";
 
@@ -12,5 +13,8 @@ void useSession.getState().warmup();
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <RouterProvider router={router} />
+    {/* Persistent call dock — outside the router so an active call survives
+        every navigation (T-14). Renders nothing while no call is live. */}
+    <CallDock />
   </StrictMode>,
 );

@@ -14,6 +14,7 @@ import {
   SdkEventType,
   SELF_CONTACT_ID,
   MessageDirection,
+  MessageType,
   type Message,
   type Contact,
 } from "@massalabs/gossip-sdk";
@@ -66,6 +67,7 @@ export {
   SdkEventType,
   SELF_CONTACT_ID,
   MessageDirection,
+  MessageType,
 };
 export type { Message, Contact };
 

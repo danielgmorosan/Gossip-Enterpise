@@ -59,7 +59,7 @@ export const members: Member[] = [
   { id: "u_mara", displayName: "Mara Holt", handle: "gossipm4r8q1z7x9p2w5nl6dhtv", role: "member", presence: "away", title: "Design" },
   { id: "u_jun", displayName: "Jun Park", handle: "gossipj9n2q7z4x1p8w3nl5dhwb", role: "member", presence: "dnd", title: "Growth" },
   { id: "u_ada", displayName: "Ada Núñez", handle: "gossipad4q8z2x7p1w9nl4dhxc", role: "guest", presence: "offline", title: "Counsel (ext.)" },
-  { id: "u_oc", displayName: "OpenClaw", handle: "gossip-openclaw-bot-local-7f2a", role: "member", presence: "online", isAi: true, title: "AI assistant" },
+  { id: "u_oc", displayName: "Gossip AI", handle: "gossip-ai-bot-local-7f2a", role: "member", presence: "online", isAi: true, title: "AI assistant" },
 ];
 
 export const memberById = (id: string) => members.find((m) => m.id === id) ?? me;

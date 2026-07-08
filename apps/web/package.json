@@ -10,6 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@dicebear/collection": "^9.4.2",
+    "@dicebear/core": "^9.4.3",
+    "@fontsource/noto-color-emoji": "^5.2.12",
     "@gossip/miniapp-sdk": "workspace:*",
     "@gossip/openclaw-bridge": "workspace:*",
     "@gossip/ui": "workspace:*",
@@ -17,9 +20,11 @@
     "@livekit/components-styles": "^1",
     "@massalabs/gossip-sdk": "workspace:*",
     "clsx": "^2.1.1",
+    "frimousse": "^0.3.0",
     "livekit-client": "^2",
     "lucide-react": "^0.460.0",
     "motion": "^11.13.1",
+    "qrcode.react": "^4.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.1.1",

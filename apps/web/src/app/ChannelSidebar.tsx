@@ -13,7 +13,8 @@ import {
   Copy,
   Check,
 } from "lucide-react";
-import { Avatar, NavBadge } from "@gossip/ui/stack";
+import { NavBadge } from "@gossip/ui/stack";
+import { UserAvatar as Avatar } from "@/components/UserAvatar";
 import { cn, truncateHandle } from "@/lib/utils";
 import { inviteLink } from "@/lib/invite";
 import { useContacts } from "@/stores/useContacts";
@@ -120,7 +121,7 @@ export function ChannelSidebar() {
       <div className="space-y-0.5 px-2 pt-2">
         <Row to={`${base}/ai`}>
           <Sparkles className="size-4 shrink-0" />
-          <span>OpenClaw AI</span>
+          <span>Gossip AI</span>
           <NavBadge>local</NavBadge>
         </Row>
         <Row to={`${base}/members`}>

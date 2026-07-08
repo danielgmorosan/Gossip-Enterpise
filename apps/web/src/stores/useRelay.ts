@@ -12,6 +12,14 @@ export interface ChannelMsg {
   ts: number;
   /** Set on replies — id of the thread's root message. */
   threadRootId?: string | null;
+  /** Set when the author edited the message. */
+  editedAt?: number | null;
+  /** Soft delete — body is cleared server-side; render a tombstone. */
+  deleted?: boolean;
+  deletedAt?: number | null;
+  deletedBy?: string | null;
+  /** Inline attachment (channels only; uploaded via the relay /uploads). */
+  attachment?: { id: string; url: string; name: string; type: string; size: number } | null;
 }
 export interface RelayChannel {
   id: string;
@@ -71,7 +79,9 @@ interface RelayState {
   openWorkspace: (workspaceId: string) => Promise<RelayWorkspace | null>;
   createChannel: (workspaceId: string, name: string, type?: "public" | "private", topic?: string) => Promise<{ ok: true; channel: RelayChannel } | { ok: false; error: string }>;
   joinChannel: (workspaceId: string, channelId: string) => void;
-  post: (workspaceId: string, channelId: string, body: string, threadRootId?: string) => void;
+  post: (workspaceId: string, channelId: string, body: string, threadRootId?: string, attachmentId?: string) => void;
+  editMessage: (workspaceId: string, channelId: string, messageId: string, body: string) => void;
+  deleteMessage: (workspaceId: string, channelId: string, messageId: string) => void;
 }
 
 let ws: WebSocket | null = null;
@@ -192,6 +202,22 @@ export const useRelay = create<RelayState>((set, get) => ({
             });
           }
           break;
+        case "messageUpdated":
+          // Edit or soft-delete fan-out: replace the message in place.
+          if (m.message) {
+            const msg = m.message;
+            set((st) => {
+              const cur = st.messagesByChannel[msg.channelId];
+              if (!cur?.some((x) => x.id === msg.id)) return st;
+              return {
+                messagesByChannel: {
+                  ...st.messagesByChannel,
+                  [msg.channelId]: cur.map((x) => (x.id === msg.id ? msg : x)),
+                },
+              };
+            });
+          }
+          break;
         case "presence":
           if (m.channelId) set((st) => ({ presenceByChannel: { ...st.presenceByChannel, [m.channelId!]: m.count ?? 0 } }));
           break;
@@ -286,10 +312,31 @@ export const useRelay = create<RelayState>((set, get) => ({
     trySend();
   },
 
-  post: (workspaceId, channelId, body, threadRootId) => {
+  post: (workspaceId, channelId, body, threadRootId, attachmentId) => {
+    const text = body.trim();
+    if ((!text && !attachmentId) || !ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(
+      JSON.stringify({
+        type: "post",
+        workspaceId,
+        channelId,
+        body: text,
+        threadRootId,
+        attachment: attachmentId ? { id: attachmentId } : undefined,
+        clientMsgId: crypto.randomUUID(),
+      }),
+    );
+  },
+
+  editMessage: (workspaceId, channelId, messageId, body) => {
     const text = body.trim();
     if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
-    ws.send(JSON.stringify({ type: "post", workspaceId, channelId, body: text, threadRootId, clientMsgId: crypto.randomUUID() }));
+    ws.send(JSON.stringify({ type: "editMessage", workspaceId, channelId, messageId, body: text }));
+  },
+
+  deleteMessage: (workspaceId, channelId, messageId) => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: "deleteMessage", workspaceId, channelId, messageId }));
   },
 }));
 

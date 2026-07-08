@@ -264,7 +264,7 @@ function AiChatDemo() {
                 hero={
                   <AiChatHero
                     title="Welcome to Gossip"
-                    subtitle="Ask anything or tell OpenClaw what you need"
+                    subtitle="Ask anything or tell Gossip AI what you need"
                   />
                 }
                 composer={composer}
@@ -323,7 +323,7 @@ function AiChatDemo() {
                       <ul className="mt-4 space-y-2 text-[14px]">
                         {[
                           ["GW-25", "Ship channel search v1"],
-                          ["GW-31", "Wire OpenClaw recap route"],
+                          ["GW-31", "Wire Gossip AI recap route"],
                           ["GW-42", "Review relay self-host docs"],
                         ].map(([id, title]) => (
                           <li key={id} className="flex items-center gap-2">
@@ -354,7 +354,7 @@ function AiChatDemo() {
                       <kbd className="rounded-control border border-line bg-field px-1.5 py-0.5 font-mono text-[12px] text-ink-mute">
                         ⌘K
                       </kbd>{" "}
-                      to ask OpenClaw.
+                      to ask Gossip AI.
                     </>
                   }
                 />
@@ -368,7 +368,7 @@ function AiChatDemo() {
                       },
                       {
                         icon: <Sparkles strokeWidth={1.75} />,
-                        title: "Add OpenClaw to channels",
+                        title: "Add Gossip AI to channels",
                         description: "The assistant only reads channels it is a member of.",
                       },
                       {
@@ -518,7 +518,7 @@ function WorkspaceDemo() {
       />
       <div className="flex-1 overflow-y-auto">
         {[
-          ["Channel recap ready", "OpenClaw finished #marketing summary", "13m"],
+          ["Channel recap ready", "Gossip AI finished #marketing summary", "13m"],
           ["Relay health check", "Self-hosted relay responded slowly", "22m"],
           ["Design system review", "Stack components ready for QA", "1h"],
         ].map(([title, subtitle, time], i) => (
@@ -590,7 +590,7 @@ function WorkspaceDemo() {
         <IssueRow
           id="GW-31"
           age="1d"
-          title="Wire OpenClaw recap route"
+          title="Wire Gossip AI recap route"
           assignee={{ name: "Alex Smith" }}
         />
       </div>
@@ -1205,7 +1205,7 @@ function SettingsDemo() {
         <IntegrationCard icon={<Mail className="size-4" />} title="Fastmail" description="Connect mail via JMAP for workspace notifications." />
         <IntegrationCard icon={<Box className="size-4" />} title="Nextcloud" description="Files, calendar, and contacts via open standards." />
         <IntegrationCard icon={<Radio className="size-4" />} title="LiveKit" description="Self-hostable calls with optional AI notetaker." />
-        <IntegrationCard icon={<Sparkles className="size-4" />} title="OpenClaw" description="Channel recaps and meeting notes on your hardware." />
+        <IntegrationCard icon={<Sparkles className="size-4" />} title="Gossip AI" description="Channel recaps and meeting notes on your hardware." />
       </IntegrationGrid>
     </SettingsGroup>
     <SettingsGroup title="Agents">
@@ -1519,7 +1519,7 @@ export function Styleguide() {
 
           <Section
             title="AI chat"
-            note="OpenClaw assistant flow — welcome, thread, and ready states. Preview locked to dark."
+            note="Gossip AI assistant flow — welcome, thread, and ready states. Preview locked to dark."
           >
             <AiChatDemo />
           </Section>

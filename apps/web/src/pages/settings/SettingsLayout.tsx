@@ -1,5 +1,5 @@
 import { NavLink, Outlet, Link } from "react-router-dom";
-import { User, Building2, Plug, Cpu, ShieldCheck, Bell, Palette, ArrowLeft } from "lucide-react";
+import { User, Building2, Plug, Cpu, ShieldCheck, Bell, Palette, ArrowLeft, Headphones } from "lucide-react";
 import { BrandLogo } from "@gossip/ui/stack";
 import { cn } from "@/lib/utils";
 import { useRelay } from "@/stores/useRelay";
@@ -11,6 +11,7 @@ const groups = [
       { to: "profile", icon: User, label: "Profile" },
       { to: "security", icon: ShieldCheck, label: "Security" },
       { to: "notifications", icon: Bell, label: "Notifications" },
+      { to: "calls", icon: Headphones, label: "Calls & audio" },
       { to: "appearance", icon: Palette, label: "Appearance" },
     ],
   },

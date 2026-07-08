@@ -3,6 +3,10 @@
 /* Stack design system tokens (light-first monochrome; --st-* namespaced). */
 @import "../../../packages/ui/src/stack/tokens.css";
 
+/* Bundled emoji font (self-hosted, no CDN) so emoji render in one consistent
+   set across OSes instead of each platform's native glyphs. */
+@import "@fontsource/noto-color-emoji";
+
 /* Scan the shared UI package so its utility classes are generated. */
 @source "../../../packages/ui/src";
 
@@ -102,7 +106,7 @@
   --color-info: var(--info);
 
   --font-display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
-  --font-sans: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif, "Noto Color Emoji";
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
 
   --radius-sm: 0.375rem;
@@ -189,6 +193,16 @@
   .font-mono {
     font-family: var(--font-mono);
   }
+  /* Force the bundled consistent emoji set (picker glyphs). */
+  .font-emoji {
+    font-family: "Noto Color Emoji", var(--font-sans);
+  }
+  /* Code chip/block background for rendered markdown — derived from
+     currentColor so it reads correctly on any bubble (ink-on-paper or
+     paper-on-ink) in both themes. */
+  .md-chip {
+    background: color-mix(in srgb, currentColor 10%, transparent);
+  }
   .grain {
     position: relative;
   }
@@ -215,6 +229,48 @@
   .no-scrollbar {
     scrollbar-width: none;
   }
+}
+
+/* ============================================================
+   LiveKit prebuilt UI (CallPage) → Stack brand.
+   Doubled attribute selector out-specifies @livekit/components-styles'
+   own [data-lk-theme] block, which loads after this file.
+   Values track the Stack tokens, so dark mode follows automatically.
+   ============================================================ */
+[data-lk-theme="default"][data-lk-theme="default"] {
+  --lk-font-family: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --lk-border-radius: 0.5rem;
+
+  --lk-bg: var(--st-paper);
+  --lk-bg2: var(--st-paper-2);
+  --lk-bg3: var(--st-field);
+  --lk-bg4: var(--st-line);
+  --lk-bg5: var(--st-line-strong);
+
+  --lk-fg: var(--st-ink);
+  --lk-fg2: var(--st-ink-soft);
+  --lk-fg3: var(--st-ink-soft);
+  --lk-fg4: var(--st-ink-mute);
+  --lk-fg5: var(--st-ink-faint);
+
+  --lk-border-color: var(--st-line);
+  --lk-box-shadow: var(--st-shadow-card);
+
+  /* Monochrome accent: ink-on-paper, matching Stack buttons. */
+  --lk-accent-bg: var(--st-ink);
+  --lk-accent-fg: var(--st-paper);
+
+  --lk-danger: var(--st-negative);
+  --lk-danger-fg: #ffffff;
+
+  --lk-control-bg: var(--st-field);
+  --lk-control-fg: var(--st-ink);
+  --lk-control-hover-bg: var(--st-line);
+  --lk-control-active-bg: var(--st-ink);
+  --lk-control-active-hover-bg: var(--st-ink-hover);
+
+  --lk-connection-excellent: var(--st-positive);
+  --lk-connection-poor: var(--st-negative);
 }
 
 @keyframes rise {

@@ -11,3 +11,9 @@ dist/
 
 # relay persisted state
 services/relay/.data.json
+
+# ralph loop scratch files
+ralph/.ralph_*
+
+# relay runtime upload storage
+services/relay/uploads/

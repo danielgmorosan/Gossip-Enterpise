@@ -1,4 +1,4 @@
-// Base URL for the relay service (group channels, LiveKit tokens, OpenClaw AI).
+// Base URL for the relay service (group channels, LiveKit tokens, Gossip AI).
 //
 // Local dev and the old same-origin Vercel multi-service setup both leave this unset, so
 // requests stay relative and either hit the Vite dev proxy or the same host. Once web

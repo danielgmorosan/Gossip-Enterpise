@@ -44,7 +44,7 @@ export function AiSidePanel({
           <Sparkles className="size-4" />
         </span>
         <div className="leading-tight">
-          <div className="text-[14px] font-semibold text-ink">OpenClaw</div>
+          <div className="text-[14px] font-semibold text-ink">Gossip AI</div>
           <div className="font-mono text-[10px] text-ink-faint">local model</div>
         </div>
         <span className="ml-1 inline-flex items-center gap-1 rounded-control bg-field px-2 py-0.5 text-[11px] font-medium text-positive">
@@ -84,7 +84,7 @@ export function AiSidePanel({
         )}
         {answer && (
           <div className="rounded-card bg-field p-3">
-            <div className="mb-1.5 font-mono text-[10px] uppercase tracking-wider text-ink-mute">OpenClaw</div>
+            <div className="mb-1.5 font-mono text-[10px] uppercase tracking-wider text-ink-mute">Gossip AI</div>
             <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-ink">{answer}</p>
           </div>
         )}

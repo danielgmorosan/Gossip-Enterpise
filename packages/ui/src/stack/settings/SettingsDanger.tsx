@@ -108,10 +108,13 @@ export function ConfirmDestructiveModal({
 export function StackToast({
   message,
   onDismiss,
+  tone = "success",
   className,
 }: {
   message: string;
   onDismiss?: () => void;
+  /** success = confirmation checkmark; info = neutral notice. */
+  tone?: "success" | "info";
   className?: string;
 }) {
   return (
@@ -122,7 +125,7 @@ export function StackToast({
         className,
       )}
     >
-      <span className="text-positive">✓</span>
+      {tone === "success" ? <span className="text-positive">✓</span> : <span className="text-ink-faint">ℹ</span>}
       {message}
       {onDismiss && (
         <button type="button" onClick={onDismiss} className="ml-2 text-ink-faint hover:text-ink">×</button>

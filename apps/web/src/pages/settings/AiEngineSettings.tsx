@@ -36,7 +36,7 @@ export function AiEngineSettings() {
   return (
     <SettingsPage
       title="AI Engine"
-      desc="Run OpenClaw on a local open-source model so sensitive reasoning never leaves your machines. Cloud is an opt-in route for higher quality."
+      desc="Run Gossip AI on a local open-source model so sensitive reasoning never leaves your machines. Cloud is an opt-in route for higher quality."
     >
       {/* Desktop notice */}
       <div className="flex items-start gap-3 rounded-card border border-line bg-paper-2 p-4">
@@ -73,7 +73,7 @@ export function AiEngineSettings() {
           desc={
             health && health.ollama && !health.hasModel
               ? `Configured model isn't pulled yet — run \`ollama pull ${health.model}\`.`
-              : "The model OpenClaw routes reasoning to."
+              : "The model Gossip AI routes reasoning to."
           }
           control={
             <span className={cn("font-mono text-[12px]", health?.ok ? "text-ink" : "text-ink-faint")}>

@@ -97,7 +97,7 @@ export function AiPage() {
             <Sparkles className="size-4" />
           </span>
         }
-        title="OpenClaw"
+        title="Gossip AI"
         subtitle="Self-hosted assistant · reads only channels you can access"
         badge={
           <span className={`ml-1 inline-flex items-center gap-1 rounded-control bg-field px-2 py-0.5 text-[11px] font-medium ${health?.ok ? "text-positive" : "text-ink-mute"}`}>
@@ -115,7 +115,7 @@ export function AiPage() {
               <AiChatWelcomeLayout
                 hero={
                   <AiChatHero
-                    title="Ask OpenClaw"
+                    title="Ask Gossip AI"
                     subtitle={
                       <span className="inline-flex items-center gap-1.5">
                         <ShieldCheck className="size-4 text-positive" />
@@ -153,7 +153,7 @@ export function AiPage() {
                         <span className="grid size-6 place-items-center rounded-control bg-ink text-paper">
                           <Sparkles className="size-3.5" />
                         </span>
-                        <span className="text-[13px] font-semibold text-ink">OpenClaw</span>
+                        <span className="text-[13px] font-semibold text-ink">Gossip AI</span>
                         <span className="font-mono text-[10px] uppercase tracking-wider text-ink-faint">
                           local{t.model ? ` · ${t.model}` : ""}
                         </span>
@@ -164,7 +164,7 @@ export function AiPage() {
                     </div>
                   ),
                 )}
-                {busy && <AiWorkingIndicator label="OpenClaw is reading your channels…" />}
+                {busy && <AiWorkingIndicator label="Gossip AI is reading your channels…" />}
               </div>
               <div className="sticky bottom-0 bg-paper pb-2 pt-4">
                 <div className="pointer-events-none absolute inset-x-0 -top-8 h-8 bg-gradient-to-t from-paper to-transparent" />

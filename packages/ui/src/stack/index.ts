@@ -17,7 +17,7 @@ export { BrandLogo } from "./BrandLogo";
 export type { BrandLogoProps } from "./BrandLogo";
 export { GoogleGlyph } from "./icons";
 
-/* AI chat flow (OpenClaw / workspace assistant) */
+/* AI chat flow (Gossip AI / workspace assistant) */
 export {
   AiPromptComposer,
   AiChatBreadcrumb,

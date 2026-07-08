@@ -1,6 +1,7 @@
 import { Link, useParams } from "react-router-dom";
 import { Plus, Mail, Calendar, FileText, NotebookPen, Video, Settings } from "lucide-react";
-import { Avatar, BrandLogo } from "@gossip/ui/stack";
+import { BrandLogo } from "@gossip/ui/stack";
+import { UserAvatar as Avatar } from "@/components/UserAvatar";
 import { useRelay } from "@/stores/useRelay";
 import { useSession } from "@/stores/useSession";
 import { cn } from "@/lib/utils";

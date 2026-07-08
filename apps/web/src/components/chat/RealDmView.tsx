@@ -1,9 +1,14 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Link } from "react-router-dom";
-import { ShieldCheck, Check, Lock, Loader2, SendHorizontal } from "lucide-react";
-import { PaneHeader } from "@/components/chat/PaneHeader";
-import { Avatar, Button } from "@gossip/ui/stack";
-import { gossipSdk, SdkEventType, MessageDirection, type Message } from "@/lib/sdk";
+import { Link, useParams } from "react-router-dom";
+import { ShieldCheck, Check, Lock, Phone } from "lucide-react";
+import { PaneHeader, HeaderIconButton } from "@/components/chat/PaneHeader";
+import { Composer } from "@/components/chat/Composer";
+import { MessageBody } from "@/components/chat/MessageBody";
+import { MessageActionsBar, ArmDeleteButton, EditBox } from "@/components/chat/MessageActionsBar";
+import { Pencil } from "lucide-react";
+import { Button } from "@gossip/ui/stack";
+import { UserAvatar as Avatar } from "@/components/UserAvatar";
+import { gossipSdk, SdkEventType, MessageDirection, MessageType, type Message } from "@/lib/sdk";
 import { useSession } from "@/stores/useSession";
 import { cn, formatTime, truncateHandle } from "@/lib/utils";
 
@@ -21,12 +26,36 @@ function E2EPill() {
  */
 export function RealDmView({ peerId, peerName }: { peerId: string; peerName?: string }) {
   const isSelf = peerId === "self";
+  const { workspaceId = "" } = useParams();
   const status = useSession((s) => s.status);
   const userId = useSession((s) => s.userId);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  /** SDK marks edits via metadata.edited (set by messages.editMessage). */
+  const isEdited = (m: Message): boolean =>
+    typeof m.metadata === "object" && m.metadata !== null && (m.metadata as Record<string, unknown>).edited === true;
+
+  const saveEdit = async (id: number, text: string) => {
+    setEditingId(null);
+    try {
+      await gossipSdk.messages.editMessage(id, text);
+      await refresh();
+    } catch (e) {
+      console.error("edit failed", e);
+    }
+  };
+
+  const deleteMsg = async (id: number) => {
+    try {
+      await gossipSdk.messages.deleteMessage(id);
+      await refresh();
+    } catch (e) {
+      console.error("delete failed", e);
+    }
+  };
 
   const refresh = useCallback(async () => {
     if (!gossipSdk.isSessionOpen) return;
@@ -62,11 +91,9 @@ export function RealDmView({ peerId, peerName }: { peerId: string; peerName?: st
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages]);
 
-  const send = async () => {
-    const text = draft.trim();
+  const send = async (text: string) => {
     if (!text || sending) return;
     setSending(true);
-    setDraft("");
     try {
       if (isSelf) await gossipSdk.selfMessages.send(text);
       else await gossipSdk.messages.sendText(peerId, text);
@@ -112,6 +139,15 @@ export function RealDmView({ peerId, peerName }: { peerId: string; peerName?: st
         title={title}
         subtitle={<span className="font-mono text-[11px]">{isSelf ? (userId ? `${userId.slice(0, 16)}…` : "") : truncateHandle(peerId, 14, 8)}</span>}
         badge={<E2EPill />}
+        actions={
+          !isSelf && workspaceId ? (
+            <Link to={`/w/${workspaceId}/call/dm/${encodeURIComponent(peerId)}`}>
+              <HeaderIconButton label={`Call ${peerName || "contact"}`}>
+                <Phone className="size-4" />
+              </HeaderIconButton>
+            </Link>
+          ) : undefined
+        }
       />
 
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
@@ -139,48 +175,79 @@ export function RealDmView({ peerId, peerName }: { peerId: string; peerName?: st
           )}
           {messages.map((m, i) => {
             const mine = isSelf || m.direction === MessageDirection.OUTGOING;
+            const deleted = m.type === MessageType.DELETED;
+            const attribution = mine ? "me" : (peerName || truncateHandle(peerId, 12, 6));
+            // Edit/delete go through the gossip-sdk only (E2E control messages);
+            // SDK enforces author-only. Not offered for Notes-to-Self (separate service).
+            const canMutate = mine && !isSelf && !deleted && m.id != null;
+            const actions = !deleted ? (
+              <MessageActionsBar
+                copyText={m.content}
+                shareText={`"${m.content}"\n— ${attribution}, ${formatTime(new Date(m.timestamp))}`}
+                className="hidden shrink-0 self-center group-hover:flex"
+              >
+                {canMutate && (
+                  <button
+                    onClick={() => setEditingId(m.id!)}
+                    title="Edit message"
+                    aria-label="Edit message"
+                    className="grid size-7 place-items-center rounded-[calc(var(--radius-control)-2px)] text-ink-mute transition-colors hover:bg-field hover:text-ink"
+                  >
+                    <Pencil className="size-3.5" />
+                  </button>
+                )}
+                {canMutate && <ArmDeleteButton onConfirm={() => void deleteMsg(m.id!)} />}
+              </MessageActionsBar>
+            ) : null;
+            if (editingId != null && editingId === m.id) {
+              return (
+                <div key={m.id} className="flex justify-end">
+                  <div className="w-full max-w-[68%]">
+                    <EditBox initial={m.content} onSave={(text) => void saveEdit(m.id!, text)} onCancel={() => setEditingId(null)} />
+                  </div>
+                </div>
+              );
+            }
             return (
-              <div key={m.id ?? i} className={cn("flex items-end gap-2", mine ? "justify-end" : "justify-start")}>
+              <div key={m.id ?? i} className={cn("group flex items-end gap-2", mine ? "justify-end" : "justify-start")}>
                 {!mine && <div className="w-7 shrink-0"><Avatar name={peerName || peerId} id={peerId} className="!size-7 !text-[11px]" /></div>}
+                {mine && actions}
                 <div
                   className={cn(
                     "relative max-w-[68%] px-3.5 py-2 text-[14px] leading-relaxed",
                     mine ? "rounded-card rounded-br-md bg-ink text-paper" : "rounded-card rounded-bl-md bg-field text-ink",
                   )}
                 >
-                  <span className="whitespace-pre-wrap">{m.content}</span>
+                  {deleted ? (
+                    <span className={cn("text-[13px] italic", mine ? "text-paper/60" : "text-ink-faint")}>message deleted</span>
+                  ) : (
+                    <>
+                      <MessageBody text={m.content} />
+                      {isEdited(m) && (
+                        <span className={cn("ml-1.5 text-[10.5px]", mine ? "text-paper/60" : "text-ink-faint")}>(edited)</span>
+                      )}
+                    </>
+                  )}
                   <span className={cn("ml-2 inline-flex translate-y-0.5 items-center gap-0.5 text-[10px]", mine ? "text-paper/60" : "text-ink-faint")}>
                     {formatTime(new Date(m.timestamp))}
-                    {mine && <Check className="size-3" />}
+                    {mine && !deleted && <Check className="size-3" />}
                   </span>
                 </div>
+                {!mine && actions}
               </div>
             );
           })}
         </div>
       </div>
 
-      <div className="px-4 pb-5">
-        <div className="mx-auto flex max-w-3xl items-center gap-2 rounded-card border border-line bg-paper-2 px-4 py-2.5 transition-colors focus-within:border-line-strong focus-within:ring-2 focus-within:ring-[color:var(--st-ring)]">
-          <input
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder={isSelf ? "Message yourself — encrypted for real…" : `Message ${peerName || "contact"} — E2E…`}
-            className="min-w-0 flex-1 bg-transparent py-1 text-[14px] text-ink outline-none placeholder:text-ink-faint"
-          />
-          <span className="hidden items-center gap-1 font-mono text-[10px] text-ink-faint sm:inline-flex">
-            <ShieldCheck className="size-3 text-positive" /> E2E
-          </span>
-          <button
-            onClick={send}
-            disabled={!draft.trim() || sending}
-            aria-label="Send"
-            className={cn("grid size-8 place-items-center rounded-control transition-colors", draft.trim() && !sending ? "bg-ink text-paper hover:bg-ink-hover" : "bg-field text-ink-faint")}
-          >
-            {sending ? <Loader2 className="size-4 animate-spin" /> : <SendHorizontal className="size-4" />}
-          </button>
-        </div>
+      <div className="mx-auto w-full max-w-3xl">
+        <Composer
+          placeholder={isSelf ? "Message yourself — encrypted for real…" : `Message ${peerName || "contact"} — E2E…`}
+          e2e
+          busy={sending}
+          onSend={(text) => void send(text)}
+          attachNotice="Attachments aren't available in E2E DMs yet — the Gossip SDK doesn't support them."
+        />
       </div>
     </div>
   );

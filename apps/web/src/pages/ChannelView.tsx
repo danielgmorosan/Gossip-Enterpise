@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
-import { Hash, Lock, Phone, Sparkles, Users, ShieldAlert, Circle, MessageSquareReply } from "lucide-react";
+import { Hash, Lock, Phone, Sparkles, Users, ShieldAlert, Circle, MessageSquareReply, Pencil } from "lucide-react";
 import { PaneHeader, HeaderIconButton } from "@/components/chat/PaneHeader";
 import { Composer } from "@/components/chat/Composer";
+import { MessageBody } from "@/components/chat/MessageBody";
+import { MessageActionsBar, ArmDeleteButton, EditBox } from "@/components/chat/MessageActionsBar";
+import { AttachmentView } from "@/components/chat/AttachmentView";
+import { uploadAttachment } from "@/lib/uploads";
+import { StackToast } from "@gossip/ui/stack";
 import { AiSidePanel } from "@/components/chat/AiSidePanel";
 import { ThreadPanel } from "@/components/chat/ThreadPanel";
-import { Avatar } from "@gossip/ui/stack";
+import { UserAvatar as Avatar } from "@/components/UserAvatar";
 import { useRelay } from "@/stores/useRelay";
 import { useSession } from "@/stores/useSession";
 import { formatTime } from "@/lib/utils";
@@ -16,7 +21,25 @@ export function ChannelView() {
   const [searchParams, setSearchParams] = useSearchParams();
   const threadId = searchParams.get("thread");
   const [aiOpen, setAiOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [uploadNotice, setUploadNotice] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  /** T-13: upload each picked file to the relay, then post it as a message. */
+  const handleAttach = async (files: FileList) => {
+    for (const file of Array.from(files)) {
+      try {
+        setUploadNotice(`Uploading ${file.name}…`);
+        const ref = await uploadAttachment(file);
+        useRelay.getState().post(workspaceId, channelId, "", undefined, ref.id);
+        setUploadNotice(null);
+      } catch (e) {
+        setUploadNotice(e instanceof Error ? e.message : "Upload failed.");
+        setTimeout(() => setUploadNotice(null), 5000);
+        return;
+      }
+    }
+  };
 
   const workspace = useRelay((s) => s.workspace);
   const channel = workspace?.channels.find((c) => c.id === channelId);
@@ -24,6 +47,8 @@ export function ChannelView() {
   const messages = useRelay((s) => s.messagesByChannel[channelId]) ?? [];
   const presence = useRelay((s) => s.presenceByChannel[channelId]) ?? 0;
   const myId = useSession((s) => s.userId);
+  const myRole = workspace?.members.find((x) => x.userId === myId)?.role;
+  const isAdmin = myRole === "owner" || myRole === "admin";
   const startDm = useStartDm();
 
   // Main feed shows only thread roots / plain messages; replies live in the panel.
@@ -89,7 +114,7 @@ export function ChannelView() {
               <Link to={`/w/${workspaceId}/members`}>
                 <HeaderIconButton label="Members"><Users className="size-4" /></HeaderIconButton>
               </Link>
-              <HeaderIconButton label="Ask OpenClaw" active={aiOpen} onClick={() => { setAiOpen((v) => !v); if (!aiOpen) openThread(null); }}>
+              <HeaderIconButton label="Ask Gossip AI" active={aiOpen} onClick={() => { setAiOpen((v) => !v); if (!aiOpen) openThread(null); }}>
                 <Sparkles className="size-4" />
               </HeaderIconButton>
             </>
@@ -144,7 +169,24 @@ export function ChannelView() {
                       <span className="text-[11px] text-ink-faint">{formatTime(new Date(m.ts))}</span>
                     </div>
                   )}
-                  <div className="whitespace-pre-wrap text-[14px] leading-relaxed text-ink">{m.body}</div>
+                  {m.deleted ? (
+                    <div className="text-[13.5px] italic text-ink-faint">message deleted</div>
+                  ) : editingId === m.id ? (
+                    <EditBox
+                      initial={m.body}
+                      onSave={(text) => {
+                        useRelay.getState().editMessage(workspaceId, channelId, m.id, text);
+                        setEditingId(null);
+                      }}
+                      onCancel={() => setEditingId(null)}
+                    />
+                  ) : (
+                    <div className="text-[14px] leading-relaxed text-ink">
+                      {m.body && <MessageBody text={m.body} />}
+                      {m.editedAt != null && <span className="ml-1.5 text-[11px] text-ink-faint">(edited)</span>}
+                      {m.attachment && <AttachmentView a={m.attachment} />}
+                    </div>
+                  )}
                   {stats && (
                     <button
                       onClick={() => openThread(m.id)}
@@ -158,21 +200,51 @@ export function ChannelView() {
                 </div>
 
                 {/* Hover actions */}
-                <button
-                  onClick={() => openThread(m.id)}
-                  title="Reply in thread"
-                  aria-label="Reply in thread"
-                  className="absolute -top-2.5 right-4 hidden items-center gap-1 rounded-control border border-line bg-paper px-2 py-1 text-[12px] text-ink-mute shadow-[var(--st-shadow-card)] hover:text-ink group-hover:inline-flex"
-                >
-                  <MessageSquareReply className="size-3.5" /> Reply
-                </button>
+                {!m.deleted && editingId !== m.id && (
+                  <MessageActionsBar
+                    copyText={m.body}
+                    shareText={`"${m.body}"\n— ${m.senderName} in #${name}\n${window.location.origin}/w/${workspaceId}/c/${channelId}`}
+                    className="absolute -top-2.5 right-4 hidden group-hover:flex"
+                  >
+                    <button
+                      onClick={() => openThread(m.id)}
+                      title="Reply in thread"
+                      aria-label="Reply in thread"
+                      className="inline-flex items-center gap-1 rounded-[calc(var(--radius-control)-2px)] px-2 py-1 text-[12px] text-ink-mute transition-colors hover:bg-field hover:text-ink"
+                    >
+                      <MessageSquareReply className="size-3.5" /> Reply
+                    </button>
+                    {mine && (
+                      <button
+                        onClick={() => setEditingId(m.id)}
+                        title="Edit message"
+                        aria-label="Edit message"
+                        className="grid size-7 place-items-center rounded-[calc(var(--radius-control)-2px)] text-ink-mute transition-colors hover:bg-field hover:text-ink"
+                      >
+                        <Pencil className="size-3.5" />
+                      </button>
+                    )}
+                    {(mine || isAdmin) && (
+                      <ArmDeleteButton onConfirm={() => useRelay.getState().deleteMessage(workspaceId, channelId, m.id)} />
+                    )}
+                  </MessageActionsBar>
+                )}
               </div>
             );
           })}
           <div className="h-4" />
         </div>
 
-        <Composer placeholder={`Message #${name}`} onSend={(text) => useRelay.getState().post(workspaceId, channelId, text)} />
+        {uploadNotice && (
+          <div className="px-4">
+            <StackToast tone="info" message={uploadNotice} onDismiss={() => setUploadNotice(null)} />
+          </div>
+        )}
+        <Composer
+          placeholder={`Message #${name}`}
+          onSend={(text) => useRelay.getState().post(workspaceId, channelId, text)}
+          onAttach={(files) => void handleAttach(files)}
+        />
       </div>
 
       {threadId ? (

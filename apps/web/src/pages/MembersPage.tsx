@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Search, UserPlus, Check, MessageSquare } from "lucide-react";
 import { PaneHeader } from "@/components/chat/PaneHeader";
-import { Avatar, Button, Input } from "@gossip/ui/stack";
+import { Button, Input } from "@gossip/ui/stack";
+import { UserAvatar as Avatar } from "@/components/UserAvatar";
 import { useRelay } from "@/stores/useRelay";
 import { useSession } from "@/stores/useSession";
 import { truncateHandle } from "@/lib/utils";

@@ -46,3 +46,23 @@ export interface OpenClawError {
   code: "unauthorized" | "out_of_scope" | "gateway_unreachable" | "model_error";
   message: string;
 }
+
+/**
+ * Draft rewriting ("improve this message"). Operates ONLY on the user's own
+ * unsent draft and is pinned to the local route by type — the gateway refuses
+ * anything else, so a DM draft can never reach a cloud provider. Drafts are
+ * never persisted or logged.
+ */
+export interface RewriteRequest {
+  /** The user's own unsent draft — the only content ever sent. */
+  draft: string;
+  /** Pinned: rewrites are local-model only. */
+  route: "local";
+}
+
+export interface RewriteResult {
+  text: string;
+  route: "local";
+  model?: string;
+  createdAt: string;
+}

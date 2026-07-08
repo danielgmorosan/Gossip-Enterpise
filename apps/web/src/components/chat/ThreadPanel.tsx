@@ -1,11 +1,31 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { X, MessagesSquare, SendHorizontal } from "lucide-react";
-import { Avatar } from "@gossip/ui/stack";
+import { UserAvatar as Avatar } from "@/components/UserAvatar";
+import { MessageBody } from "@/components/chat/MessageBody";
+import { AttachmentView } from "@/components/chat/AttachmentView";
 import { useRelay } from "@/stores/useRelay";
 import { useSession } from "@/stores/useSession";
 import { cn, formatTime } from "@/lib/utils";
 
-function Row({ senderId, senderName, ts, body, mine }: { senderId: string; senderName: string; ts: number; body: string; mine: boolean }) {
+function Row({
+  senderId,
+  senderName,
+  ts,
+  body,
+  mine,
+  deleted,
+  editedAt,
+  attachment,
+}: {
+  senderId: string;
+  senderName: string;
+  ts: number;
+  body: string;
+  mine: boolean;
+  deleted?: boolean;
+  editedAt?: number | null;
+  attachment?: import("@/lib/uploads").AttachmentRef | null;
+}) {
   return (
     <div className="flex gap-2.5">
       <Avatar name={senderName} id={senderId} className="!size-7 !text-[11px] shrink-0" />
@@ -15,7 +35,15 @@ function Row({ senderId, senderName, ts, body, mine }: { senderId: string; sende
           {mine && <span className="text-[11px] text-ink-faint">you</span>}
           <span className="text-[11px] text-ink-faint">{formatTime(new Date(ts))}</span>
         </div>
-        <div className="whitespace-pre-wrap text-[13.5px] leading-relaxed text-ink">{body}</div>
+        {deleted ? (
+          <div className="text-[13px] italic text-ink-faint">message deleted</div>
+        ) : (
+          <div className="text-[13.5px] leading-relaxed text-ink">
+            {body && <MessageBody text={body} />}
+            {editedAt != null && <span className="ml-1.5 text-[11px] text-ink-faint">(edited)</span>}
+            {attachment && <AttachmentView a={attachment} />}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -71,7 +99,7 @@ export function ThreadPanel({
       <div ref={scrollRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
         {root ? (
           <>
-            <Row senderId={root.senderId} senderName={root.senderName} ts={root.ts} body={root.body} mine={root.senderId === myId} />
+            <Row senderId={root.senderId} senderName={root.senderName} ts={root.ts} body={root.body} mine={root.senderId === myId} deleted={root.deleted} editedAt={root.editedAt} attachment={root.attachment} />
             <div className="flex items-center gap-2">
               <div className="h-px flex-1 bg-line" />
               <span className="text-[11px] text-ink-faint">
@@ -80,7 +108,7 @@ export function ThreadPanel({
               <div className="h-px flex-1 bg-line" />
             </div>
             {replies.map((r) => (
-              <Row key={r.id} senderId={r.senderId} senderName={r.senderName} ts={r.ts} body={r.body} mine={r.senderId === myId} />
+              <Row key={r.id} senderId={r.senderId} senderName={r.senderName} ts={r.ts} body={r.body} mine={r.senderId === myId} deleted={r.deleted} editedAt={r.editedAt} attachment={r.attachment} />
             ))}
           </>
         ) : (

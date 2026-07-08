@@ -93,7 +93,9 @@
   --color-inverse: var(--st-inverse);
   --color-inverse-ink: var(--st-inverse-ink);
 
-  --font-stack: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  /* "Noto Color Emoji" (self-hosted by the app) keeps emoji one consistent
+     set across OSes; harmless no-op where the font isn't loaded. */
+  --font-stack: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif, "Noto Color Emoji";
 
   /* Controls (buttons, inputs) share one radius; cards use a larger one. */
   --radius-control: 0.5rem;

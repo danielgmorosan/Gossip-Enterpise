@@ -69,6 +69,8 @@ export default defineConfig({
       "/livekit-config": { target: "http://localhost:8788" },
       // OpenClaw AI gateway (lives in the relay; only sees channel data, never DMs).
       "/openclaw": { target: "http://localhost:8788" },
+      // Channel attachments (upload + download), served by the relay.
+      "/uploads": { target: "http://localhost:8788" },
     },
   },
   preview: { headers: coopCoep },
