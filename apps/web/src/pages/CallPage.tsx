@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import type { RoomOptions } from "livekit-client";
+import { DisconnectReason, type RoomOptions } from "livekit-client";
 import { Video, Loader2, ServerCog, ArrowLeft } from "lucide-react";
 import "@livekit/components-styles";
 import { RoomContext, VideoConference } from "@livekit/components-react";
@@ -18,7 +18,22 @@ type State =
   | { phase: "loading" }
   | { phase: "unconfigured" }
   | { phase: "error"; message: string }
+  | { phase: "disconnected"; message: string }
   | { phase: "ready" };
+
+/** Human-readable text for a server-side disconnect. */
+function disconnectMessage(reason: DisconnectReason): string {
+  switch (reason) {
+    case DisconnectReason.DUPLICATE_IDENTITY:
+      return "This call was joined from another tab or device, which took over the connection. Close the other tab, then rejoin.";
+    case DisconnectReason.PARTICIPANT_REMOVED:
+      return "You were removed from the call.";
+    case DisconnectReason.ROOM_DELETED:
+      return "The call was ended.";
+    default:
+      return `Connection to the call was lost (${DisconnectReason[reason] ?? reason}).`;
+  }
+}
 
 /**
  * Call surface. The LiveKit Room itself lives in the global call store (T-14),
@@ -68,6 +83,45 @@ export function CallPage() {
 
   // Join (or re-bind to) the call. Idempotent: if the store is already on this
   // target the connect() is a no-op and we just render the existing room.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  const join = useCallback(async () => {
+    setState({ phase: "loading" });
+    try {
+      const cfg = await fetch(relayUrl("/livekit-config")).then((r) => r.json());
+      if (!cfg.configured) {
+        if (mounted.current) setState({ phase: "unconfigured" });
+        return;
+      }
+      let room: string;
+      if (isDm) {
+        if (!userId) throw new Error("Unlock your session to start a DM call.");
+        // Opaque digest of the sorted pair — both sides derive the same room.
+        room = await dmRoomName(userId, peerId);
+      } else {
+        room = `${workspaceId}:${channelId}`;
+      }
+      const identity = userId ?? `guest-${Math.random().toString(36).slice(2, 8)}`;
+      const res = await fetch(relayUrl("/livekit-token"), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ room, identity, name: displayName || "Guest" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "token request failed");
+      await useCall.getState().connect({ url: data.url, token: data.token, target, options: roomOptions });
+      if (mounted.current) setState({ phase: "ready" });
+    } catch (e) {
+      if (mounted.current) setState({ phase: "error", message: e instanceof Error ? e.message : "Failed to start call" });
+    }
+  }, [isDm, userId, peerId, workspaceId, channelId, displayName, target, roomOptions]);
+
   const ran = useRef(false);
   useEffect(() => {
     if (useCall.getState().status !== "idle" && sameTarget(useCall.getState().target, target)) {
@@ -76,48 +130,28 @@ export function CallPage() {
     }
     if (ran.current) return;
     ran.current = true;
-    let active = true;
-    (async () => {
-      try {
-        const cfg = await fetch(relayUrl("/livekit-config")).then((r) => r.json());
-        if (!cfg.configured) {
-          if (active) setState({ phase: "unconfigured" });
-          return;
-        }
-        let room: string;
-        if (isDm) {
-          if (!userId) throw new Error("Unlock your session to start a DM call.");
-          // Opaque digest of the sorted pair — both sides derive the same room.
-          room = await dmRoomName(userId, peerId);
-        } else {
-          room = `${workspaceId}:${channelId}`;
-        }
-        const identity = userId ?? `guest-${Math.random().toString(36).slice(2, 8)}`;
-        const res = await fetch(relayUrl("/livekit-token"), {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ room, identity, name: displayName || "Guest" }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error ?? "token request failed");
-        await useCall.getState().connect({ url: data.url, token: data.token, target, options: roomOptions });
-        if (active) setState({ phase: "ready" });
-      } catch (e) {
-        if (active) setState({ phase: "error", message: e instanceof Error ? e.message : "Failed to start call" });
-      }
-    })();
-    return () => {
-      active = false;
-    };
+    void join();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- join once per mount; store handles idempotency
   }, []);
 
-  // If the call ends while we're on this page (dock leave, in-call leave,
-  // server disconnect), bounce back to the conversation.
+  // If the call ends while we're on this page: a user-initiated leave (dock
+  // Leave, in-call leave button) bounces back to the conversation, but a
+  // server-side disconnect (duplicate identity, removed, room closed, network)
+  // stays here and says why, with a Rejoin affordance.
   const wasLive = useRef(false);
   useEffect(() => {
-    if (callStatus !== "idle") wasLive.current = true;
-    else if (wasLive.current) back();
+    if (callStatus !== "idle") {
+      wasLive.current = true;
+      return;
+    }
+    if (!wasLive.current) return;
+    wasLive.current = false;
+    const reason = useCall.getState().lastDisconnectReason;
+    if (reason !== null && reason !== DisconnectReason.CLIENT_INITIATED) {
+      setState({ phase: "disconnected", message: disconnectMessage(reason) });
+    } else {
+      back();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [callStatus]);
 
@@ -169,6 +203,18 @@ export function CallPage() {
             <Button className="mt-4" variant="secondary" onClick={back}>
               <ArrowLeft className="size-4" /> Back to channel
             </Button>
+          </>
+        )}
+        {state.phase === "disconnected" && (
+          <>
+            <p className="text-[15px] font-semibold text-negative">Disconnected from the call</p>
+            <p className="mt-1 text-[13px] leading-relaxed text-ink-mute">{state.message}</p>
+            <div className="mt-4 flex items-center justify-center gap-2">
+              <Button onClick={() => void join()}>Rejoin</Button>
+              <Button variant="secondary" onClick={back}>
+                <ArrowLeft className="size-4" /> {isDm ? "Back to conversation" : "Back to channel"}
+              </Button>
+            </div>
           </>
         )}
         {state.phase === "unconfigured" && (

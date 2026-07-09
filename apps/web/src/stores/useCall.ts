@@ -1,4 +1,4 @@
-import { Room, RoomEvent, type RoomOptions } from "livekit-client";
+import { DisconnectReason, Room, RoomEvent, type RoomOptions } from "livekit-client";
 import { create } from "zustand";
 import { syncNoiseGate, resetNoiseGate } from "@/lib/audioProcessing";
 
@@ -33,6 +33,8 @@ interface CallState {
   mic: boolean;
   cam: boolean;
   screen: boolean;
+  /** Why the last session ended (server kick, duplicate identity, …); null after a user-initiated leave. */
+  lastDisconnectReason: DisconnectReason | null;
 
   connect: (args: { url: string; token: string; target: CallTarget; options: RoomOptions }) => Promise<void>;
   leave: () => Promise<void>;
@@ -55,6 +57,7 @@ export const useCall = create<CallState>((set, get) => {
     mic: false,
     cam: false,
     screen: false,
+    lastDisconnectReason: null,
 
     connect: async ({ url, token, target, options }) => {
       const cur = get();
@@ -64,16 +67,27 @@ export const useCall = create<CallState>((set, get) => {
       if (cur.room) await get().leave();
 
       const room = new Room(options);
-      set({ room, status: "connecting", target });
+      set({ room, status: "connecting", target, lastDisconnectReason: null });
       room
         .on(RoomEvent.LocalTrackPublished, syncLocal)
         .on(RoomEvent.LocalTrackUnpublished, syncLocal)
         .on(RoomEvent.TrackMuted, syncLocal)
         .on(RoomEvent.TrackUnmuted, syncLocal)
-        .on(RoomEvent.Disconnected, () => {
+        .on(RoomEvent.Disconnected, (reason) => {
           // Covers every path out: dock Leave, in-call leave button, server kick.
+          if (reason !== undefined && reason !== DisconnectReason.CLIENT_INITIATED) {
+            console.warn("[call] disconnected by server, reason:", DisconnectReason[reason] ?? reason);
+          }
           if (get().room === room) {
-            set({ room: null, status: "idle", target: null, mic: false, cam: false, screen: false });
+            set({
+              room: null,
+              status: "idle",
+              target: null,
+              mic: false,
+              cam: false,
+              screen: false,
+              lastDisconnectReason: reason ?? null,
+            });
             resetNoiseGate();
           }
         });
