@@ -60,7 +60,7 @@ export function CallSettings() {
       stream.getTracks().forEach((t) => t.stop()); // permission only — release the mic
       await refresh();
     } catch {
-      setError("Microphone access was denied — device names stay hidden without it.");
+      setError("Microphone access was denied. Device names stay hidden without it.");
     }
   };
 
@@ -102,7 +102,7 @@ export function CallSettings() {
               <Volume2 className="size-4 text-ink-faint" /> Speaker
             </span>
           }
-          desc={supportsSinkId ? "Output device for call audio." : "Output selection isn't supported by this browser (no setSinkId) — the system default is used."}
+          desc={supportsSinkId ? "Output device for call audio." : "Output selection isn't supported by this browser (no setSinkId), so the system default is used."}
           control={
             <DeviceSelect
               devices={outputs}
@@ -143,7 +143,7 @@ export function CallSettings() {
         />
       </SettingGroup>
 
-      <SettingGroup title="Advanced — noise gate">
+      <SettingGroup title="Advanced: noise gate">
         <SettingRow
           label={
             <span className="inline-flex items-center gap-2">

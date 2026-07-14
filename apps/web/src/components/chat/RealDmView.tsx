@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { ShieldCheck, Check, Lock, Phone } from "lucide-react";
 import { PaneHeader, HeaderIconButton } from "@/components/chat/PaneHeader";
@@ -6,10 +6,12 @@ import { Composer } from "@/components/chat/Composer";
 import { MessageBody } from "@/components/chat/MessageBody";
 import { MessageActionsBar, ArmDeleteButton, EditBox } from "@/components/chat/MessageActionsBar";
 import { Pencil } from "lucide-react";
-import { Button } from "@gossip/ui/stack";
+import { Button, Tooltip } from "@gossip/ui/stack";
 import { UserAvatar as Avatar } from "@/components/UserAvatar";
 import { gossipSdk, SdkEventType, MessageDirection, MessageType, type Message } from "@/lib/sdk";
 import { useSession } from "@/stores/useSession";
+import { useContacts } from "@/stores/useContacts";
+import { useNotifications } from "@/stores/useNotifications";
 import { cn, formatTime, truncateHandle } from "@/lib/utils";
 
 function E2EPill() {
@@ -32,6 +34,15 @@ export function RealDmView({ peerId, peerName }: { peerId: string; peerName?: st
   const [sending, setSending] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // @mention picker candidates (T2-05): your contacts.
+  const contacts = useContacts((s) => s.contacts);
+  const mentionCandidates = useMemo(() => contacts.map((c) => ({ id: c.userId, name: c.name })), [contacts]);
+
+  // T2-09: viewing the conversation clears its unread badge.
+  useEffect(() => {
+    if (!isSelf) useNotifications.getState().clearDmUnread(peerId);
+  }, [isSelf, peerId, messages.length]);
 
   /** SDK marks edits via metadata.edited (set by messages.editMessage). */
   const isEdited = (m: Message): boolean =>
@@ -169,7 +180,7 @@ export function RealDmView({ peerId, peerName }: { peerId: string; peerName?: st
         <div className="mx-auto flex max-w-3xl flex-col gap-1.5">
           {messages.length === 0 && (
             <p className="py-10 text-center text-[13px] text-ink-faint">
-              {isSelf ? "No notes yet — write one below." : "No messages yet — say hello."}
+              {isSelf ? "No notes yet. Write one below." : "No messages yet. Say hello."}
             </p>
           )}
           {messages.map((m, i) => {
@@ -186,14 +197,15 @@ export function RealDmView({ peerId, peerName }: { peerId: string; peerName?: st
                 className="hidden shrink-0 self-center group-hover:flex"
               >
                 {canMutate && (
-                  <button
-                    onClick={() => setEditingId(m.id!)}
-                    title="Edit message"
-                    aria-label="Edit message"
-                    className="grid size-7 place-items-center rounded-[calc(var(--radius-control)-2px)] text-ink-mute transition-colors hover:bg-field hover:text-ink"
-                  >
-                    <Pencil className="size-3.5" />
-                  </button>
+                  <Tooltip label="Edit message">
+                    <button
+                      onClick={() => setEditingId(m.id!)}
+                      aria-label="Edit message"
+                      className="grid size-7 place-items-center rounded-[calc(var(--radius-control)-2px)] text-ink-mute transition-colors hover:bg-field hover:text-ink"
+                    >
+                      <Pencil className="size-3.5" />
+                    </button>
+                  </Tooltip>
                 )}
                 {canMutate && <ArmDeleteButton onConfirm={() => void deleteMsg(m.id!)} />}
               </MessageActionsBar>
@@ -241,11 +253,12 @@ export function RealDmView({ peerId, peerName }: { peerId: string; peerName?: st
 
       <div className="mx-auto w-full max-w-3xl">
         <Composer
-          placeholder={isSelf ? "Message yourself — encrypted for real…" : `Message ${peerName || "contact"} — E2E…`}
+          placeholder={isSelf ? "Message yourself, encrypted for real…" : `Message ${peerName || "contact"} (E2E)…`}
           e2e
           busy={sending}
           onSend={(text) => void send(text)}
-          attachNotice="Attachments aren't available in E2E DMs yet — the Gossip SDK doesn't support them."
+          attachNotice="Attachments aren't available in E2E DMs yet. The Gossip SDK doesn't support them."
+          mentionCandidates={mentionCandidates}
         />
       </div>
     </div>

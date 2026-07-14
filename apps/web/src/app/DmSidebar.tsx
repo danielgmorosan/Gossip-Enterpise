@@ -6,8 +6,20 @@ import { UserAvatar as Avatar } from "@/components/UserAvatar";
 import { truncateHandle } from "@/lib/utils";
 import { useSession } from "@/stores/useSession";
 import { useContacts, useContactsLive } from "@/stores/useContacts";
+import { useNotifications } from "@/stores/useNotifications";
 import { NewDmDialog } from "@/components/chat/NewDmDialog";
 import { Row, GroupLabel } from "./ChannelSidebar";
+
+/** Unread pill for a DM row (T2-09). */
+function DmUnreadBadge({ peerId }: { peerId: string }) {
+  const count = useNotifications((s) => s.unreadByDm[peerId] ?? 0);
+  if (!count) return null;
+  return (
+    <span className="grid min-w-4 shrink-0 place-items-center rounded-full bg-ink px-1 text-[9.5px] font-bold leading-4 text-paper">
+      {count > 99 ? "99+" : count}
+    </span>
+  );
+}
 
 /**
  * Sidebar of the personal home space (/home) — Discord-style: DMs live here,
@@ -28,7 +40,7 @@ export function DmSidebar() {
       <div className="flex items-center gap-2 border-b border-line px-3 py-3">
         <div className="min-w-0 flex-1">
           <div className="truncate text-[14px] font-semibold text-ink">Direct messages</div>
-          <div className="mt-0.5 text-[10px] text-ink-faint">personal space — no workspace needed</div>
+          <div className="mt-0.5 text-[10px] text-ink-faint">personal space, no workspace needed</div>
         </div>
         <span className="inline-flex shrink-0 items-center gap-1 rounded-control bg-field px-2 py-0.5 text-[11px] font-medium text-positive">
           <span className="size-1.5 rounded-full bg-positive" /> E2E
@@ -43,7 +55,7 @@ export function DmSidebar() {
       </div>
 
       <div className="mt-1 flex-1 overflow-y-auto px-2 pb-4">
-        <GroupLabel label="Direct messages" open={showDm} onToggle={() => setShowDm((v) => !v)} onAdd={() => setNewDm(true)} />
+        <GroupLabel label="Direct messages" open={showDm} onToggle={() => setShowDm((v) => !v)} onAdd={() => setNewDm(true)} addLabel="New direct message" />
         {showDm && (
           <Row to="/home/dm/dm_self" active={dmId === "dm_self"}>
             <span className="grid size-5 shrink-0 place-items-center rounded-full bg-ink text-paper">
@@ -58,6 +70,7 @@ export function DmSidebar() {
             <Row key={c.userId} to={`/home/dm/${encodeURIComponent(c.userId)}`} active={dmId === c.userId}>
               <Avatar name={c.name} id={c.userId} size="sm" />
               <span className="min-w-0 flex-1 truncate">{c.name}</span>
+              <DmUnreadBadge peerId={c.userId} />
               <ShieldCheck className="size-3 shrink-0 text-positive/70" />
             </Row>
           ))}

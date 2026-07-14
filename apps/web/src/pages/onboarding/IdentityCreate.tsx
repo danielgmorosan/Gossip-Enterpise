@@ -53,7 +53,7 @@ export function IdentityCreate() {
       </h1>
       <p className="mt-1.5 text-[14px] leading-relaxed text-ink-mute">
         This 12-word phrase <span className="text-ink">is</span> your identity. There's no email to
-        reset it — write it down and keep it offline.
+        reset it, so write it down and keep it offline.
       </p>
 
       <div className="mt-5">

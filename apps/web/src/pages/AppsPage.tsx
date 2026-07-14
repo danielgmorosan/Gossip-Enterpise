@@ -19,7 +19,7 @@ export function AppsPage() {
         title="Mini-apps"
         subtitle="Privacy-respecting tools, docked into the workspace"
         actions={
-          <Link to="/settings/integrations">
+          <Link to="/settings/integrations" state={{ from: `/w/${workspaceId}/apps` }}>
             <Button size="sm" variant="outline">
               Manage integrations
             </Button>

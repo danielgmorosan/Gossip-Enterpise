@@ -45,7 +45,7 @@ export function IntegrationsSettings() {
         <p className="text-[13px] leading-relaxed text-ink-mute">
           <span className="font-medium text-ink">The sweet spot is self-hostable open source:</span>{" "}
           you run the server, so you own the data and still get a real API. Closed E2E suites
-          (Proton, Tuta) are handled as desktop-bridge special cases — we never promise an API that
+          (Proton, Tuta) are handled as desktop-bridge special cases; we never promise an API that
           doesn't exist.
         </p>
       </div>

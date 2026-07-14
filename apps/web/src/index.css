@@ -203,6 +203,38 @@
   .md-chip {
     background: color-mix(in srgb, currentColor 10%, transparent);
   }
+  /* Fenced code blocks (T2-04). The container owns the surface; Shiki's own
+     inline background is suppressed so light/dark come from our tokens. */
+  .code-block-body {
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: 0.8em;
+    line-height: 1.6;
+    color: var(--st-ink);
+  }
+  .code-block-body pre,
+  .code-block-body code {
+    background: transparent !important;
+    white-space: pre;
+  }
+  /* Shiki dual-theme flip: dark mode reads the --shiki-dark vars. */
+  .dark .code-block-body .shiki,
+  .dark .code-block-body .shiki span {
+    color: var(--shiki-dark, inherit) !important;
+  }
+  /* Small popover entrance (mention picker etc.): fade + 3px rise. */
+  .st-pop-in {
+    animation: st-pop-in 0.12s ease-out;
+  }
+  @keyframes st-pop-in {
+    from {
+      opacity: 0;
+      transform: translateY(3px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
   .grain {
     position: relative;
   }

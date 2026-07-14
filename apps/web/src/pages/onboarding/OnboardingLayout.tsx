@@ -19,7 +19,7 @@ export function OnboardingLayout() {
                 Slack, but the messages are <span className="text-ink-mute">actually private.</span>
               </h1>
               <p className="mt-4 text-[15px] leading-relaxed text-ink-mute">
-                A decentralized, privacy-first workspace built on Gossip's end-to-end encrypted stack —
+                A decentralized, privacy-first workspace built on Gossip's end-to-end encrypted stack,
                 with a self-hosted AI assistant you control.
               </p>
 

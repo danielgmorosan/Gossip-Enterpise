@@ -35,7 +35,7 @@ export function SearchPage() {
       />
       <div className="flex items-center gap-2 border-b border-line bg-paper-2 px-4 py-2 text-[12.5px] text-ink-mute">
         <ShieldCheck className="size-4 shrink-0 text-positive" />
-        Search never includes your end-to-end encrypted DMs — only channel content you already have access to.
+        Search never includes your end-to-end encrypted DMs, only channel content you already have access to.
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">

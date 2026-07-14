@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Users, UserPlus, MessageSquareLock, Phone, Copy, Check, Lock, Link2 } from "lucide-react";
-import { Button } from "@gossip/ui/stack";
+import { Button, Tooltip } from "@gossip/ui/stack";
 import { PaneHeader } from "@/components/chat/PaneHeader";
 import { NewDmDialog } from "@/components/chat/NewDmDialog";
 import { UserAvatar as Avatar } from "@/components/UserAvatar";
@@ -74,7 +74,7 @@ export function HomePage() {
             <div className="min-w-0 flex-1">
               <div className="text-[14px] font-semibold text-ink">Your contact link</div>
               <p className="truncate text-[12.5px] text-ink-mute">
-                Share it so anyone can start an end-to-end encrypted DM with you — no workspace needed.
+                Share it so anyone can start an end-to-end encrypted DM with you, no workspace needed.
               </p>
             </div>
             <Button variant="secondary" size="sm" onClick={copyLink} disabled={!userId}>
@@ -99,7 +99,7 @@ export function HomePage() {
           ) : (
             <>
               <div className="px-1 pb-1 text-[11px] font-medium uppercase tracking-wider text-ink-faint">
-                All contacts — {contacts.length}
+                All contacts · {contacts.length}
               </div>
               <div className="divide-y divide-line rounded-card border border-line bg-paper">
                 {contacts.map((c) => (
@@ -110,22 +110,24 @@ export function HomePage() {
                       <div className="truncate font-mono text-[10.5px] text-ink-faint">{truncateHandle(c.userId, 14, 8)}</div>
                     </div>
                     <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-                      <Link
-                        to={`/home/dm/${encodeURIComponent(c.userId)}`}
-                        title={`Message ${c.name}`}
-                        aria-label={`Message ${c.name}`}
-                        className="grid size-8 place-items-center rounded-control text-ink-mute transition-colors hover:bg-field hover:text-ink"
-                      >
-                        <MessageSquareLock className="size-4" />
-                      </Link>
-                      <Link
-                        to={`/home/call/dm/${encodeURIComponent(c.userId)}`}
-                        title={`Call ${c.name}`}
-                        aria-label={`Call ${c.name}`}
-                        className="grid size-8 place-items-center rounded-control text-ink-mute transition-colors hover:bg-field hover:text-ink"
-                      >
-                        <Phone className="size-4" />
-                      </Link>
+                      <Tooltip label={`Message ${c.name}`}>
+                        <Link
+                          to={`/home/dm/${encodeURIComponent(c.userId)}`}
+                          aria-label={`Message ${c.name}`}
+                          className="grid size-8 place-items-center rounded-control text-ink-mute transition-colors hover:bg-field hover:text-ink"
+                        >
+                          <MessageSquareLock className="size-4" />
+                        </Link>
+                      </Tooltip>
+                      <Tooltip label={`Call ${c.name}`}>
+                        <Link
+                          to={`/home/call/dm/${encodeURIComponent(c.userId)}`}
+                          aria-label={`Call ${c.name}`}
+                          className="grid size-8 place-items-center rounded-control text-ink-mute transition-colors hover:bg-field hover:text-ink"
+                        >
+                          <Phone className="size-4" />
+                        </Link>
+                      </Tooltip>
                     </div>
                   </div>
                 ))}

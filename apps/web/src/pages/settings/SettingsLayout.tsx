@@ -1,4 +1,5 @@
-import { NavLink, Outlet, Link } from "react-router-dom";
+import { useState } from "react";
+import { NavLink, Outlet, Link, useLocation } from "react-router-dom";
 import { User, Building2, Plug, Cpu, ShieldCheck, Bell, Palette, ArrowLeft, Headphones } from "lucide-react";
 import { BrandLogo } from "@gossip/ui/stack";
 import { cn } from "@/lib/utils";
@@ -27,7 +28,17 @@ const groups = [
 
 export function SettingsLayout() {
   const myWorkspaces = useRelay((s) => s.myWorkspaces);
-  const backTo = myWorkspaces[0] ? `/w/${myWorkspaces[0].id}` : "/welcome";
+  const location = useLocation();
+  // Where the user came from (rail links pass state.from). Captured once at
+  // mount so switching settings tabs doesn't lose it; a fresh deep-link has
+  // no state and falls back to the first workspace, then /home (DMs work
+  // without any workspace).
+  const [from] = useState(() => {
+    const f = (location.state as { from?: string } | null)?.from;
+    return typeof f === "string" && f.startsWith("/") ? f : null;
+  });
+  const backTo = from ?? (myWorkspaces[0] ? `/w/${myWorkspaces[0].id}` : "/home");
+  const backLabel = backTo.startsWith("/w/") ? "Back to workspace" : "Back to messages";
 
   return (
     <div className="relative z-10 flex h-screen w-screen overflow-hidden bg-paper font-stack text-ink">
@@ -74,7 +85,7 @@ export function SettingsLayout() {
           to={backTo}
           className="m-3 flex items-center gap-2 rounded-control border border-line px-3 py-2.5 text-[13px] text-ink-mute transition-colors hover:bg-field hover:text-ink"
         >
-          <ArrowLeft className="size-4" /> Back to workspace
+          <ArrowLeft className="size-4" /> {backLabel}
         </Link>
       </aside>
 

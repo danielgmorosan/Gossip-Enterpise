@@ -72,7 +72,7 @@ export function AiEngineSettings() {
           label="Model"
           desc={
             health && health.ollama && !health.hasModel
-              ? `Configured model isn't pulled yet — run \`ollama pull ${health.model}\`.`
+              ? `Configured model isn't pulled yet. Run \`ollama pull ${health.model}\`.`
               : "The model Gossip AI routes reasoning to."
           }
           control={
@@ -100,7 +100,7 @@ export function AiEngineSettings() {
                 )}
               </span>
             }
-            desc={`${m.tier} · ${m.ram} · ${m.ctx} — ${m.desc}`}
+            desc={`${m.tier} · ${m.ram} · ${m.ctx} · ${m.desc}`}
             control={
               <Button variant="outline" size="sm" onClick={() => copyPull(m.id)}>
                 {copiedId === m.id ? <Check className="size-4 text-positive" /> : <Copy className="size-4" />}

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Copy, Check, UserPlus, Loader2 } from "lucide-react";
-import { Button, Field, Input, StackModal, ModalBody } from "@gossip/ui/stack";
+import { Button, Field, Input, StackModal, ModalBody, Tooltip } from "@gossip/ui/stack";
 import { gossipSdk } from "@/lib/sdk";
 import { useContacts } from "@/stores/useContacts";
 import { useSession } from "@/stores/useSession";
@@ -38,21 +38,23 @@ export function NewDmDialog({ onClose }: { onClose: () => void }) {
 
         {/* Share your ID */}
         <div className="mb-4 rounded-card border border-line bg-field p-3">
-          <div className="mb-1 text-[12px] font-medium text-ink-mute">Your user ID — share it so others can message you</div>
+          <div className="mb-1 text-[12px] font-medium text-ink-mute">Your user ID: share it so others can message you</div>
           <div className="flex items-center gap-2">
             <code className="min-w-0 flex-1 truncate font-mono text-[12px] text-ink">{myId || "open a session first"}</code>
-            <button
-              disabled={!myId}
-              onClick={() => {
-                navigator.clipboard?.writeText(myId);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1500);
-              }}
-              aria-label="Copy your user ID"
-              className="grid size-8 shrink-0 place-items-center rounded-control border border-line text-ink-mute hover:bg-paper hover:text-ink"
-            >
-              {copied ? <Check className="size-4 text-positive" /> : <Copy className="size-4" />}
-            </button>
+            <Tooltip label={copied ? "Copied!" : "Copy your user ID"} className="shrink-0">
+              <button
+                disabled={!myId}
+                onClick={() => {
+                  navigator.clipboard?.writeText(myId);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1500);
+                }}
+                aria-label="Copy your user ID"
+                className="grid size-8 place-items-center rounded-control border border-line text-ink-mute hover:bg-paper hover:text-ink"
+              >
+                {copied ? <Check className="size-4 text-positive" /> : <Copy className="size-4" />}
+              </button>
+            </Tooltip>
           </div>
         </div>
 

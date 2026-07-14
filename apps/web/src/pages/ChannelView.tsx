@@ -7,12 +7,14 @@ import { MessageBody } from "@/components/chat/MessageBody";
 import { MessageActionsBar, ArmDeleteButton, EditBox } from "@/components/chat/MessageActionsBar";
 import { AttachmentView } from "@/components/chat/AttachmentView";
 import { uploadAttachment } from "@/lib/uploads";
-import { StackToast } from "@gossip/ui/stack";
+import { StackToast, Tooltip } from "@gossip/ui/stack";
 import { AiSidePanel } from "@/components/chat/AiSidePanel";
 import { ThreadPanel } from "@/components/chat/ThreadPanel";
+import { ChannelMembersDialog } from "@/components/chat/ChannelMembersDialog";
 import { UserAvatar as Avatar } from "@/components/UserAvatar";
 import { useRelay } from "@/stores/useRelay";
 import { useSession } from "@/stores/useSession";
+import { useNotifications } from "@/stores/useNotifications";
 import { formatTime } from "@/lib/utils";
 import { useStartDm } from "@/lib/useStartDm";
 
@@ -23,6 +25,7 @@ export function ChannelView() {
   const [aiOpen, setAiOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [uploadNotice, setUploadNotice] = useState<string | null>(null);
+  const [membersOpen, setMembersOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   /** T-13: upload each picked file to the relay, then post it as a message. */
@@ -50,6 +53,12 @@ export function ChannelView() {
   const myRole = workspace?.members.find((x) => x.userId === myId)?.role;
   const isAdmin = myRole === "owner" || myRole === "admin";
   const startDm = useStartDm();
+
+  // @mention picker candidates (T2-05): everyone in the workspace.
+  const mentionCandidates = useMemo(
+    () => (workspace?.members ?? []).map((m) => ({ id: m.userId, name: m.name })),
+    [workspace?.members],
+  );
 
   // Main feed shows only thread roots / plain messages; replies live in the panel.
   const feed = useMemo(() => messages.filter((m) => !m.threadRootId), [messages]);
@@ -80,12 +89,37 @@ export function ChannelView() {
     if (workspaceId && channelId) useRelay.getState().joinChannel(workspaceId, channelId);
   }, [workspaceId, channelId]);
 
+  // T2-09: viewing the channel clears its unread badge (and keeps it clear
+  // as messages stream in while it's on screen).
+  useEffect(() => {
+    if (channelId) useNotifications.getState().clearChannelUnread(channelId);
+  }, [channelId, messages.length]);
+
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [feed.length]);
 
   const name = channel?.name ?? "channel";
   const isPrivate = channel?.type === "private";
+
+  // T2-08: private channels you aren't in are filtered out of the workspace
+  // snapshot server-side — a stale/shared link lands here with no channel.
+  if (workspace && workspace.id === workspaceId && !channel) {
+    return (
+      <div className="grid min-h-0 flex-1 place-items-center p-6">
+        <div className="max-w-sm text-center">
+          <span className="mx-auto grid size-12 place-items-center rounded-card bg-field text-ink">
+            <Lock className="size-6" />
+          </span>
+          <h2 className="mt-3 text-xl font-bold tracking-tight text-ink">Channel unavailable</h2>
+          <p className="mt-1 text-[14px] leading-relaxed text-ink-mute">
+            This channel doesn't exist, or it's private and you haven't been invited. Ask a channel
+            member to add you.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-0 flex-1">
@@ -111,9 +145,15 @@ export function ChannelView() {
               <Link to={`/w/${workspaceId}/call/${channelId}`}>
                 <HeaderIconButton label="Start huddle"><Phone className="size-4" /></HeaderIconButton>
               </Link>
-              <Link to={`/w/${workspaceId}/members`}>
-                <HeaderIconButton label="Members"><Users className="size-4" /></HeaderIconButton>
-              </Link>
+              {isPrivate ? (
+                <HeaderIconButton label={`Channel members (${channel?.members?.length ?? 0})`} active={membersOpen} onClick={() => setMembersOpen(true)}>
+                  <Users className="size-4" />
+                </HeaderIconButton>
+              ) : (
+                <Link to={`/w/${workspaceId}/members`}>
+                  <HeaderIconButton label="Members"><Users className="size-4" /></HeaderIconButton>
+                </Link>
+              )}
               <HeaderIconButton label="Ask Gossip AI" active={aiOpen} onClick={() => { setAiOpen((v) => !v); if (!aiOpen) openThread(null); }}>
                 <Sparkles className="size-4" />
               </HeaderIconButton>
@@ -132,11 +172,14 @@ export function ChannelView() {
             </h2>
             <p className="mt-1 max-w-xl text-[14px] text-ink-mute">This is the start of #{name}. {channel?.topic}</p>
             <div className="mt-3 inline-flex items-center gap-1.5 rounded-control bg-field px-2.5 py-1.5 text-[13px] text-ink-mute">
-              <ShieldAlert className="size-3.5" /> Group messages are relay-backed and workspace-confidential — not E2E yet.
+              <ShieldAlert className="size-3.5" />
+              {isPrivate
+                ? "Invite-only private channel (relay-enforced). Messages are workspace-confidential, not E2E yet."
+                : "Group messages are relay-backed and workspace-confidential, not E2E yet."}
             </div>
           </div>
 
-          {feed.length === 0 && <p className="px-5 py-8 text-[13px] text-ink-faint">No messages yet — say hello to the channel.</p>}
+          {feed.length === 0 && <p className="px-5 py-8 text-[13px] text-ink-faint">No messages yet. Say hello to the channel.</p>}
           {feed.map((m, i) => {
             const prev = feed[i - 1];
             const showAuthor = !prev || prev.senderId !== m.senderId || m.ts - prev.ts > 5 * 60 * 1000;
@@ -215,14 +258,15 @@ export function ChannelView() {
                       <MessageSquareReply className="size-3.5" /> Reply
                     </button>
                     {mine && (
-                      <button
-                        onClick={() => setEditingId(m.id)}
-                        title="Edit message"
-                        aria-label="Edit message"
-                        className="grid size-7 place-items-center rounded-[calc(var(--radius-control)-2px)] text-ink-mute transition-colors hover:bg-field hover:text-ink"
-                      >
-                        <Pencil className="size-3.5" />
-                      </button>
+                      <Tooltip label="Edit message">
+                        <button
+                          onClick={() => setEditingId(m.id)}
+                          aria-label="Edit message"
+                          className="grid size-7 place-items-center rounded-[calc(var(--radius-control)-2px)] text-ink-mute transition-colors hover:bg-field hover:text-ink"
+                        >
+                          <Pencil className="size-3.5" />
+                        </button>
+                      </Tooltip>
                     )}
                     {(mine || isAdmin) && (
                       <ArmDeleteButton onConfirm={() => useRelay.getState().deleteMessage(workspaceId, channelId, m.id)} />
@@ -244,6 +288,7 @@ export function ChannelView() {
           placeholder={`Message #${name}`}
           onSend={(text) => useRelay.getState().post(workspaceId, channelId, text)}
           onAttach={(files) => void handleAttach(files)}
+          mentionCandidates={mentionCandidates}
         />
       </div>
 
@@ -251,6 +296,9 @@ export function ChannelView() {
         <ThreadPanel workspaceId={workspaceId} channelId={channelId} rootId={threadId} onClose={() => openThread(null)} />
       ) : (
         aiOpen && <AiSidePanel workspaceId={workspaceId} channelId={channelId} channelName={name} onClose={() => setAiOpen(false)} />
+      )}
+      {membersOpen && isPrivate && channel && (
+        <ChannelMembersDialog workspaceId={workspaceId} channel={channel} onClose={() => setMembersOpen(false)} />
       )}
     </div>
   );

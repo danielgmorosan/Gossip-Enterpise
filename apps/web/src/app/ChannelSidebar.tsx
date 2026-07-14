@@ -12,11 +12,12 @@ import {
   Copy,
   Check,
 } from "lucide-react";
-import { NavBadge } from "@gossip/ui/stack";
+import { NavBadge, Tooltip } from "@gossip/ui/stack";
 import { cn, truncateHandle } from "@/lib/utils";
 import { inviteLink } from "@/lib/invite";
 import { useSession } from "@/stores/useSession";
 import { useRelay } from "@/stores/useRelay";
+import { useNotifications } from "@/stores/useNotifications";
 import { CreateChannelDialog } from "@/components/chat/CreateChannelDialog";
 
 /** NavLink styled like the Stack kit's NavItem (kept as a real link for router semantics). */
@@ -50,7 +51,20 @@ export function Row({
   );
 }
 
-export function GroupLabel({ label, open, onToggle, onAdd }: { label: string; open: boolean; onToggle: () => void; onAdd?: () => void }) {
+export function GroupLabel({
+  label,
+  open,
+  onToggle,
+  onAdd,
+  addLabel,
+}: {
+  label: string;
+  open: boolean;
+  onToggle: () => void;
+  onAdd?: () => void;
+  /** Tooltip + accessible name for the "+" action, e.g. "Create a channel". */
+  addLabel?: string;
+}) {
   return (
     <div className="flex items-center gap-1 px-2 pb-1 pt-3">
       <button onClick={onToggle} className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-ink-faint hover:text-ink-mute">
@@ -58,11 +72,28 @@ export function GroupLabel({ label, open, onToggle, onAdd }: { label: string; op
         {label}
       </button>
       {onAdd && (
-        <button onClick={onAdd} className="ml-auto grid size-5 place-items-center rounded text-ink-faint hover:bg-field hover:text-ink">
-          <Plus className="size-3.5" />
-        </button>
+        <Tooltip label={addLabel ?? "Add"} className="ml-auto">
+          <button
+            onClick={onAdd}
+            aria-label={addLabel ?? "Add"}
+            className="grid size-5 place-items-center rounded text-ink-faint hover:bg-field hover:text-ink"
+          >
+            <Plus className="size-3.5" />
+          </button>
+        </Tooltip>
       )}
     </div>
+  );
+}
+
+/** Unread count pill for a sidebar row (T2-09). */
+export function ChannelUnreadBadge({ channelId }: { channelId: string }) {
+  const count = useNotifications((s) => s.unreadByChannel[channelId] ?? 0);
+  if (!count) return null;
+  return (
+    <span className="grid min-w-4 shrink-0 place-items-center rounded-full bg-ink px-1 text-[9.5px] font-bold leading-4 text-paper">
+      {count > 99 ? "99+" : count}
+    </span>
   );
 }
 
@@ -122,12 +153,13 @@ export function ChannelSidebar() {
 
       <div className="mt-1 flex-1 overflow-y-auto px-2 pb-4">
         {/* Channels */}
-        <GroupLabel label="Channels" open={showCh} onToggle={() => setShowCh((v) => !v)} onAdd={() => setNewChannel(true)} />
+        <GroupLabel label="Channels" open={showCh} onToggle={() => setShowCh((v) => !v)} onAdd={() => setNewChannel(true)} addLabel="Create a channel" />
         {showCh &&
           channels.map((c) => (
             <Row key={c.id} to={`${base}/c/${c.id}`} active={c.id === channelId}>
               {c.type === "private" ? <Lock className="size-4 shrink-0" /> : <Hash className="size-4 shrink-0" />}
-              <span className="truncate">{c.name}</span>
+              <span className="min-w-0 flex-1 truncate">{c.name}</span>
+              <ChannelUnreadBadge channelId={c.id} />
             </Row>
           ))}
         {showCh && channels.length === 0 && (

@@ -3,8 +3,9 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { DisconnectReason, type RoomOptions } from "livekit-client";
 import { Video, Loader2, ServerCog, ArrowLeft } from "lucide-react";
 import "@livekit/components-styles";
-import { RoomContext, VideoConference } from "@livekit/components-react";
+import { RoomContext } from "@livekit/components-react";
 import { Button } from "@gossip/ui/stack";
+import { CallStage } from "@/components/call/CallStage";
 import { useSession } from "@/stores/useSession";
 import { useRelay } from "@/stores/useRelay";
 import { useContacts } from "@/stores/useContacts";
@@ -159,7 +160,7 @@ export function CallPage() {
 
   if (state.phase === "ready" && boundToThisCall) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col bg-paper font-stack" data-lk-theme="default">
+      <div className="flex min-h-0 flex-1 flex-col bg-paper font-stack">
         <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line bg-paper px-4 font-stack">
           <span className="grid size-6 place-items-center rounded-control bg-field text-ink">
             <Video className="size-3.5" />
@@ -170,13 +171,13 @@ export function CallPage() {
           <span className="ml-1 font-mono text-[10px] text-ink-faint">LiveKit · E2E-capable</span>
           <span className="ml-auto text-[11px] text-ink-faint">navigating away keeps the call running</span>
         </header>
-        <div className="min-h-0 flex-1">
+        <div className="flex min-h-0 flex-1">
           {callStatus === "connected" ? (
             <RoomContext.Provider value={callRoom}>
-              <VideoConference />
+              <CallStage target={target} />
             </RoomContext.Provider>
           ) : (
-            <div className="grid h-full place-items-center text-ink-mute">
+            <div className="grid min-h-0 flex-1 place-items-center text-ink-mute">
               <span className="inline-flex items-center gap-2 text-[14px]">
                 <Loader2 className="size-5 animate-spin" /> Connecting…
               </span>

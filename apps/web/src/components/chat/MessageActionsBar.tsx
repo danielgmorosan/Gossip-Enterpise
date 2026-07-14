@@ -1,5 +1,6 @@
 import { useRef, useState, type ReactNode } from "react";
 import { Copy, Check, Share2, Trash2 } from "lucide-react";
+import { Tooltip } from "@gossip/ui/stack";
 import { cn } from "@/lib/utils";
 
 /**
@@ -45,26 +46,27 @@ export function ArmDeleteButton({ onConfirm }: { onConfirm: () => void }) {
   const [armed, setArmed] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   return (
-    <button
-      onClick={() => {
-        if (armed) {
-          if (timer.current) clearTimeout(timer.current);
-          setArmed(false);
-          onConfirm();
-        } else {
-          setArmed(true);
-          timer.current = setTimeout(() => setArmed(false), 2500);
-        }
-      }}
-      title={armed ? "Click again to delete" : "Delete message"}
-      aria-label={armed ? "Confirm delete" : "Delete message"}
-      className={cn(
-        "grid size-7 place-items-center rounded-[calc(var(--radius-control)-2px)] transition-colors",
-        armed ? "bg-negative text-white" : "text-ink-mute hover:bg-field hover:text-negative",
-      )}
-    >
-      <Trash2 className="size-3.5" />
-    </button>
+    <Tooltip label={armed ? "Click again to delete" : "Delete message"}>
+      <button
+        onClick={() => {
+          if (armed) {
+            if (timer.current) clearTimeout(timer.current);
+            setArmed(false);
+            onConfirm();
+          } else {
+            setArmed(true);
+            timer.current = setTimeout(() => setArmed(false), 2500);
+          }
+        }}
+        aria-label={armed ? "Confirm delete" : "Delete message"}
+        className={cn(
+          "grid size-7 place-items-center rounded-[calc(var(--radius-control)-2px)] transition-colors",
+          armed ? "bg-negative text-white" : "text-ink-mute hover:bg-field hover:text-negative",
+        )}
+      >
+        <Trash2 className="size-3.5" />
+      </button>
+    </Tooltip>
   );
 }
 
@@ -110,17 +112,18 @@ function ClipboardBtn({ label, payload, children }: { label: string; payload: st
   };
 
   return (
-    <button
-      type="button"
-      onClick={() => void write()}
-      title={done ? "Copied!" : label}
-      aria-label={label}
-      className={cn(
-        "grid size-7 place-items-center rounded-[calc(var(--radius-control)-2px)] transition-colors",
-        done ? "text-positive" : "text-ink-mute hover:bg-field hover:text-ink",
-      )}
-    >
-      {done ? <Check className="size-3.5" /> : children}
-    </button>
+    <Tooltip label={done ? "Copied!" : label}>
+      <button
+        type="button"
+        onClick={() => void write()}
+        aria-label={label}
+        className={cn(
+          "grid size-7 place-items-center rounded-[calc(var(--radius-control)-2px)] transition-colors",
+          done ? "text-positive" : "text-ink-mute hover:bg-field hover:text-ink",
+        )}
+      >
+        {done ? <Check className="size-3.5" /> : children}
+      </button>
+    </Tooltip>
   );
 }

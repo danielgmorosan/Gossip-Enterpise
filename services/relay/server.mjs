@@ -113,6 +113,29 @@ const isAnon = (userId) => !userId || String(userId).startsWith("anon-");
     }
   }
 }
+
+// Additive migration (T2-08): private channels created before membership
+// existed were readable by the whole workspace — grandfather every current
+// workspace member in so nobody silently loses access.
+{
+  let migrated = 0;
+  for (const workspace of Object.values(db.workspaces)) {
+    for (const ch of Object.values(workspace.channels ?? {})) {
+      if (ch.type === "private" && !ch.members) {
+        ch.members = Object.fromEntries(Object.keys(workspace.members ?? {}).map((uid) => [uid, true]));
+        migrated++;
+      }
+    }
+  }
+  if (migrated > 0) {
+    console.log(`[relay] migrated ${migrated} legacy private channel(s) to member lists`);
+    try {
+      writeFileSync(DATA_FILE, JSON.stringify(db));
+    } catch {
+      /* saved on next mutation */
+    }
+  }
+}
 let saveTimer = null;
 function save() {
   if (saveTimer) return;
@@ -127,19 +150,32 @@ function save() {
 }
 
 const clients = new Set(); // { ws, userId, name, wsSubs:Set, chSubs:Set }
+let callAnnounce = null; // room → last token ts (T2-09 call-start announce debounce)
 
 const shortId = (p) => p + randomUUID().replace(/-/g, "").slice(0, 8);
 const genCode = () =>
   Array.from({ length: 6 }, () => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[Math.floor(Math.random() * 32)]).join("");
 
-function serializeWorkspace(ws) {
+/** Private channels expose their member list; the stored map stays internal. */
+function serializeChannel(ch) {
+  return ch.type === "private" ? { ...ch, members: Object.keys(ch.members ?? {}) } : ch;
+}
+
+/**
+ * Per-requester workspace view (T2-08): private channels are only included
+ * for their members — non-members can't even see they exist.
+ */
+function serializeWorkspace(ws, forUserId) {
   return {
     id: ws.id,
     name: ws.name,
     code: ws.code,
     createdBy: ws.createdBy,
-    channels: Object.values(ws.channels),
+    channels: Object.values(ws.channels)
+      .filter((ch) => ch.type !== "private" || (forUserId && ch.members?.[forUserId]))
+      .map(serializeChannel),
     members: Object.values(ws.members),
+    bans: Object.values(ws.bans ?? {}),
   };
 }
 
@@ -148,6 +184,46 @@ function findWorkspace(key) {
   if (db.workspaces[key]) return db.workspaces[key];
   const up = String(key).toUpperCase();
   return Object.values(db.workspaces).find((w) => w.code === up) ?? null;
+}
+
+// ── Roles, permissions & bans (T2-07) ────────────────────────────────
+// Owner: the creator, exactly one, full power. Administrator: granular
+// permissions chosen by the Owner at promotion. Member: none of the below.
+// NOTE: the relay trusts the self-reported `hello` identity (pre-existing
+// design) — these checks are real transport-side enforcement against that
+// identity, not cryptographic auth.
+const ADMIN_PERMS = ["manageChannels", "manageMembers", "manageRoles", "ban", "moderateMessages"];
+
+function memberOf(workspace, userId) {
+  return userId ? (workspace?.members?.[userId] ?? null) : null;
+}
+/** owner → everything; admin → granted permissions only; member → nothing. */
+function can(workspace, userId, perm) {
+  const m = memberOf(workspace, userId);
+  if (!m) return false;
+  if (m.role === "owner") return true;
+  if (m.role === "admin") return (m.permissions ?? []).includes(perm);
+  return false;
+}
+function isBanned(workspace, userId) {
+  return !!(userId && workspace?.bans?.[userId]);
+}
+
+// ── Private-channel membership (T2-08) ───────────────────────────────
+/** Read/enter access: public → anyone the workspace serves; private → channel members only. */
+function canReadChannel(ch, userId) {
+  if (!ch) return false;
+  if (ch.type !== "private") return true;
+  return !!(userId && ch.members?.[userId]);
+}
+/** Manage membership: the channel creator, or owner/admins granted manageMembers. */
+function canManageChannelMembers(workspace, ch, userId) {
+  if (!ch || !userId) return false;
+  return ch.createdBy === userId || can(workspace, userId, "manageMembers");
+}
+function sendToUser(userId, obj) {
+  const data = JSON.stringify(obj);
+  for (const c of clients) if (c.userId === userId && c.ws.readyState === c.ws.OPEN) c.ws.send(data);
 }
 
 const send = (ws, obj) => ws.readyState === ws.OPEN && ws.send(JSON.stringify(obj));
@@ -168,13 +244,16 @@ function presence(wsId, chId) {
 
 function addChannel(ws, { name, type, topic, createdBy }) {
   const id = shortId("ch_");
+  const isPrivate = type === "private";
   ws.channels[id] = {
     id,
     name: String(name).replace(/[^a-z0-9-_ ]/gi, "").trim().slice(0, 40) || "channel",
-    type: type === "private" ? "private" : "public",
+    type: isPrivate ? "private" : "public",
     topic: String(topic ?? "").slice(0, 200),
     createdBy,
     createdAt: Date.now(),
+    // T2-08: private channels are invite-only — membership starts with the creator.
+    ...(isPrivate ? { members: { [createdBy]: true } } : {}),
   };
   return ws.channels[id];
 }
@@ -198,6 +277,9 @@ function gatherChannelContext(workspaceId, channelIds) {
   for (const chId of channelIds) {
     const ch = ws.channels[chId];
     if (!ch) continue; // only channels that exist in this workspace
+    // T2-08: the AI jobs endpoint has no requester identity, so private
+    // channels are excluded from AI context entirely — no leak via recaps.
+    if (ch.type === "private") continue;
     const msgs = (db.messages[`${workspaceId}/${chId}`] ?? []).slice(-MAX_MSGS_PER_CHANNEL);
     if (msgs.length === 0) continue;
     channels.push(ch.name);
@@ -284,6 +366,32 @@ const httpServer = createServer(async (req, res) => {
       if (!room || !identity) return json(400, { error: "room and identity required" });
       const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, { identity, name: name || identity, ttl: "2h" });
       at.addGrant({ roomJoin: true, room, canPublish: true, canSubscribe: true });
+      // T2-09: channel rooms are `${workspaceId}:${channelId}` — announce a
+      // call START to the workspace (first token in 5min = new call; later
+      // tokens are joiners). DM rooms are opaque digests: no broadcast, no
+      // metadata leak. Private channels: only members get the event.
+      const [wsId, chId] = String(room).split(":");
+      const workspace = wsId && chId ? db.workspaces[wsId] : null;
+      const channel = workspace?.channels?.[chId];
+      if (workspace && channel) {
+        callAnnounce ??= new Map();
+        const last = callAnnounce.get(room) ?? 0;
+        if (Date.now() - last > 5 * 60_000) {
+          const evt = {
+            type: "callStarted",
+            workspaceId: wsId,
+            channelId: chId,
+            userId: identity,
+            member: { name: name || identity },
+          };
+          if (channel.type === "private") {
+            for (const uid of Object.keys(channel.members ?? {})) sendToUser(uid, evt);
+          } else {
+            broadcastWorkspace(wsId, evt);
+          }
+        }
+        callAnnounce.set(room, Date.now());
+      }
       return json(200, { token: await at.toJwt(), url: LIVEKIT_URL });
     } catch (e) {
       return json(500, { error: String(e) });
@@ -425,7 +533,7 @@ wss.on("connection", (ws) => {
         db.workspaces[id] = workspace;
         client.wsSubs.add(id);
         save();
-        send(ws, { type: "workspaceCreated", ref: m.ref, workspace: serializeWorkspace(workspace) });
+        send(ws, { type: "workspaceCreated", ref: m.ref, workspace: serializeWorkspace(workspace, client.userId) });
         break;
       }
 
@@ -439,6 +547,10 @@ wss.on("connection", (ws) => {
           send(ws, { type: "error", ref: m.ref, message: "Open your session before joining a workspace." });
           break;
         }
+        if (isBanned(workspace, client.userId)) {
+          send(ws, { type: "error", ref: m.ref, message: "You are banned from this workspace." });
+          break;
+        }
         workspace.members[client.userId] = workspace.members[client.userId] ?? {
           userId: client.userId,
           name: client.name,
@@ -447,7 +559,7 @@ wss.on("connection", (ws) => {
         };
         client.wsSubs.add(workspace.id);
         save();
-        send(ws, { type: "workspace", ref: m.ref, workspace: serializeWorkspace(workspace) });
+        send(ws, { type: "workspace", ref: m.ref, workspace: serializeWorkspace(workspace, client.userId) });
         broadcastWorkspace(workspace.id, { type: "memberJoined", workspaceId: workspace.id, member: workspace.members[client.userId] });
         break;
       }
@@ -458,6 +570,10 @@ wss.on("connection", (ws) => {
           send(ws, { type: "error", ref: m.ref, message: "Workspace not found." });
           break;
         }
+        if (isBanned(workspace, client.userId)) {
+          send(ws, { type: "error", ref: m.ref, message: "You are banned from this workspace." });
+          break;
+        }
         client.wsSubs.add(workspace.id);
         // ensure membership (e.g. creator returning) — but never for anonymous
         // (locked-session) connections; those may read but aren't members.
@@ -466,7 +582,7 @@ wss.on("connection", (ws) => {
           save();
           broadcastWorkspace(workspace.id, { type: "memberJoined", workspaceId: workspace.id, member: workspace.members[client.userId] });
         }
-        send(ws, { type: "workspace", ref: m.ref, workspace: serializeWorkspace(workspace) });
+        send(ws, { type: "workspace", ref: m.ref, workspace: serializeWorkspace(workspace, client.userId) });
         break;
       }
 
@@ -492,14 +608,31 @@ wss.on("connection", (ws) => {
           send(ws, { type: "error", ref: m.ref, message: "Workspace not found." });
           break;
         }
+        if (isBanned(workspace, client.userId) || !memberOf(workspace, client.userId)) {
+          send(ws, { type: "error", ref: m.ref, message: "Only workspace members can create channels." });
+          break;
+        }
         const channel = addChannel(workspace, { name: m.name, type: m.channelType, topic: m.topic, createdBy: client.userId });
         save();
-        broadcastWorkspace(workspace.id, { type: "channelCreated", workspaceId: workspace.id, channel });
-        send(ws, { type: "channelCreated", ref: m.ref, workspaceId: workspace.id, channel });
+        // Private channels are invisible to non-members: only the creator learns about it.
+        const payload = serializeChannel(channel);
+        if (channel.type === "private") sendToUser(client.userId, { type: "channelCreated", workspaceId: workspace.id, channel: payload });
+        else broadcastWorkspace(workspace.id, { type: "channelCreated", workspaceId: workspace.id, channel: payload });
+        send(ws, { type: "channelCreated", ref: m.ref, workspaceId: workspace.id, channel: payload });
         break;
       }
 
       case "joinChannel": {
+        if (isBanned(db.workspaces[m.workspaceId], client.userId)) {
+          send(ws, { type: "error", ref: m.ref, message: "You are banned from this workspace." });
+          break;
+        }
+        // T2-08: private channels are invite-only — no history, no live stream.
+        const jch = db.workspaces[m.workspaceId]?.channels?.[m.channelId];
+        if (jch && !canReadChannel(jch, client.userId)) {
+          send(ws, { type: "error", ref: m.ref, message: "This channel is private. Ask a member to invite you." });
+          break;
+        }
         const chKey = `${m.workspaceId}/${m.channelId}`;
         client.chSubs.add(chKey);
         send(ws, { type: "history", workspaceId: m.workspaceId, channelId: m.channelId, messages: db.messages[chKey] ?? [] });
@@ -508,6 +641,8 @@ wss.on("connection", (ws) => {
       }
 
       case "post": {
+        if (isBanned(db.workspaces[m.workspaceId], client.userId)) break;
+        if (!canReadChannel(db.workspaces[m.workspaceId]?.channels?.[m.channelId] ?? null, client.userId)) break;
         const chKey = `${m.workspaceId}/${m.channelId}`;
         const body = String(m.body ?? "").slice(0, 4000);
         // Attachment ref: only accept ids we actually stored via /uploads.
@@ -540,6 +675,8 @@ wss.on("connection", (ws) => {
 
       case "editMessage": {
         // Author-only. Edits update body + editedAt and re-fan-out.
+        if (isBanned(db.workspaces[m.workspaceId], client.userId)) break;
+        if (!canReadChannel(db.workspaces[m.workspaceId]?.channels?.[m.channelId] ?? null, client.userId)) break;
         const chKey = `${m.workspaceId}/${m.channelId}`;
         const body = String(m.body ?? "").slice(0, 4000);
         if (!body.trim()) break;
@@ -561,16 +698,18 @@ wss.on("connection", (ws) => {
 
       case "deleteMessage": {
         // Author or workspace admin/owner. Soft delete → tombstone stays in history.
+        if (!canReadChannel(db.workspaces[m.workspaceId]?.channels?.[m.channelId] ?? null, client.userId)) break;
         const chKey = `${m.workspaceId}/${m.channelId}`;
         const msg = (db.messages[chKey] ?? []).find((x) => x.id === m.messageId);
         if (!msg || msg.deleted) {
           send(ws, { type: "error", ref: m.ref, message: "Message not found." });
           break;
         }
-        const role = db.workspaces[m.workspaceId]?.members?.[client.userId]?.role;
-        const isAdmin = role === "owner" || role === "admin";
-        if (!client.userId || (msg.senderId !== client.userId && !isAdmin)) {
-          send(ws, { type: "error", ref: m.ref, message: "Only the author or an admin can delete a message." });
+        // T2-07: delete-others is now the granular "moderateMessages" permission
+        // (owner always; admins only when granted at promotion).
+        const canModerate = can(db.workspaces[m.workspaceId], client.userId, "moderateMessages");
+        if (!client.userId || (msg.senderId !== client.userId && !canModerate)) {
+          send(ws, { type: "error", ref: m.ref, message: "Only the author or a permitted admin can delete a message." });
           break;
         }
         msg.deleted = true;
@@ -579,6 +718,182 @@ wss.on("connection", (ws) => {
         msg.deletedBy = client.userId;
         save();
         broadcastChannel(chKey, { type: "messageUpdated", workspaceId: m.workspaceId, channelId: m.channelId, message: msg });
+        break;
+      }
+
+      case "setRole": {
+        // Owner-only: promote to admin (with a chosen permission set) or demote to member.
+        const workspace = db.workspaces[m.workspaceId];
+        if (!workspace) {
+          send(ws, { type: "error", ref: m.ref, message: "Workspace not found." });
+          break;
+        }
+        if (memberOf(workspace, client.userId)?.role !== "owner") {
+          send(ws, { type: "error", ref: m.ref, message: "Only the workspace owner can change roles." });
+          break;
+        }
+        const target = workspace.members[String(m.userId ?? "")];
+        if (!target) {
+          send(ws, { type: "error", ref: m.ref, message: "Member not found." });
+          break;
+        }
+        if (target.role === "owner") {
+          send(ws, { type: "error", ref: m.ref, message: "The owner's role can't be changed." });
+          break;
+        }
+        if (m.role === "admin") {
+          target.role = "admin";
+          target.permissions = Array.isArray(m.permissions) ? m.permissions.filter((p) => ADMIN_PERMS.includes(p)) : [];
+        } else {
+          target.role = "member";
+          delete target.permissions;
+        }
+        save();
+        broadcastWorkspace(workspace.id, { type: "memberUpdated", workspaceId: workspace.id, member: target });
+        send(ws, { type: "memberUpdated", ref: m.ref, workspaceId: workspace.id, member: target });
+        break;
+      }
+
+      case "banMember": {
+        // Owner or admin with the "ban" permission. Removes membership,
+        // records the ban, and kicks the target's live connections — the ban
+        // then blocks joinWorkspace/openWorkspace/joinChannel/post (rejoin included).
+        const workspace = db.workspaces[m.workspaceId];
+        if (!workspace) {
+          send(ws, { type: "error", ref: m.ref, message: "Workspace not found." });
+          break;
+        }
+        if (!can(workspace, client.userId, "ban")) {
+          send(ws, { type: "error", ref: m.ref, message: "You don't have permission to ban members." });
+          break;
+        }
+        const targetId = String(m.userId ?? "");
+        if (!targetId || targetId === client.userId) {
+          send(ws, { type: "error", ref: m.ref, message: "You can't ban yourself." });
+          break;
+        }
+        const target = workspace.members[targetId];
+        if (target?.role === "owner") {
+          send(ws, { type: "error", ref: m.ref, message: "The owner can't be banned." });
+          break;
+        }
+        workspace.bans ??= {};
+        workspace.bans[targetId] = {
+          userId: targetId,
+          name: target?.name ?? String(m.name ?? targetId).slice(0, 40),
+          reason: String(m.reason ?? "").slice(0, 200),
+          by: client.userId,
+          at: Date.now(),
+        };
+        delete workspace.members[targetId];
+        save();
+        for (const c of clients) {
+          if (c.userId !== targetId) continue;
+          c.wsSubs.delete(workspace.id);
+          for (const chKey of [...c.chSubs]) {
+            if (chKey.startsWith(`${workspace.id}/`)) {
+              c.chSubs.delete(chKey);
+              const [wsId, chId] = chKey.split("/");
+              presence(wsId, chId);
+            }
+          }
+          send(c.ws, { type: "banned", workspaceId: workspace.id, reason: workspace.bans[targetId].reason });
+        }
+        broadcastWorkspace(workspace.id, { type: "memberBanned", workspaceId: workspace.id, userId: targetId, ban: workspace.bans[targetId] });
+        send(ws, { type: "memberBanned", ref: m.ref, workspaceId: workspace.id, userId: targetId, ban: workspace.bans[targetId] });
+        break;
+      }
+
+      case "unbanMember": {
+        const workspace = db.workspaces[m.workspaceId];
+        if (!workspace) {
+          send(ws, { type: "error", ref: m.ref, message: "Workspace not found." });
+          break;
+        }
+        if (!can(workspace, client.userId, "ban")) {
+          send(ws, { type: "error", ref: m.ref, message: "You don't have permission to unban members." });
+          break;
+        }
+        const targetId = String(m.userId ?? "");
+        if (!workspace.bans?.[targetId]) {
+          send(ws, { type: "error", ref: m.ref, message: "That user isn't banned." });
+          break;
+        }
+        delete workspace.bans[targetId];
+        save();
+        broadcastWorkspace(workspace.id, { type: "memberUnbanned", workspaceId: workspace.id, userId: targetId });
+        send(ws, { type: "memberUnbanned", ref: m.ref, workspaceId: workspace.id, userId: targetId });
+        break;
+      }
+
+      case "addChannelMember": {
+        // T2-08: invite to a private channel — creator or manageMembers.
+        const workspace = db.workspaces[m.workspaceId];
+        const channel = workspace?.channels?.[m.channelId];
+        if (!workspace || !channel) {
+          send(ws, { type: "error", ref: m.ref, message: "Channel not found." });
+          break;
+        }
+        if (channel.type !== "private") {
+          send(ws, { type: "error", ref: m.ref, message: "Public channels don't have a member list." });
+          break;
+        }
+        if (!canManageChannelMembers(workspace, channel, client.userId)) {
+          send(ws, { type: "error", ref: m.ref, message: "Only the channel creator or a permitted admin can invite members." });
+          break;
+        }
+        const targetId = String(m.userId ?? "");
+        if (!workspace.members[targetId]) {
+          send(ws, { type: "error", ref: m.ref, message: "They must join the workspace first." });
+          break;
+        }
+        channel.members ??= {};
+        channel.members[targetId] = true;
+        save();
+        const chPayload = serializeChannel(channel);
+        // The invitee learns the channel exists; existing members see the roster change.
+        for (const uid of Object.keys(channel.members)) {
+          sendToUser(uid, { type: "channelUpdated", workspaceId: workspace.id, channel: chPayload });
+        }
+        send(ws, { type: "channelUpdated", ref: m.ref, workspaceId: workspace.id, channel: chPayload });
+        break;
+      }
+
+      case "removeChannelMember": {
+        // T2-08: remove from a private channel — creator/manageMembers, or yourself (leave).
+        const workspace = db.workspaces[m.workspaceId];
+        const channel = workspace?.channels?.[m.channelId];
+        if (!workspace || !channel || channel.type !== "private") {
+          send(ws, { type: "error", ref: m.ref, message: "Channel not found." });
+          break;
+        }
+        const targetId = String(m.userId ?? "");
+        const self = targetId === client.userId;
+        if (!self && !canManageChannelMembers(workspace, channel, client.userId)) {
+          send(ws, { type: "error", ref: m.ref, message: "Only the channel creator or a permitted admin can remove members." });
+          break;
+        }
+        if (targetId === channel.createdBy && !self) {
+          send(ws, { type: "error", ref: m.ref, message: "The channel creator can only remove themselves." });
+          break;
+        }
+        if (!channel.members?.[targetId]) {
+          send(ws, { type: "error", ref: m.ref, message: "They aren't a member of this channel." });
+          break;
+        }
+        delete channel.members[targetId];
+        save();
+        const chKey = `${workspace.id}/${channel.id}`;
+        // Kick the removed user's live subscriptions and tell them the channel is gone for them.
+        for (const c of clients) {
+          if (c.userId === targetId && c.chSubs.delete(chKey)) presence(workspace.id, channel.id);
+        }
+        sendToUser(targetId, { type: "channelRemoved", workspaceId: workspace.id, channelId: channel.id });
+        const chPayload = serializeChannel(channel);
+        for (const uid of Object.keys(channel.members)) {
+          sendToUser(uid, { type: "channelUpdated", workspaceId: workspace.id, channel: chPayload });
+        }
+        send(ws, { type: "channelUpdated", ref: m.ref, workspaceId: workspace.id, channel: chPayload });
         break;
       }
     }

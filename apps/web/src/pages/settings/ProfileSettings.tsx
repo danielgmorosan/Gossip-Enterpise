@@ -111,7 +111,7 @@ export function ProfileSettings() {
               <div className="min-w-0">
                 <div className="text-[14px] font-medium text-ink">Scan or send a link</div>
                 <div className="mt-0.5 text-[12px] leading-relaxed text-ink-mute">
-                  Opens an encrypted DM with you. Shares only your <span className="font-mono">public</span> handle — never your passphrase.
+                  Opens an encrypted DM with you. Shares only your <span className="font-mono">public</span> handle, never your passphrase.
                 </div>
                 {userId && (
                   <div className="mt-2 break-all rounded-control bg-field px-2 py-1.5 font-mono text-[11px] text-ink-mute">
@@ -170,10 +170,10 @@ export function ProfileSettings() {
               )}
               <div>
                 <div className="text-[14px] font-medium text-ink">
-                  {pendingAvatar ? "Preview — not saved yet" : hasOverride ? "Custom avatar" : "Default avatar"}
+                  {pendingAvatar ? "Preview (not saved yet)" : hasOverride ? "Custom avatar" : "Default avatar"}
                 </div>
                 <div className="text-[12px] text-ink-mute">
-                  Deterministic from your handle. Regenerate or upload your own — stored only on this device.
+                  Deterministic from your handle. Regenerate or upload your own; it stays on this device.
                 </div>
                 {avatarError && <div className="mt-0.5 text-[12px] text-negative">{avatarError}</div>}
               </div>

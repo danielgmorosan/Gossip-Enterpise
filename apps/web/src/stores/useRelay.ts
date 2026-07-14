@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { useSession } from "./useSession";
+import { useNotifications, mentionsUser } from "./useNotifications";
 import { relayWsUrl } from "@/lib/relayBase";
 
 export interface ChannelMsg {
@@ -28,12 +29,33 @@ export interface RelayChannel {
   topic: string;
   createdBy: string;
   createdAt: number;
+  /** Private channels only (T2-08): userIds allowed to see/read/post. */
+  members?: string[];
 }
+/** Granular admin permissions (T2-07) — the Owner picks these at promotion. */
+export type AdminPermission = "manageChannels" | "manageMembers" | "manageRoles" | "ban" | "moderateMessages";
+export const ADMIN_PERMISSIONS: { id: AdminPermission; label: string; desc: string }[] = [
+  { id: "manageChannels", label: "Manage channels", desc: "Create, edit, and manage channels." },
+  { id: "manageMembers", label: "Manage members", desc: "Manage channel membership and invites." },
+  { id: "manageRoles", label: "Manage roles", desc: "Reserved for future role tooling (assignment stays owner-only)." },
+  { id: "ban", label: "Ban members", desc: "Ban and unban workspace members." },
+  { id: "moderateMessages", label: "Moderate messages", desc: "Delete other members' channel messages." },
+];
+
 export interface RelayMember {
   userId: string;
   name: string;
   role: "owner" | "admin" | "member" | "guest";
   joinedAt: number;
+  /** Present on admins: the permissions the Owner granted. */
+  permissions?: AdminPermission[];
+}
+export interface RelayBan {
+  userId: string;
+  name: string;
+  reason: string;
+  by: string;
+  at: number;
 }
 export interface RelayWorkspace {
   id: string;
@@ -42,6 +64,7 @@ export interface RelayWorkspace {
   createdBy: string;
   channels: RelayChannel[];
   members: RelayMember[];
+  bans?: RelayBan[];
 }
 export interface MyWorkspace {
   id: string;
@@ -82,6 +105,13 @@ interface RelayState {
   post: (workspaceId: string, channelId: string, body: string, threadRootId?: string, attachmentId?: string) => void;
   editMessage: (workspaceId: string, channelId: string, messageId: string, body: string) => void;
   deleteMessage: (workspaceId: string, channelId: string, messageId: string) => void;
+  /** Owner-only: promote/demote; permissions apply when role is "admin" (T2-07). */
+  setRole: (workspaceId: string, userId: string, role: "admin" | "member", permissions?: AdminPermission[]) => Promise<{ ok: true } | { ok: false; error: string }>;
+  banMember: (workspaceId: string, userId: string, reason?: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+  unbanMember: (workspaceId: string, userId: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+  /** Private-channel membership (T2-08) — creator or manageMembers; relay-enforced. */
+  addChannelMember: (workspaceId: string, channelId: string, userId: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+  removeChannelMember: (workspaceId: string, channelId: string, userId: string) => Promise<{ ok: true } | { ok: false; error: string }>;
 }
 
 let ws: WebSocket | null = null;
@@ -99,9 +129,16 @@ interface RelayMsg {
   messages?: ChannelMsg[];
   message?: ChannelMsg;
   member?: RelayMember;
+  ban?: RelayBan;
+  reason?: string;
   userId?: string;
   count?: number;
   error?: string;
+}
+
+/** Relay errors carry their text in `message` (a string on error frames). */
+function errText(m: RelayMsg, fallback: string): string {
+  return typeof m.message === "string" ? m.message : (m.error ?? fallback);
 }
 
 function wsUrl() {
@@ -169,18 +206,67 @@ export const useRelay = create<RelayState>((set, get) => ({
           if (m.workspace) set({ workspace: m.workspace });
           break;
         case "channelCreated":
+        case "channelUpdated": {
+          // New channel, or a private channel you were invited to / whose roster changed.
+          // T2-09: detect "you were just added to a private channel" before upserting.
+          const myId = useSession.getState().userId;
+          const wasVisible = !!get().workspace?.channels.some((c) => c.id === m.channel?.id);
           set((st) =>
             st.workspace && st.workspace.id === m.workspaceId && m.channel
               ? { workspace: { ...st.workspace, channels: [...st.workspace.channels.filter((c) => c.id !== m.channel!.id), m.channel] } }
               : st,
           );
+          if (
+            m.type === "channelUpdated" &&
+            m.channel?.type === "private" &&
+            !wasVisible &&
+            myId &&
+            m.channel.members?.includes(myId)
+          ) {
+            useNotifications.getState().notify({
+              type: "membership",
+              title: `#${m.channel.name}`,
+              body: "You were added to a private channel",
+              link: `/w/${m.workspaceId}/c/${m.channel.id}`,
+            });
+          }
           break;
+        }
+        case "channelRemoved": {
+          // You were removed from a private channel: drop it, its messages, and the live sub.
+          const chId = m.channelId;
+          if (!chId) break;
+          set((st) => {
+            const joined = new Set(st.joinedChannels);
+            joined.delete(`${m.workspaceId}/${chId}`);
+            const msgs = { ...st.messagesByChannel };
+            delete msgs[chId];
+            return {
+              joinedChannels: joined,
+              messagesByChannel: msgs,
+              workspace:
+                st.workspace && st.workspace.id === m.workspaceId
+                  ? { ...st.workspace, channels: st.workspace.channels.filter((c) => c.id !== chId) }
+                  : st.workspace,
+            };
+          });
+          break;
+        }
         case "memberJoined":
           set((st) =>
             st.workspace && st.workspace.id === m.workspaceId && m.member
               ? { workspace: { ...st.workspace, members: [...st.workspace.members.filter((x) => x.userId !== m.member!.userId), m.member] } }
               : st,
           );
+          // T2-09: membership notification (skip your own join echo).
+          if (m.member && m.member.userId !== useSession.getState().userId) {
+            useNotifications.getState().notify({
+              type: "membership",
+              title: get().workspace?.name ?? "Workspace",
+              body: `${m.member.name} joined the workspace`,
+              link: `/w/${m.workspaceId}/members`,
+            });
+          }
           break;
         case "memberLeft":
           set((st) =>
@@ -189,6 +275,47 @@ export const useRelay = create<RelayState>((set, get) => ({
               : st,
           );
           break;
+        case "memberUpdated":
+          // Role/permission change (T2-07): replace the member in place.
+          set((st) =>
+            st.workspace && st.workspace.id === m.workspaceId && m.member
+              ? { workspace: { ...st.workspace, members: st.workspace.members.map((x) => (x.userId === m.member!.userId ? m.member! : x)) } }
+              : st,
+          );
+          break;
+        case "memberBanned":
+          set((st) =>
+            st.workspace && st.workspace.id === m.workspaceId && m.userId
+              ? {
+                  workspace: {
+                    ...st.workspace,
+                    members: st.workspace.members.filter((x) => x.userId !== m.userId),
+                    bans: [...(st.workspace.bans ?? []).filter((b) => b.userId !== m.userId), ...(m.ban ? [m.ban] : [])],
+                  },
+                }
+              : st,
+          );
+          break;
+        case "memberUnbanned":
+          set((st) =>
+            st.workspace && st.workspace.id === m.workspaceId && m.userId
+              ? { workspace: { ...st.workspace, bans: (st.workspace.bans ?? []).filter((b) => b.userId !== m.userId) } }
+              : st,
+          );
+          break;
+        case "banned": {
+          // WE got banned: the relay already kicked our subscriptions. Drop
+          // the workspace locally and forget it in the switcher.
+          const wsId = m.workspaceId;
+          if (!wsId) break;
+          const list = get().myWorkspaces.filter((x) => x.id !== wsId);
+          saveMyWorkspaces(list);
+          set((st) => ({
+            myWorkspaces: list,
+            workspace: st.workspace?.id === wsId ? null : st.workspace,
+          }));
+          break;
+        }
         case "history":
           if (m.channelId) set((st) => ({ messagesByChannel: { ...st.messagesByChannel, [m.channelId!]: m.messages ?? [] } }));
           break;
@@ -200,6 +327,25 @@ export const useRelay = create<RelayState>((set, get) => ({
               if (cur.some((x) => x.id === msg.id)) return st;
               return { messagesByChannel: { ...st.messagesByChannel, [msg.channelId]: [...cur, msg] } };
             });
+            // T2-09: notify for other people's messages; mentions get their own type.
+            const myId = useSession.getState().userId;
+            if (msg.senderId !== myId && !msg.deleted) {
+              const chName = get().workspace?.channels.find((c) => c.id === msg.channelId)?.name ?? "channel";
+              const mentioned = mentionsUser(msg.body, myId);
+              useNotifications.getState().notify({
+                type: mentioned ? "mention" : "message",
+                title: `#${chName} · ${msg.senderName}`,
+                body: mentioned
+                  ? `Mentioned you: ${msg.body.slice(0, 120)}`
+                  : msg.body
+                    ? msg.body.slice(0, 120)
+                    : msg.attachment
+                      ? `Sent ${msg.attachment.name}`
+                      : "New message",
+                link: `/w/${msg.workspaceId}/c/${msg.channelId}`,
+                channelId: msg.channelId,
+              });
+            }
           }
           break;
         case "messageUpdated":
@@ -221,6 +367,20 @@ export const useRelay = create<RelayState>((set, get) => ({
         case "presence":
           if (m.channelId) set((st) => ({ presenceByChannel: { ...st.presenceByChannel, [m.channelId!]: m.count ?? 0 } }));
           break;
+        case "callStarted": {
+          // T2-09: relay signals a channel call starting (LiveKit token issued).
+          const myId = useSession.getState().userId;
+          if (m.userId === myId || !m.channelId) break;
+          const chName = get().workspace?.channels.find((c) => c.id === m.channelId)?.name ?? "channel";
+          useNotifications.getState().notify({
+            type: "call",
+            title: `#${chName}`,
+            body: `${m.member?.name ?? "Someone"} started a call`,
+            link: `/w/${m.workspaceId}/call/${m.channelId}`,
+            channelId: m.channelId,
+          });
+          break;
+        }
       }
     };
     ws.onclose = () => {
@@ -337,6 +497,47 @@ export const useRelay = create<RelayState>((set, get) => ({
   deleteMessage: (workspaceId, channelId, messageId) => {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     ws.send(JSON.stringify({ type: "deleteMessage", workspaceId, channelId, messageId }));
+  },
+
+  // ── Roles & bans (T2-07) — enforced server-side at the relay ────────
+  setRole: async (workspaceId, userId, role, permissions) => {
+    get().connect();
+    sendHello();
+    const m = await request({ type: "setRole", workspaceId, userId, role, permissions });
+    if (m.type === "error") return { ok: false, error: errText(m, "Couldn't change the role.") };
+    return { ok: true };
+  },
+
+  banMember: async (workspaceId, userId, reason) => {
+    get().connect();
+    sendHello();
+    const m = await request({ type: "banMember", workspaceId, userId, reason });
+    if (m.type === "error") return { ok: false, error: errText(m, "Couldn't ban that member.") };
+    return { ok: true };
+  },
+
+  unbanMember: async (workspaceId, userId) => {
+    get().connect();
+    sendHello();
+    const m = await request({ type: "unbanMember", workspaceId, userId });
+    if (m.type === "error") return { ok: false, error: errText(m, "Couldn't unban that member.") };
+    return { ok: true };
+  },
+
+  addChannelMember: async (workspaceId, channelId, userId) => {
+    get().connect();
+    sendHello();
+    const m = await request({ type: "addChannelMember", workspaceId, channelId, userId });
+    if (m.type === "error") return { ok: false, error: errText(m, "Couldn't invite them.") };
+    return { ok: true };
+  },
+
+  removeChannelMember: async (workspaceId, channelId, userId) => {
+    get().connect();
+    sendHello();
+    const m = await request({ type: "removeChannelMember", workspaceId, channelId, userId });
+    if (m.type === "error") return { ok: false, error: errText(m, "Couldn't remove them.") };
+    return { ok: true };
   },
 }));
 

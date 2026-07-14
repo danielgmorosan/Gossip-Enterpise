@@ -27,7 +27,7 @@ export function SecuritySettings() {
               </span>
             </span>
           }
-          desc="DMs use post-quantum key exchange with ephemeral per-message keys (forward secrecy). This is sealed — not configurable."
+          desc="DMs use post-quantum key exchange with ephemeral per-message keys (forward secrecy). This is sealed and not configurable."
           control={<ShieldCheck className="size-6 text-positive" />}
         />
       </SettingGroup>

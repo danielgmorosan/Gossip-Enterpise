@@ -11,6 +11,8 @@ export { Requirements } from "./Checklist";
 export type { RequirementItem } from "./Checklist";
 export { LabeledDivider } from "./Divider";
 export { TextLink, textLinkClass } from "./TextLink";
+export { Tooltip } from "./Tooltip";
+export type { StackTooltipProps } from "./Tooltip";
 export { EmptyState, IconTile } from "./EmptyState";
 export { AuthLayout, DecorPanel, PanelCard, FooterBar, GossipMarkGraphic } from "./AuthLayout";
 export { BrandLogo } from "./BrandLogo";

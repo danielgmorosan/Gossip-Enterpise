@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Mic, MicOff, Video, VideoOff, MonitorUp, PhoneOff } from "lucide-react";
+import { Tooltip } from "@gossip/ui/stack";
 import { RoomContext, RoomAudioRenderer } from "@livekit/components-react";
 import { useCall, callPath } from "@/stores/useCall";
 import { router } from "@/app/router";
@@ -10,7 +11,7 @@ import { cn } from "@/lib/utils";
  * main.tsx), so it survives every navigation. While a call is active and the
  * user is anywhere but the call page it shows compact controls and — key —
  * keeps a RoomAudioRenderer mounted so remote audio keeps playing. On the
- * call page itself both are skipped (VideoConference has its own renderer;
+ * call page itself both are skipped (CallStage has its own renderer;
  * double renderers would double the audio).
  */
 export function CallDock() {
@@ -48,7 +49,7 @@ export function CallDock() {
               {target.kind === "channel" ? `#${target.label}` : target.label}
             </span>
             <span className="block text-[10.5px] text-ink-faint">
-              {status === "connected" ? "in call — click to return" : "connecting…"}
+              {status === "connected" ? "in call, click to return" : "connecting…"}
             </span>
           </span>
         </button>
@@ -61,14 +62,15 @@ export function CallDock() {
         <DockBtn label={screen ? "Stop sharing" : "Share screen"} active={screen} onClick={() => void toggleScreen()}>
           <MonitorUp className="size-4" />
         </DockBtn>
-        <button
-          onClick={() => void leave()}
-          title="Leave call"
-          aria-label="Leave call"
-          className="grid size-8 place-items-center rounded-control bg-negative text-white transition-opacity hover:opacity-90"
-        >
-          <PhoneOff className="size-4" />
-        </button>
+        <Tooltip label="Leave call">
+          <button
+            onClick={() => void leave()}
+            aria-label="Leave call"
+            className="grid size-8 place-items-center rounded-control bg-negative text-white transition-opacity hover:opacity-90"
+          >
+            <PhoneOff className="size-4" />
+          </button>
+        </Tooltip>
       </div>
     </RoomContext.Provider>
   );
@@ -86,17 +88,18 @@ function DockBtn({
   children: ReactNode;
 }) {
   return (
-    <button
-      onClick={onClick}
-      title={label}
-      aria-label={label}
-      aria-pressed={active}
-      className={cn(
-        "grid size-8 place-items-center rounded-control transition-colors",
-        active ? "bg-field text-ink" : "text-ink-mute hover:bg-field hover:text-ink",
-      )}
-    >
-      {children}
-    </button>
+    <Tooltip label={label}>
+      <button
+        onClick={onClick}
+        aria-label={label}
+        aria-pressed={active}
+        className={cn(
+          "grid size-8 place-items-center rounded-control transition-colors",
+          active ? "bg-field text-ink" : "text-ink-mute hover:bg-field hover:text-ink",
+        )}
+      >
+        {children}
+      </button>
+    </Tooltip>
   );
 }

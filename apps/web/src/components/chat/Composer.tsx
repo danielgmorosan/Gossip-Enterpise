@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useId, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   SendHorizontal,
   ShieldCheck,
@@ -11,11 +11,15 @@ import {
   SquareCode,
 } from "lucide-react";
 import { Plus, WandSparkles, X } from "lucide-react";
-import { StackToast } from "@gossip/ui/stack";
+import { StackToast, Tooltip } from "@gossip/ui/stack";
 import { cn } from "@/lib/utils";
 import { openclaw } from "@/lib/openclaw";
 import { EmojiPickerPopover } from "./EmojiPickerPopover";
 import { ComposerPlusMenu } from "./ComposerPlusMenu";
+import { MentionPopover, type MentionCandidate } from "./MentionPopover";
+
+/** Active "@query" right before the caret (starts a mention), or null. */
+const MENTION_TRIGGER = /(^|\s)@(\S{0,30})$/;
 
 function ToolBtn({
   label,
@@ -30,21 +34,22 @@ function ToolBtn({
   children: ReactNode;
 } & Record<string, unknown>) {
   return (
-    <button
-      type="button"
-      // Keep the textarea's focus/selection when clicking toolbar buttons.
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={onClick}
-      aria-label={label}
-      title={label}
-      className={cn(
-        "grid size-8 place-items-center rounded-control transition-colors",
-        active ? "bg-field text-ink" : "text-ink-mute hover:bg-field hover:text-ink",
-      )}
-      {...rest}
-    >
-      {children}
-    </button>
+    <Tooltip label={label}>
+      <button
+        type="button"
+        // Keep the textarea's focus/selection when clicking toolbar buttons.
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={onClick}
+        aria-label={label}
+        className={cn(
+          "grid size-8 place-items-center rounded-control transition-colors",
+          active ? "bg-field text-ink" : "text-ink-mute hover:bg-field hover:text-ink",
+        )}
+        {...rest}
+      >
+        {children}
+      </button>
+    </Tooltip>
   );
 }
 
@@ -55,6 +60,7 @@ export function Composer({
   onSend,
   onAttach,
   attachNotice,
+  mentionCandidates,
   className,
 }: {
   placeholder: string;
@@ -66,6 +72,8 @@ export function Composer({
   onAttach?: (files: FileList) => void;
   /** Notice shown when attaching isn't available on this surface. */
   attachNotice?: string;
+  /** Members/contacts offered by the @mention picker (T2-05). Absent → no picker. */
+  mentionCandidates?: MentionCandidate[];
   className?: string;
 }) {
   const [value, setValue] = useState("");
@@ -74,6 +82,47 @@ export function Composer({
   const [notice, setNotice] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── @mention picker (T2-05) ────────────────────────────────────────
+  const listboxId = useId();
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
+
+  const mentionMatches = useMemo(() => {
+    if (mentionQuery === null || !mentionCandidates?.length) return [];
+    const q = mentionQuery.toLowerCase();
+    return mentionCandidates.filter((c) => c.name.toLowerCase().includes(q)).slice(0, 8);
+  }, [mentionQuery, mentionCandidates]);
+  const mentionOpen = mentionMatches.length > 0;
+
+  /** Re-derive the active @query from the text before the caret. */
+  const syncMention = (text: string) => {
+    if (!mentionCandidates?.length) return;
+    const caret = textareaRef.current?.selectionStart ?? text.length;
+    const m = MENTION_TRIGGER.exec(text.slice(0, caret));
+    const q = m ? m[2] : null;
+    setMentionQuery(q);
+    if (q !== null) setMentionIndex(0);
+  };
+
+  /** Replace the trigger "@query" with a structured token: @[Name](id). */
+  const insertMention = (c: MentionCandidate) => {
+    const el = textareaRef.current;
+    if (!el) return;
+    const caret = el.selectionStart ?? value.length;
+    const m = MENTION_TRIGGER.exec(value.slice(0, caret));
+    if (!m) return;
+    const start = caret - m[2].length - 1; // position of "@"
+    const display = c.name.replace(/[[\]()]/g, "").trim() || c.id.slice(0, 12);
+    const token = `@[${display}](${c.id}) `;
+    setValue(value.slice(0, start) + token + value.slice(caret));
+    setMentionQuery(null);
+    requestAnimationFrame(() => {
+      el.focus();
+      const pos = start + token.length;
+      el.setSelectionRange(pos, pos);
+    });
+  };
 
   const showNotice = (msg: string) => {
     setNotice(msg);
@@ -86,6 +135,7 @@ export function Composer({
     if (!text || busy) return;
     onSend?.(text);
     setValue("");
+    setMentionQuery(null);
   };
 
   /** Insert at the caret (falls back to append), keep focus + caret position. */
@@ -203,7 +253,7 @@ export function Composer({
               } else {
                 // No handler on this surface (e.g. E2E DMs: no SDK attachment
                 // API) — honest no-op, never a fake success.
-                showNotice(attachNotice ?? "Attachments coming soon — nothing was uploaded.");
+                showNotice(attachNotice ?? "Attachments are coming soon. Nothing was uploaded.");
               }
             }}
             onClose={() => {
@@ -225,16 +275,18 @@ export function Composer({
             <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-mute">
               <WandSparkles className="size-3.5" /> Suggested rewrite
               <span className="rounded-full bg-field px-1.5 py-0.5 font-mono text-[9.5px] normal-case text-ink-faint">local model</span>
-              <button
-                onClick={() => {
-                  setAiSuggestion(null);
-                  setAiError(null);
-                }}
-                aria-label="Dismiss suggestion"
-                className="ml-auto grid size-6 place-items-center rounded-control text-ink-faint hover:bg-field hover:text-ink"
-              >
-                <X className="size-3.5" />
-              </button>
+              <Tooltip label="Dismiss suggestion" className="ml-auto">
+                <button
+                  onClick={() => {
+                    setAiSuggestion(null);
+                    setAiError(null);
+                  }}
+                  aria-label="Dismiss suggestion"
+                  className="grid size-6 place-items-center rounded-control text-ink-faint hover:bg-field hover:text-ink"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </Tooltip>
             </div>
             {aiError ? (
               <p className="text-[13px] text-negative">{aiError}</p>
@@ -261,11 +313,52 @@ export function Composer({
             )}
           </div>
         )}
+        {mentionOpen && (
+          <MentionPopover
+            className="absolute bottom-full left-3 z-30 mb-2"
+            candidates={mentionMatches}
+            activeIndex={mentionIndex}
+            listboxId={listboxId}
+            onSelect={insertMention}
+            onHover={setMentionIndex}
+          />
+        )}
         <textarea
           ref={textareaRef}
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => {
+            setValue(e.target.value);
+            syncMention(e.target.value);
+          }}
+          onSelect={() => syncMention(value)}
+          aria-autocomplete={mentionCandidates?.length ? "list" : undefined}
+          aria-expanded={mentionCandidates?.length ? mentionOpen : undefined}
+          aria-controls={mentionOpen ? listboxId : undefined}
+          aria-activedescendant={mentionOpen ? `${listboxId}-opt-${mentionIndex}` : undefined}
           onKeyDown={(e) => {
+            // Mention picker owns the keys while it's open.
+            if (mentionOpen) {
+              if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setMentionIndex((i) => (i + 1) % mentionMatches.length);
+                return;
+              }
+              if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setMentionIndex((i) => (i - 1 + mentionMatches.length) % mentionMatches.length);
+                return;
+              }
+              if (e.key === "Enter" || e.key === "Tab") {
+                e.preventDefault();
+                insertMention(mentionMatches[mentionIndex]);
+                return;
+              }
+              if (e.key === "Escape") {
+                e.preventDefault();
+                setMentionQuery(null);
+                return;
+              }
+            }
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               submit();
@@ -291,20 +384,22 @@ export function Composer({
         />
         <div className="flex items-center justify-between gap-2 px-3 pb-2">
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              data-plus-toggle
-              onClick={() => setPlusOpen((o) => !o)}
-              aria-label="More options"
-              aria-expanded={plusOpen}
-              aria-haspopup="menu"
-              className={cn(
-                "grid size-8 place-items-center rounded-control transition-colors",
-                plusOpen ? "bg-field text-ink" : "text-ink-mute hover:bg-field hover:text-ink",
-              )}
-            >
-              <Plus className={cn("size-4 transition-transform", plusOpen && "rotate-45")} />
-            </button>
+            <Tooltip label="More options">
+              <button
+                type="button"
+                data-plus-toggle
+                onClick={() => setPlusOpen((o) => !o)}
+                aria-label="More options"
+                aria-expanded={plusOpen}
+                aria-haspopup="menu"
+                className={cn(
+                  "grid size-8 place-items-center rounded-control transition-colors",
+                  plusOpen ? "bg-field text-ink" : "text-ink-mute hover:bg-field hover:text-ink",
+                )}
+              >
+                <Plus className={cn("size-4 transition-transform", plusOpen && "rotate-45")} />
+              </button>
+            </Tooltip>
             <span className="inline-flex items-center gap-1.5 text-[11px] text-ink-faint">
               {e2e ? <ShieldCheck className="size-3.5 text-positive" /> : <Shield className="size-3.5" />}
               {e2e ? "End-to-end encrypted" : "Workspace-confidential"}
@@ -337,19 +432,21 @@ export function Composer({
             >
               <Smile className="size-4" />
             </ToolBtn>
-            <button
-              onClick={submit}
-              disabled={!value.trim() || busy}
-              aria-label="Send"
-              className={cn(
-                "ml-1 grid size-8 place-items-center rounded-control transition-colors",
-                value.trim() && !busy
-                  ? "bg-ink text-paper hover:bg-ink-hover"
-                  : "bg-field text-ink-faint",
-              )}
-            >
-              {busy ? <Loader2 className="size-4 animate-spin" /> : <SendHorizontal className="size-4" />}
-            </button>
+            <Tooltip label="Send (Enter)" className="ml-1">
+              <button
+                onClick={submit}
+                disabled={!value.trim() || busy}
+                aria-label="Send"
+                className={cn(
+                  "grid size-8 place-items-center rounded-control transition-colors",
+                  value.trim() && !busy
+                    ? "bg-ink text-paper hover:bg-ink-hover"
+                    : "bg-field text-ink-faint",
+                )}
+              >
+                {busy ? <Loader2 className="size-4 animate-spin" /> : <SendHorizontal className="size-4" />}
+              </button>
+            </Tooltip>
           </div>
         </div>
       </div>

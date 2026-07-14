@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { Sparkles, X, ArrowUp, ShieldCheck, FileText, ListChecks, Search, Loader2 } from "lucide-react";
+import { Tooltip } from "@gossip/ui/stack";
+import { MessageBody } from "@/components/chat/MessageBody";
 import { runAiJob } from "@/lib/ai";
 
 const quick: { icon: typeof FileText; label: string; type: "recap" | "notes" | "qa"; prompt?: string }[] = [
@@ -50,9 +52,11 @@ export function AiSidePanel({
         <span className="ml-1 inline-flex items-center gap-1 rounded-control bg-field px-2 py-0.5 text-[11px] font-medium text-positive">
           <span className="size-1.5 rounded-full bg-positive" /> private
         </span>
-        <button onClick={onClose} aria-label="Close" className="ml-auto grid size-8 place-items-center rounded-control text-ink-faint hover:bg-field hover:text-ink">
-          <X className="size-4" />
-        </button>
+        <Tooltip label="Close" side="bottom" className="ml-auto">
+          <button onClick={onClose} aria-label="Close" className="grid size-8 place-items-center rounded-control text-ink-faint hover:bg-field hover:text-ink">
+            <X className="size-4" />
+          </button>
+        </Tooltip>
       </header>
 
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
@@ -85,7 +89,10 @@ export function AiSidePanel({
         {answer && (
           <div className="rounded-card bg-field p-3">
             <div className="mb-1.5 font-mono text-[10px] uppercase tracking-wider text-ink-mute">Gossip AI</div>
-            <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-ink">{answer}</p>
+            {/* Same safe markdown path as chat — fenced code gets highlight + copy. */}
+            <div className="text-[13px] leading-relaxed text-ink">
+              <MessageBody text={answer} />
+            </div>
           </div>
         )}
       </div>

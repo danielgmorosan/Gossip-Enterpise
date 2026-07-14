@@ -1,5 +1,6 @@
 import { Fragment, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { CodeBlock } from "./CodeBlock";
 
 /**
  * Minimal, safe markdown renderer for chat messages.
@@ -13,8 +14,12 @@ import { cn } from "@/lib/utils";
  * dangerouslySetInnerHTML anywhere.
  */
 
-/** Inline tokens: `code` · **bold** · *italic* (first match wins, left to right). */
-const INLINE = /(`[^`\n]+`)|(\*\*[^\n]+?\*\*)|(\*[^*\s][^*\n]*?\*)/;
+/**
+ * Inline tokens: @[mention](id) · `code` · **bold** · *italic*
+ * (first match wins, left to right).
+ */
+const INLINE = /(@\[[^\]\n]+\]\(gossip1[a-z0-9]+\))|(`[^`\n]+`)|(\*\*[^\n]+?\*\*)|(\*[^*\s][^*\n]*?\*)/;
+const MENTION = /^@\[([^\]]+)\]\((gossip1[a-z0-9]+)\)$/;
 
 function renderInline(text: string): ReactNode[] {
   const out: ReactNode[] = [];
@@ -29,12 +34,21 @@ function renderInline(text: string): ReactNode[] {
     if (m.index > 0) out.push(rest.slice(0, m.index));
     const tok = m[0];
     if (m[1]) {
+      // Structured mention token (T2-05): highlighted chip carrying the real
+      // member id (data attr) so notifications (T2-09) can resolve targets.
+      const mm = MENTION.exec(tok)!;
+      out.push(
+        <span key={k++} data-mention-id={mm[2]} title={mm[2]} className="md-chip rounded px-1 py-px font-medium">
+          @{mm[1]}
+        </span>,
+      );
+    } else if (m[2]) {
       out.push(
         <code key={k++} className="md-chip rounded px-1 py-px font-mono text-[0.88em]">
           {tok.slice(1, -1)}
         </code>,
       );
-    } else if (m[2]) {
+    } else if (m[3]) {
       out.push(
         <strong key={k++} className="font-semibold">
           {renderInline(tok.slice(2, -2))}
@@ -61,11 +75,7 @@ export function MessageBody({ text, className }: { text: string; className?: str
     const before = text.slice(last, idx).replace(/\n$/, "");
     if (before) parts.push(<Fragment key={i++}>{renderInline(before)}</Fragment>);
     const code = m[2].replace(/\n$/, "");
-    parts.push(
-      <pre key={i++} className="md-chip my-1 block overflow-x-auto rounded-control px-2.5 py-2 font-mono text-[0.85em] leading-relaxed">
-        <code>{code}</code>
-      </pre>,
-    );
+    parts.push(<CodeBlock key={i++} code={code} lang={m[1] || undefined} />);
     last = idx + m[0].length;
     if (text[last] === "\n") last += 1; // swallow the newline right after the block
   }

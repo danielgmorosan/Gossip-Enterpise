@@ -2,6 +2,7 @@ import { Outlet } from "react-router-dom";
 import { WorkspaceRail } from "./WorkspaceRail";
 import { DmSidebar } from "./DmSidebar";
 import { usePendingContactRedirect } from "@/lib/usePendingContactRedirect";
+import { useDmNotifications } from "@/lib/useDmNotifications";
 
 /**
  * Personal home space (/home) — Discord-style: DMs and DM calls live here,
@@ -10,6 +11,7 @@ import { usePendingContactRedirect } from "@/lib/usePendingContactRedirect";
  */
 export function HomeShell() {
   usePendingContactRedirect();
+  useDmNotifications();
 
   return (
     <div className="relative z-10 flex h-screen w-screen overflow-hidden bg-paper font-stack text-ink">

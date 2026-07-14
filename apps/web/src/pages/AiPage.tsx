@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Sparkles, ShieldCheck, FileText, ListChecks, Search, AlertTriangle } from "lucide-react";
 import { PaneHeader } from "@/components/chat/PaneHeader";
+import { MessageBody } from "@/components/chat/MessageBody";
 import {
   AiChatShell,
   AiChatWelcomeLayout,
@@ -74,7 +75,7 @@ export function AiPage() {
       onChange={(e) => setInput(e.target.value)}
       onSubmit={submit}
       busy={busy}
-      placeholder="Ask about your channels — recap, summarize, find a decision…"
+      placeholder="Ask about your channels: recap, summarize, find a decision…"
     />
   );
 
@@ -119,7 +120,7 @@ export function AiPage() {
                     subtitle={
                       <span className="inline-flex items-center gap-1.5">
                         <ShieldCheck className="size-4 text-positive" />
-                        Runs on your hardware. Reads channels you can access — never your DMs.
+                        Runs on your hardware. Reads channels you can access, never your DMs.
                       </span>
                     }
                   />
@@ -159,7 +160,8 @@ export function AiPage() {
                         </span>
                       </div>
                       <AiAssistantBlock>
-                        <span className="whitespace-pre-wrap">{t.text}</span>
+                        {/* Same safe markdown path as chat — fenced code gets highlight + copy. */}
+                        <MessageBody text={t.text} />
                       </AiAssistantBlock>
                     </div>
                   ),
