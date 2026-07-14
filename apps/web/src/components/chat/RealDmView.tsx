@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { ShieldCheck, Check, Lock, Phone } from "lucide-react";
 import { PaneHeader, HeaderIconButton } from "@/components/chat/PaneHeader";
 import { Composer } from "@/components/chat/Composer";
@@ -26,7 +26,6 @@ function E2EPill() {
  */
 export function RealDmView({ peerId, peerName }: { peerId: string; peerName?: string }) {
   const isSelf = peerId === "self";
-  const { workspaceId = "" } = useParams();
   const status = useSession((s) => s.status);
   const userId = useSession((s) => s.userId);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -140,8 +139,8 @@ export function RealDmView({ peerId, peerName }: { peerId: string; peerName?: st
         subtitle={<span className="font-mono text-[11px]">{isSelf ? (userId ? `${userId.slice(0, 16)}…` : "") : truncateHandle(peerId, 14, 8)}</span>}
         badge={<E2EPill />}
         actions={
-          !isSelf && workspaceId ? (
-            <Link to={`/w/${workspaceId}/call/dm/${encodeURIComponent(peerId)}`}>
+          !isSelf ? (
+            <Link to={`/home/call/dm/${encodeURIComponent(peerId)}`}>
               <HeaderIconButton label={`Call ${peerName || "contact"}`}>
                 <Phone className="size-4" />
               </HeaderIconButton>

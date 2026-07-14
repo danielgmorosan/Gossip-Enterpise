@@ -4,17 +4,16 @@ import { MessageSquareLock, UserX } from "lucide-react";
 import { Button } from "@gossip/ui/stack";
 import { UserAvatar } from "@/components/UserAvatar";
 import { useSession } from "@/stores/useSession";
-import { useRelay } from "@/stores/useRelay";
 import { useContacts } from "@/stores/useContacts";
 import { setPendingContact, isGossipHandle } from "@/lib/contact";
 import { truncateHandle } from "@/lib/utils";
 
 /**
  * Contact-link landing: /contact/:handle?name=…
- * Open session + a known workspace → "start DM" confirmation, then the real
- * DM route (/w/:workspaceId/dm/:handle). Locked session → stash the contact
- * (single-use, sessionStorage) and route through unlock/create; AppShell
- * picks it up afterwards. Only the PUBLIC handle is ever in the URL.
+ * Open session → "start DM" confirmation, then the home-space DM route
+ * (/home/dm/:handle) — no workspace needed. Locked session → stash the
+ * contact (single-use, sessionStorage) and route through unlock/create; the
+ * shells pick it up afterwards. Only the PUBLIC handle is ever in the URL.
  */
 export function ContactLanding() {
   const { handle = "" } = useParams();
@@ -27,7 +26,6 @@ export function ContactLanding() {
 
   const valid = isGossipHandle(handle);
   const isSelf = status === "open" && myId === handle;
-  const workspaceId = useRelay.getState().workspace?.id ?? useRelay.getState().myWorkspaces[0]?.id;
 
   useEffect(() => {
     if (!valid || isSelf) return;
@@ -44,13 +42,7 @@ export function ContactLanding() {
     setBusy(true);
     const known = useContacts.getState().contacts.some((c) => c.userId === handle);
     if (!known) void useContacts.getState().add(handle, name ?? handle.slice(0, 12));
-    if (workspaceId) {
-      nav(`/w/${workspaceId}/dm/${encodeURIComponent(handle)}`, { replace: true });
-    } else {
-      // No workspace yet — keep the contact pending; AppShell resolves it later.
-      setPendingContact({ handle, name });
-      nav("/welcome", { replace: true });
-    }
+    nav(`/home/dm/${encodeURIComponent(handle)}`, { replace: true });
   };
 
   if (!valid) {

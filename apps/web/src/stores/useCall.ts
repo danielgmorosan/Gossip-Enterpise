@@ -14,12 +14,12 @@ import { syncNoiseGate, resetNoiseGate } from "@/lib/audioProcessing";
  */
 export type CallTarget =
   | { kind: "channel"; workspaceId: string; channelId: string; label: string }
-  | { kind: "dm"; workspaceId: string; peerId: string; label: string };
+  | { kind: "dm"; peerId: string; label: string };
 
 export function callPath(t: CallTarget): string {
   return t.kind === "channel"
     ? `/w/${t.workspaceId}/call/${t.channelId}`
-    : `/w/${t.workspaceId}/call/dm/${encodeURIComponent(t.peerId)}`;
+    : `/home/call/dm/${encodeURIComponent(t.peerId)}`;
 }
 
 export function sameTarget(a: CallTarget | null, b: CallTarget | null): boolean {

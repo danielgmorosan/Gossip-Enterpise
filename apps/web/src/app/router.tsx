@@ -1,5 +1,7 @@
-import { createBrowserRouter, Navigate } from "react-router-dom";
+import { createBrowserRouter, Navigate, useParams } from "react-router-dom";
 import { AppShell } from "./AppShell";
+import { HomeShell } from "./HomeShell";
+import { HomePage } from "@/pages/HomePage";
 import { SdkSmoke } from "@/pages/dev/SdkSmoke";
 import { Styleguide } from "@/pages/dev/Styleguide";
 import { OnboardingLayout } from "@/pages/onboarding/OnboardingLayout";
@@ -36,6 +38,16 @@ function Entry() {
   return <Navigate to={hasIdentity ? "/identity/unlock" : "/welcome"} replace />;
 }
 
+/** DMs moved out of workspaces (/w/:id/dm/… → /home/dm/…); keep stale links working. */
+function LegacyDmRedirect() {
+  const { dmId = "" } = useParams();
+  return <Navigate to={`/home/dm/${encodeURIComponent(dmId)}`} replace />;
+}
+function LegacyDmCallRedirect() {
+  const { peerId = "" } = useParams();
+  return <Navigate to={`/home/call/dm/${encodeURIComponent(peerId)}`} replace />;
+}
+
 export const router = createBrowserRouter([
   { path: "/", element: <Entry /> },
   { path: "/join/:code", element: <JoinInvite /> },
@@ -54,19 +66,29 @@ export const router = createBrowserRouter([
     ],
   },
   {
+    // Personal space — DMs and DM calls live here, outside any workspace.
+    path: "/home",
+    element: <HomeShell />,
+    children: [
+      { index: true, element: <HomePage /> },
+      { path: "dm/:dmId", element: <DMView /> },
+      { path: "call/dm/:peerId", element: <CallPage /> },
+    ],
+  },
+  {
     path: "/w/:workspaceId",
     element: <AppShell />,
     children: [
       { index: true, element: <WorkspaceIndex /> },
       { path: "c/:channelId", element: <ChannelView /> },
-      { path: "dm/:dmId", element: <DMView /> },
+      { path: "dm/:dmId", element: <LegacyDmRedirect /> },
       { path: "threads", element: <Threads /> },
       { path: "search", element: <SearchPage /> },
       { path: "members", element: <MembersPage /> },
       { path: "ai", element: <AiPage /> },
       { path: "apps", element: <AppsPage /> },
       { path: "apps/:appId", element: <MiniAppHost /> },
-      { path: "call/dm/:peerId", element: <CallPage /> },
+      { path: "call/dm/:peerId", element: <LegacyDmCallRedirect /> },
       { path: "call/:channelId", element: <CallPage /> },
     ],
   },

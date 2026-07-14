@@ -19,8 +19,9 @@ export function IdentityUnlock() {
       nav("/workspace/join"); // invite link pending — finish the join, prefilled
       return;
     }
+    // No workspace? DMs still work — land in the personal home space.
     const mine = useRelay.getState().myWorkspaces;
-    nav(mine.length > 0 ? `/w/${mine[0].id}` : "/workspace/create");
+    nav(mine.length > 0 ? `/w/${mine[0].id}` : "/home");
   };
 
   const submit = async (e: React.FormEvent) => {

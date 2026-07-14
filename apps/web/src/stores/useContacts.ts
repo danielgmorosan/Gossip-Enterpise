@@ -1,5 +1,7 @@
+import { useEffect } from "react";
 import { create } from "zustand";
 import { gossipSdk, SdkEventType, type Contact } from "@/lib/sdk";
+import { useSession } from "./useSession";
 
 interface ContactsState {
   contacts: Contact[];
@@ -60,3 +62,14 @@ export const useContacts = create<ContactsState>((set, get) => ({
     };
   },
 }));
+
+/** Keep the contact list fresh while the session is open (initial refresh + SDK events). */
+export function useContactsLive() {
+  const sessionStatus = useSession((s) => s.status);
+  const refresh = useContacts((s) => s.refresh);
+  useEffect(() => {
+    if (sessionStatus !== "open") return;
+    refresh();
+    return useContacts.getState().subscribe();
+  }, [sessionStatus, refresh]);
+}

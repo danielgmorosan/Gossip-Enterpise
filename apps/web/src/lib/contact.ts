@@ -4,8 +4,8 @@
  * Shares ONLY the public identity handle (gossip1…) and an optional display
  * name — never anything secret. Mirrors the invite-link handoff pattern in
  * lib/invite.ts: the landing page stashes the contact in sessionStorage so it
- * survives the identity unlock/create detour, and AppShell consumes it once
- * the user is inside a workspace.
+ * survives the identity unlock/create detour, and the app shells consume it
+ * once the session opens (usePendingContactRedirect → /home/dm/:handle).
  */
 const KEY = "gossip-pending-contact";
 

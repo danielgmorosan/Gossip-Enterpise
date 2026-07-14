@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Copy, Check, UserPlus, Loader2 } from "lucide-react";
 import { Button, Field, Input, StackModal, ModalBody } from "@gossip/ui/stack";
 import { gossipSdk } from "@/lib/sdk";
@@ -8,7 +8,6 @@ import { useSession } from "@/stores/useSession";
 
 export function NewDmDialog({ onClose }: { onClose: () => void }) {
   const nav = useNavigate();
-  const { workspaceId = "" } = useParams();
   const status = useSession((s) => s.status);
   const add = useContacts((s) => s.add);
   const myId = status === "open" ? gossipSdk.userId : "";
@@ -26,7 +25,7 @@ export function NewDmDialog({ onClose }: { onClose: () => void }) {
     setBusy(false);
     if (res.ok) {
       onClose();
-      nav(`/w/${workspaceId}/dm/${encodeURIComponent(peerId.trim())}`);
+      nav(`/home/dm/${encodeURIComponent(peerId.trim())}`);
     } else {
       setError(res.error ?? "Failed");
     }

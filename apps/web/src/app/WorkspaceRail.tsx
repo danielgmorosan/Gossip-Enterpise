@@ -1,4 +1,4 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { Plus, Mail, Calendar, FileText, NotebookPen, Video, Settings } from "lucide-react";
 import { BrandLogo } from "@gossip/ui/stack";
 import { UserAvatar as Avatar } from "@/components/UserAvatar";
@@ -16,14 +16,29 @@ const dock = [
 
 export function WorkspaceRail() {
   const { workspaceId } = useParams();
+  const onHome = useLocation().pathname.startsWith("/home");
   const myWorkspaces = useRelay((s) => s.myWorkspaces);
   const displayName = useSession((s) => s.displayName) || "You";
   const userId = useSession((s) => s.userId);
 
   return (
     <aside className="flex h-full w-[72px] shrink-0 flex-col items-center gap-2 border-r border-line bg-paper-2 py-3 font-stack">
-      <Link to={workspaceId ? `/w/${workspaceId}` : "/welcome"} className="mb-1 grid size-10 place-items-center">
-        <BrandLogo src="/icon-mark.png" height={28} alt="Gossip" className="transition-transform hover:scale-105" />
+      {/* Personal home (Discord-style): brand button = DMs, outside any workspace. */}
+      <Link to="/home" title="Direct messages" className="group relative mb-1 flex items-center justify-center">
+        <span
+          className={cn(
+            "absolute -left-2 w-1 rounded-r-full bg-ink transition-all",
+            onHome ? "h-7 opacity-100" : "h-0 opacity-0 group-hover:h-3 group-hover:opacity-60",
+          )}
+        />
+        <span
+          className={cn(
+            "grid size-11 place-items-center rounded-card transition-all",
+            onHome ? "rounded-control bg-field ring-1 ring-line-strong" : "hover:rounded-control hover:bg-field",
+          )}
+        >
+          <BrandLogo src="/icon-mark.png" height={26} alt="Gossip" className="transition-transform group-hover:scale-105" />
+        </span>
       </Link>
 
       <div className="my-1 h-px w-8 bg-line" />
@@ -58,21 +73,24 @@ export function WorkspaceRail() {
         </Link>
       </div>
 
-      <div className="my-1 h-px w-8 bg-line" />
-
-      {/* Mini-app dock */}
-      <div className="flex flex-col items-center gap-1.5">
-        {dock.map((d) => (
-          <Link
-            key={d.id}
-            to={workspaceId ? `/w/${workspaceId}/apps/${d.id}` : "/welcome"}
-            title={d.label}
-            className="grid size-10 place-items-center rounded-control text-ink-faint transition-colors hover:bg-field hover:text-ink"
-          >
-            <d.icon className="size-[18px]" />
-          </Link>
-        ))}
-      </div>
+      {/* Mini-app dock — workspace-scoped, so only shown inside one */}
+      {workspaceId && (
+        <>
+          <div className="my-1 h-px w-8 bg-line" />
+          <div className="flex flex-col items-center gap-1.5">
+            {dock.map((d) => (
+              <Link
+                key={d.id}
+                to={`/w/${workspaceId}/apps/${d.id}`}
+                title={d.label}
+                className="grid size-10 place-items-center rounded-control text-ink-faint transition-colors hover:bg-field hover:text-ink"
+              >
+                <d.icon className="size-[18px]" />
+              </Link>
+            ))}
+          </div>
+        </>
+      )}
 
       <div className="mt-auto flex flex-col items-center gap-2">
         <Link to="/settings/profile" title="Settings" className="grid size-10 place-items-center rounded-control text-ink-faint transition-colors hover:bg-field hover:text-ink">

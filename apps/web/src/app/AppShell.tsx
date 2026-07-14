@@ -1,31 +1,22 @@
 import { useEffect } from "react";
-import { Outlet, useNavigate, useParams } from "react-router-dom";
+import { Outlet, useParams } from "react-router-dom";
 import { WorkspaceRail } from "./WorkspaceRail";
 import { ChannelSidebar } from "./ChannelSidebar";
 import { useRelay } from "@/stores/useRelay";
-import { useSession } from "@/stores/useSession";
-import { useContacts } from "@/stores/useContacts";
-import { takePendingContact } from "@/lib/contact";
+import { useContactsLive } from "@/stores/useContacts";
+import { usePendingContactRedirect } from "@/lib/usePendingContactRedirect";
 
 export function AppShell() {
   const { workspaceId } = useParams();
-  const nav = useNavigate();
-  const sessionOpen = useSession((s) => s.status === "open");
 
   useEffect(() => {
     if (workspaceId) useRelay.getState().openWorkspace(workspaceId);
   }, [workspaceId]);
 
-  // Resolve a stashed contact link (/contact/:handle visited while locked):
-  // once we're unlocked and inside a workspace, open the DM they asked for.
-  useEffect(() => {
-    if (!workspaceId || !sessionOpen) return;
-    const pending = takePendingContact();
-    if (!pending || pending.handle === useSession.getState().userId) return;
-    const known = useContacts.getState().contacts.some((c) => c.userId === pending.handle);
-    if (!known) void useContacts.getState().add(pending.handle, pending.name ?? pending.handle.slice(0, 12));
-    nav(`/w/${workspaceId}/dm/${encodeURIComponent(pending.handle)}`);
-  }, [workspaceId, sessionOpen, nav]);
+  // Contacts stay live inside workspaces too (member DM shortcuts, avatars),
+  // and stashed /contact/:handle links resolve to /home/dm from here as well.
+  useContactsLive();
+  usePendingContactRedirect();
 
   return (
     <div className="relative z-10 flex h-screen w-screen overflow-hidden bg-paper font-stack text-ink">

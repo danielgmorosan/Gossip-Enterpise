@@ -41,7 +41,7 @@ function disconnectMessage(reason: DisconnectReason): string {
  * takes over audio + controls); coming back re-binds the UI to the same room.
  */
 export function CallPage() {
-  // Channel call: /w/:workspaceId/call/:channelId — DM call: /w/:workspaceId/call/dm/:peerId
+  // Channel call: /w/:workspaceId/call/:channelId — DM call: /home/call/dm/:peerId
   const { workspaceId = "", channelId = "", peerId = "" } = useParams();
   const isDm = !!peerId;
   const nav = useNavigate();
@@ -58,7 +58,7 @@ export function CallPage() {
   const target = useMemo<CallTarget>(
     () =>
       isDm
-        ? { kind: "dm", workspaceId, peerId, label: peerName || truncateHandle(peerId, 10, 4) }
+        ? { kind: "dm", peerId, label: peerName || truncateHandle(peerId, 10, 4) }
         : { kind: "channel", workspaceId, channelId, label: channel?.name ?? channelId },
     [isDm, workspaceId, channelId, peerId, peerName, channel?.name],
   );
@@ -79,7 +79,7 @@ export function CallPage() {
   );
 
   const back = () =>
-    nav(isDm ? `/w/${workspaceId}/dm/${encodeURIComponent(peerId)}` : `/w/${workspaceId}/c/${channelId}`);
+    nav(isDm ? `/home/dm/${encodeURIComponent(peerId)}` : `/w/${workspaceId}/c/${channelId}`);
 
   // Join (or re-bind to) the call. Idempotent: if the store is already on this
   // target the connect() is a no-op and we just render the existing room.
@@ -201,7 +201,7 @@ export function CallPage() {
             <p className="text-[15px] font-semibold text-negative">Couldn't start the call</p>
             <p className="mt-1 font-mono text-[12px] text-ink-mute">{state.message}</p>
             <Button className="mt-4" variant="secondary" onClick={back}>
-              <ArrowLeft className="size-4" /> Back to channel
+              <ArrowLeft className="size-4" /> {isDm ? "Back to conversation" : "Back to channel"}
             </Button>
           </>
         )}
@@ -227,7 +227,7 @@ export function CallPage() {
               Add a free LiveKit Cloud project's URL, API key, and secret to{" "}
               <span className="font-mono text-ink">services/relay/.env</span> and restart the relay.
             </p>
-            <Link to={isDm ? `/w/${workspaceId}/dm/${encodeURIComponent(peerId)}` : `/w/${workspaceId}/c/${channelId}`}>
+            <Link to={isDm ? `/home/dm/${encodeURIComponent(peerId)}` : `/w/${workspaceId}/c/${channelId}`}>
               <Button className="mt-4" variant="secondary">
                 <ArrowLeft className="size-4" /> {isDm ? "Back to conversation" : "Back to channel"}
               </Button>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { NavLink, useParams } from "react-router-dom";
 import {
   Hash,
@@ -9,33 +9,32 @@ import {
   MessagesSquare,
   Users,
   Search,
-  ShieldCheck,
   Copy,
   Check,
 } from "lucide-react";
 import { NavBadge } from "@gossip/ui/stack";
-import { UserAvatar as Avatar } from "@/components/UserAvatar";
 import { cn, truncateHandle } from "@/lib/utils";
 import { inviteLink } from "@/lib/invite";
-import { useContacts } from "@/stores/useContacts";
 import { useSession } from "@/stores/useSession";
 import { useRelay } from "@/stores/useRelay";
-import { NewDmDialog } from "@/components/chat/NewDmDialog";
 import { CreateChannelDialog } from "@/components/chat/CreateChannelDialog";
 
 /** NavLink styled like the Stack kit's NavItem (kept as a real link for router semantics). */
-function Row({
+export function Row({
   to,
   active,
+  end,
   children,
 }: {
   to: string;
   active?: boolean;
+  end?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <NavLink
       to={to}
+      end={end}
       className={({ isActive }) =>
         cn(
           "flex w-full items-center gap-2 rounded-control px-2 py-1.5 text-[13px] transition-colors outline-none",
@@ -51,7 +50,7 @@ function Row({
   );
 }
 
-function GroupLabel({ label, open, onToggle, onAdd }: { label: string; open: boolean; onToggle: () => void; onAdd?: () => void }) {
+export function GroupLabel({ label, open, onToggle, onAdd }: { label: string; open: boolean; onToggle: () => void; onAdd?: () => void }) {
   return (
     <div className="flex items-center gap-1 px-2 pb-1 pt-3">
       <button onClick={onToggle} className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-ink-faint hover:text-ink-mute">
@@ -68,26 +67,15 @@ function GroupLabel({ label, open, onToggle, onAdd }: { label: string; open: boo
 }
 
 export function ChannelSidebar() {
-  const { workspaceId = "", channelId, dmId } = useParams();
+  const { workspaceId = "", channelId } = useParams();
   const base = `/w/${workspaceId}`;
   const [showCh, setShowCh] = useState(true);
-  const [showDm, setShowDm] = useState(true);
-  const [newDm, setNewDm] = useState(false);
   const [newChannel, setNewChannel] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
 
   const workspace = useRelay((s) => s.workspace);
   const channels = workspace?.id === workspaceId ? workspace.channels : [];
   const sessionStatus = useSession((s) => s.status);
-  const contacts = useContacts((s) => s.contacts);
-  const refreshContacts = useContacts((s) => s.refresh);
-
-  useEffect(() => {
-    if (sessionStatus !== "open") return;
-    refreshContacts();
-    const unsub = useContacts.getState().subscribe();
-    return unsub;
-  }, [sessionStatus, refreshContacts]);
 
   return (
     <aside className="flex h-full w-[264px] shrink-0 flex-col border-r border-line bg-paper-2 font-stack">
@@ -112,9 +100,6 @@ export function ChannelSidebar() {
             </button>
           )}
         </div>
-        <span className="inline-flex shrink-0 items-center gap-1 rounded-control bg-field px-2 py-0.5 text-[11px] font-medium text-positive">
-          <span className="size-1.5 rounded-full bg-positive" /> E2E DMs
-        </span>
       </div>
 
       {/* Quick nav */}
@@ -151,37 +136,11 @@ export function ChannelSidebar() {
           </button>
         )}
 
-        {/* Direct messages */}
-        <GroupLabel label="Direct messages" open={showDm} onToggle={() => setShowDm((v) => !v)} onAdd={() => setNewDm(true)} />
-        {showDm && (
-          <Row to={`${base}/dm/dm_self`} active={dmId === "dm_self"}>
-            <span className="grid size-5 shrink-0 place-items-center rounded-full bg-ink text-paper">
-              <ShieldCheck className="size-3" />
-            </span>
-            <span className="min-w-0 flex-1 truncate">Notes to Self</span>
-            <NavBadge>live</NavBadge>
-          </Row>
-        )}
-        {showDm &&
-          contacts.map((c) => (
-            <Row key={c.userId} to={`${base}/dm/${encodeURIComponent(c.userId)}`} active={dmId === c.userId}>
-              <Avatar name={c.name} id={c.userId} size="sm" />
-              <span className="min-w-0 flex-1 truncate">{c.name}</span>
-              <ShieldCheck className="size-3 shrink-0 text-positive/70" />
-            </Row>
-          ))}
-        {showDm && contacts.length === 0 && (
-          <button onClick={() => setNewDm(true)} className="mt-1 flex w-full items-center gap-2 rounded-control px-2 py-1.5 text-[13px] text-ink-faint hover:bg-field hover:text-ink">
-            <Plus className="size-4" /> New message
-          </button>
-        )}
-
         <div className="mt-2 px-2.5 py-2 font-mono text-[10px] leading-relaxed text-ink-faint">
           {sessionStatus === "open" ? truncateHandle(useSession.getState().userId ?? "", 12, 6) : "session locked"}
         </div>
       </div>
 
-      {newDm && <NewDmDialog onClose={() => setNewDm(false)} />}
       {newChannel && workspaceId && <CreateChannelDialog workspaceId={workspaceId} onClose={() => setNewChannel(false)} />}
     </aside>
   );
