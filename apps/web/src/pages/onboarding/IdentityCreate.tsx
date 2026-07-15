@@ -24,7 +24,10 @@ export function IdentityCreate() {
     setDisplayName(name.trim());
     setBusy(true);
     setError(null);
-    const ok = await unlock(mnemonic);
+    // Remember the device by default (T3): otherwise every refresh re-locks
+    // the session - which also dropped the user's avatar from calls (rejoins
+    // as a guest with no identity). Turn off in Settings → Security.
+    const ok = await unlock(mnemonic, true);
     setBusy(false);
     if (ok) nav(next);
     else setError("Couldn't open a session. Check your connection and try again.");

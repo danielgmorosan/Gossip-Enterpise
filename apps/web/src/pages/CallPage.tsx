@@ -169,6 +169,8 @@ export function CallPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [callRoom, isDm]);
 
+  const sessionStatus = useSession((s) => s.status);
+  const remembered = useSession((s) => s.remembered);
   const ran = useRef(false);
   useEffect(() => {
     if (useCall.getState().status !== "idle" && sameTarget(useCall.getState().target, target)) {
@@ -176,10 +178,20 @@ export function CallPage() {
       return;
     }
     if (ran.current) return;
+    // On a fresh load (refresh mid-call) a remembered device auto-unlocks a
+    // moment later. Wait for the session to open so we join with our REAL
+    // identity + avatar, not a throwaway "guest" the other side sees as an
+    // anonymous, avatar-less participant. If the unlock fails, `remembered`
+    // flips false and we fall through (join as guest). Non-remembered devices
+    // never had an identity coming - join immediately.
+    if (remembered && sessionStatus !== "open") {
+      setState({ phase: "loading" });
+      return;
+    }
     ran.current = true;
     void join();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- join once per mount; store handles idempotency
-  }, []);
+  }, [sessionStatus, remembered]);
 
   // If the call ends while we're on this page: a user-initiated leave (dock
   // Leave, in-call leave button) bounces back to the conversation, but a
