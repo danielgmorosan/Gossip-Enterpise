@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { ShieldCheck, Check, Lock, Phone } from "lucide-react";
+import { ShieldCheck, Check, Lock, Phone, Video } from "lucide-react";
 import { PaneHeader, HeaderIconButton } from "@/components/chat/PaneHeader";
 import { Composer } from "@/components/chat/Composer";
 import { MessageBody } from "@/components/chat/MessageBody";
@@ -253,11 +253,18 @@ export function RealDmView({ peerId, peerName, embedded }: { peerId: string; pee
           badge={<E2EPill />}
           actions={
             !isSelf ? (
-              <Link to={`/home/call/dm/${encodeURIComponent(peerId)}`}>
-                <HeaderIconButton label={`Call ${peerName || "contact"}`}>
-                  <Phone className="size-4" />
-                </HeaderIconButton>
-              </Link>
+              <>
+                <Link to={`/home/call/dm/${encodeURIComponent(peerId)}`}>
+                  <HeaderIconButton label={`Voice call ${peerName || "contact"}`}>
+                    <Phone className="size-4" />
+                  </HeaderIconButton>
+                </Link>
+                <Link to={`/home/call/dm/${encodeURIComponent(peerId)}?video=1`}>
+                  <HeaderIconButton label={`Video call ${peerName || "contact"}`}>
+                    <Video className="size-4" />
+                  </HeaderIconButton>
+                </Link>
+              </>
             ) : undefined
           }
         />

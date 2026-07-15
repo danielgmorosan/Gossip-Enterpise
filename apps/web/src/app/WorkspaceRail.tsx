@@ -2,12 +2,11 @@ import { useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { Plus, Mail, Calendar, FileText, NotebookPen, Video, Settings, LogOut, Trash2 } from "lucide-react";
 import { BrandLogo, Tooltip } from "@gossip/ui/stack";
-import { UserAvatar as Avatar } from "@/components/UserAvatar";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import { ContextMenu, ConfirmDialog } from "@/components/ContextMenu";
+import { StatusMenu } from "@/components/StatusMenu";
 import { useRelay, type MyWorkspace } from "@/stores/useRelay";
 import { longPressProps } from "@/lib/longPress";
-import { useSession } from "@/stores/useSession";
 import { useNotifications } from "@/stores/useNotifications";
 import { cn } from "@/lib/utils";
 
@@ -24,8 +23,6 @@ export function WorkspaceRail() {
   const { pathname } = useLocation();
   const onHome = pathname.startsWith("/home");
   const myWorkspaces = useRelay((s) => s.myWorkspaces);
-  const displayName = useSession((s) => s.displayName) || "You";
-  const userId = useSession((s) => s.userId);
   // DM unread total badges the home (DM) button, Discord-style.
   const dmUnread = useNotifications((s) => Object.values(s.unreadByDm).reduce((a, b) => a + b, 0));
 
@@ -182,11 +179,7 @@ export function WorkspaceRail() {
             <Settings className="size-[18px]" />
           </Link>
         </Tooltip>
-        <Tooltip label={displayName} side="right">
-          <Link to="/settings/profile" state={{ from: pathname }} aria-label="Your profile">
-            <Avatar name={displayName} id={userId ?? displayName} className="!size-9 !text-[13px]" />
-          </Link>
-        </Tooltip>
+        <StatusMenu />
       </div>
     </aside>
   );

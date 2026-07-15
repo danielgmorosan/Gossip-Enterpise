@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { useSession } from "./useSession";
 import { useNotifications, mentionsUser } from "./useNotifications";
 import { useAvatars } from "./useAvatars";
+import { useStatus } from "./useStatus";
 import { relayWsUrl } from "@/lib/relayBase";
 
 export interface ChannelMsg {
@@ -200,7 +201,8 @@ function sendHello(clearAvatar = false) {
     const o = useAvatars.getState().overrides[s.userId];
     if (o?.kind === "image" && o.dataUrl.length <= 65536) avatar = o.dataUrl;
   }
-  ws.send(JSON.stringify({ type: "hello", userId: s.userId, name, ...(avatar !== undefined ? { avatar } : {}) }));
+  const status = useStatus.getState().status; // "online" | "invisible" (T3)
+  ws.send(JSON.stringify({ type: "hello", userId: s.userId, name, status, ...(avatar !== undefined ? { avatar } : {}) }));
 }
 
 function request<T extends RelayMsg>(payload: object): Promise<T> {

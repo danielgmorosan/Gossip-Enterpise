@@ -8,7 +8,7 @@ import {
   useTracks,
   type TrackReferenceOrPlaceholder,
 } from "@livekit/components-react";
-import { Mic, MicOff, Video, VideoOff, MonitorUp, PhoneOff, MessageSquareText, VolumeX, X, Maximize, Minimize } from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, MonitorUp, PhoneOff, MessageSquareText, VolumeX, X, Maximize, Minimize, Settings2 } from "lucide-react";
 import { Tooltip } from "@gossip/ui/stack";
 import { UserAvatar } from "@/components/UserAvatar";
 import { useCall, type CallTarget } from "@/stores/useCall";
@@ -16,6 +16,7 @@ import { useSession } from "@/stores/useSession";
 import { ChannelView } from "@/pages/ChannelView";
 import { RealDmView } from "@/components/chat/RealDmView";
 import { ParticipantMenu } from "./ParticipantMenu";
+import { DevicePicker } from "./DevicePicker";
 import { useCallVolumes, effectiveMicVolume } from "@/stores/useCallVolumes";
 import { longPressProps } from "@/lib/longPress";
 import { cn, truncateHandle } from "@/lib/utils";
@@ -36,6 +37,7 @@ export function CallStage({ target }: { target: CallTarget }) {
   const screenAudioMissing = useCall((s) => s.screenAudioMissing);
   const { toggleMic, toggleCam, toggleScreen, leave } = useCall.getState();
   const [chatOpen, setChatOpen] = useState(true);
+  const [devicesOpen, setDevicesOpen] = useState(false);
   // Right-click volume menu (T3): { cursor position, whose audio }.
   const [menu, setMenu] = useState<{ x: number; y: number; participant: Participant } | null>(null);
   const openMenuAt = (x: number, y: number, participant: Participant) => setMenu({ x, y, participant });
@@ -169,9 +171,13 @@ export function CallStage({ target }: { target: CallTarget }) {
       )}
 
       {/* Control tray - Stack tokens (no white-on-dark blobs in dark mode). */}
-      <div className="flex h-16 shrink-0 items-center justify-center gap-2 border-t border-line bg-paper px-4">
+      <div className="relative flex h-16 shrink-0 items-center justify-center gap-2 border-t border-line bg-paper px-4">
+        {devicesOpen && <DevicePicker onClose={() => setDevicesOpen(false)} />}
         <CallButton label={mic ? "Mute microphone" : "Unmute microphone"} off={!mic} onClick={() => void toggleMic()}>
           {mic ? <Mic className="size-5" /> : <MicOff className="size-5" />}
+        </CallButton>
+        <CallButton label="Audio & video devices" active={devicesOpen} onClick={() => setDevicesOpen((o) => !o)}>
+          <Settings2 className="size-5" />
         </CallButton>
         <CallButton label={cam ? "Turn camera off" : "Turn camera on"} off={!cam} onClick={() => void toggleCam()}>
           {cam ? <Video className="size-5" /> : <VideoOff className="size-5" />}

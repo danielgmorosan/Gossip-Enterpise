@@ -2,6 +2,7 @@ import { DisconnectReason, Room, RoomEvent, Track, type RoomOptions } from "live
 import { create } from "zustand";
 import { syncNoiseGate, resetNoiseGate } from "@/lib/audioProcessing";
 import { playJoinBlip, playLeaveBlip, playCallEnd } from "@/lib/sounds";
+import { useAudioSettings } from "@/stores/useAudioSettings";
 
 // Reloading mid-call would silently drop the call - ask first (browsers show
 // their own generic wording; registering the handler is what arms the prompt).
@@ -47,13 +48,15 @@ interface CallState {
   /** Why the last session ended (server kick, duplicate identity, …); null after a user-initiated leave. */
   lastDisconnectReason: DisconnectReason | null;
 
-  connect: (args: { url: string; token: string; target: CallTarget; options: RoomOptions }) => Promise<void>;
+  connect: (args: { url: string; token: string; target: CallTarget; options: RoomOptions; withVideo?: boolean }) => Promise<void>;
   /** Refresh the display label once the channel/contact name resolves (T3). */
   setTargetLabel: (label: string) => void;
   leave: () => Promise<void>;
   toggleMic: () => Promise<void>;
   toggleCam: () => Promise<void>;
   toggleScreen: () => Promise<void>;
+  /** Switch the active mic/speaker/camera live during a call (T3, Discord-style). */
+  switchDevice: (kind: MediaDeviceKind, deviceId: string) => Promise<void>;
 }
 
 export const useCall = create<CallState>((set, get) => {
@@ -74,7 +77,7 @@ export const useCall = create<CallState>((set, get) => {
     dismissScreenAudioHint: () => set({ screenAudioMissing: false }),
     lastDisconnectReason: null,
 
-    connect: async ({ url, token, target, options }) => {
+    connect: async ({ url, token, target, options, withVideo }) => {
       const cur = get();
       // Idempotent for the same target (also absorbs StrictMode double-effects).
       if (cur.status !== "idle" && sameTarget(cur.target, target)) return;
@@ -114,9 +117,16 @@ export const useCall = create<CallState>((set, get) => {
         });
       try {
         await room.connect(url, token);
-        // Mic only on join - the camera permission prompt is intrusive, so the
-        // browser only asks when the user actually turns their camera on.
+        // Voice call: mic only (no intrusive camera prompt). Video call: also
+        // turn the camera on at join (T3). Either way the user can toggle.
         await room.localParticipant.setMicrophoneEnabled(true);
+        if (withVideo) {
+          try {
+            await room.localParticipant.setCameraEnabled(true);
+          } catch {
+            /* camera denied - stay voice-only */
+          }
+        }
         // Only flip to connected if this room is still current (no race with leave()).
         if (get().room === room) {
           set({ status: "connected" });
@@ -181,6 +191,21 @@ export const useCall = create<CallState>((set, get) => {
       await r.localParticipant.setCameraEnabled(!get().cam);
       syncLocal();
     },
+    switchDevice: async (kind, deviceId) => {
+      const r = get().room;
+      if (!r) return;
+      try {
+        await r.switchActiveDevice(kind, deviceId);
+      } catch (e) {
+        console.error("switchActiveDevice failed", e);
+      }
+      // Persist so the choice sticks for the next call too.
+      const audio = useAudioSettings.getState();
+      if (kind === "audioinput") audio.set({ inputId: deviceId });
+      else if (kind === "audiooutput") audio.set({ outputId: deviceId });
+      syncLocal();
+    },
+
     toggleScreen: async () => {
       const r = get().room;
       if (!r) return;

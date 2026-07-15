@@ -51,6 +51,7 @@ export function CallPage() {
   // no invite marker gets sent, and no cancel on hangup.
   const [searchParams] = useSearchParams();
   const answering = searchParams.get("answer") === "1";
+  const wantVideo = searchParams.get("video") === "1";
   const sentInvite = useRef(false);
   const peerJoined = useRef(false);
   const userId = useSession((s) => s.userId);
@@ -142,7 +143,7 @@ export function CallPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "token request failed");
-      await useCall.getState().connect({ url: data.url, token: data.token, target, options: roomOptions });
+      await useCall.getState().connect({ url: data.url, token: data.token, target, options: roomOptions, withVideo: wantVideo });
       // T3: ring the other side over the E2E DM channel (unless we're the one answering).
       if (isDm && !answering && !sentInvite.current) {
         sentInvite.current = true;
@@ -152,7 +153,7 @@ export function CallPage() {
     } catch (e) {
       if (mounted.current) setState({ phase: "error", message: e instanceof Error ? e.message : "Failed to start call" });
     }
-  }, [isDm, userId, peerId, workspaceId, channelId, displayName, target, roomOptions, answering]);
+  }, [isDm, userId, peerId, workspaceId, channelId, displayName, target, roomOptions, answering, wantVideo]);
 
   // T3: remember whether the other side ever connected - an unanswered
   // hangup sends a cancel marker so their ring stops (and logs a missed call).

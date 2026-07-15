@@ -108,6 +108,19 @@ export function DecorPanel({
       )}
     >
       <GossipMarkPattern />
+      {/* Green brand ambience (T3): two soft mint glows drifting off the
+          corners - ties the decor panel to the app's positive accent without
+          shouting. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -left-32 -top-32 size-[28rem] rounded-full opacity-60 blur-3xl"
+        style={{ background: "radial-gradient(circle, color-mix(in srgb, var(--st-positive) 26%, transparent) 0%, transparent 70%)" }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -bottom-40 -right-24 size-[32rem] rounded-full opacity-45 blur-3xl"
+        style={{ background: "radial-gradient(circle, color-mix(in srgb, var(--st-positive) 20%, transparent) 0%, transparent 70%)" }}
+      />
       {children && (
         <div
           className={cn(

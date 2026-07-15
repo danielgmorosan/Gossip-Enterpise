@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams, Link, Navigate } from "react-router-dom";
-import { Hash, Lock, Phone, Sparkles, Users, ShieldAlert, Circle, MessageSquareReply, Pencil, Reply } from "lucide-react";
+import { Hash, Lock, Phone, Video, Sparkles, Users, ShieldAlert, Circle, MessageSquareReply, Pencil, Reply } from "lucide-react";
 import { PaneHeader, HeaderIconButton } from "@/components/chat/PaneHeader";
 import { Composer } from "@/components/chat/Composer";
 import { MessageBody } from "@/components/chat/MessageBody";
@@ -284,7 +284,10 @@ export function ChannelView({ embedded }: { embedded?: boolean } = {}) {
                 {onlineCount} online
               </span>
               <Link to={`/w/${workspaceId}/call/${channelId}`}>
-                <HeaderIconButton label="Start huddle"><Phone className="size-4" /></HeaderIconButton>
+                <HeaderIconButton label="Start voice huddle"><Phone className="size-4" /></HeaderIconButton>
+              </Link>
+              <Link to={`/w/${workspaceId}/call/${channelId}?video=1`}>
+                <HeaderIconButton label="Start video huddle"><Video className="size-4" /></HeaderIconButton>
               </Link>
               {isPrivate ? (
                 <HeaderIconButton label={`Channel members (${channel?.members?.length ?? 0})`} active={membersOpen} onClick={() => setMembersOpen(true)}>

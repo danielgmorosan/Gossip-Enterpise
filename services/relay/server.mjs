@@ -160,6 +160,11 @@ let callAnnounce = null; // room → last token ts (T2-09 call-start announce de
 // user's online state is revealed only to people who share a workspace with
 // them or who are watching them as a DM contact.
 const onlineUsers = new Map();
+// userId → "invisible" while any of their sockets set it. Invisible users
+// appear OFFLINE to everyone else (they still see themselves online).
+const invisibleUsers = new Set();
+/** What others should see: online only if connected AND not invisible. */
+const visiblyOnline = (userId) => onlineUsers.has(userId) && !invisibleUsers.has(userId);
 
 function presenceRecipients(userId) {
   // Sockets that may see this user's online state: co-members of any shared
@@ -184,7 +189,7 @@ function markOnline(client) {
   client.onlineMarked = userId;
   const n = (onlineUsers.get(userId) ?? 0) + 1;
   onlineUsers.set(userId, n);
-  if (n === 1) broadcastPresence(userId, true);
+  if (n === 1) broadcastPresence(userId, visiblyOnline(userId));
 }
 
 function markOffline(client) {
@@ -200,9 +205,20 @@ function markOffline(client) {
   }
 }
 
-/** Online members of a workspace the requester can see. */
+/** Online members of a workspace the requester can see (invisible excluded). */
 function onlineMembersOf(workspace) {
-  return Object.keys(workspace.members ?? {}).filter((id) => onlineUsers.has(id));
+  return Object.keys(workspace.members ?? {}).filter((id) => visiblyOnline(id));
+}
+
+/** Apply an invisible-status change: flip it and re-broadcast this user's presence. */
+function setInvisible(userId, invisible) {
+  if (!userId || isAnon(userId)) return;
+  const was = invisibleUsers.has(userId);
+  if (invisible === was) return;
+  if (invisible) invisibleUsers.add(userId);
+  else invisibleUsers.delete(userId);
+  // Others now see us offline (invisible) or online (visible again).
+  broadcastPresence(userId, visiblyOnline(userId));
 }
 
 // ── Link unfurling (T3) ──────────────────────────────────────────────
@@ -844,6 +860,8 @@ wss.on("connection", (ws) => {
       case "hello": {
         client.userId = String(m.userId ?? "").slice(0, 80) || `anon-${randomUUID().slice(0, 6)}`;
         client.name = String(m.name ?? "Someone").slice(0, 40);
+        // T3: invisible status rides on hello (persisted client-side).
+        if (m.status === "invisible" || m.status === "online") setInvisible(client.userId, m.status === "invisible");
         markOnline(client); // T3: presence
         // Late-arriving identity (unlock after connect): refresh the online
         // snapshot for workspaces this socket already subscribed to.
