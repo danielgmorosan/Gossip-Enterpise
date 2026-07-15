@@ -380,6 +380,15 @@ export function Composer({
             syncMention(e.target.value);
           }}
           onSelect={() => syncMention(value)}
+          onPaste={(e) => {
+            // Ctrl+V with an image/file on the clipboard (screenshots!) stages
+            // it like a drop — text pastes keep their normal behavior.
+            const files = e.clipboardData?.files;
+            if (!files?.length) return;
+            e.preventDefault();
+            if (onAttach) onAttach(files);
+            else showNotice(attachNotice ?? "Attachments are coming soon. Nothing was uploaded.");
+          }}
           aria-autocomplete={mentionCandidates?.length ? "list" : undefined}
           aria-expanded={mentionCandidates?.length ? mentionOpen : undefined}
           aria-controls={mentionOpen ? listboxId : undefined}
