@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Track, RemoteParticipant, type Participant } from "livekit-client";
 import {
-  RoomAudioRenderer,
   VideoTrack,
   isTrackReference,
   useIsMuted,
@@ -82,8 +81,9 @@ export function CallStage({ target }: { target: CallTarget }) {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      {/* Remote audio for the call surface (the CallDock's renderer is off on this page). */}
-      <RoomAudioRenderer />
+      {/* Remote audio is rendered ONCE by the always-mounted CallDock (outside
+          the router), so navigating never mounts/unmounts a second renderer -
+          that churn caused leaked audio elements and the double-audio echo. */}
 
       <div className={cn("flex min-h-0 flex-col bg-[#101014]", chatOpen ? "shrink-0" : "flex-1 justify-center")}>
         {screenShare && (

@@ -78,10 +78,12 @@ export function CallDock() {
 
   return (
     <RoomContext.Provider value={room}>
-      {/* Remote audio: rendered here on every route EXCEPT the call page,
-          where CallStage renders it. Two active RoomAudioRenderers play every
-          remote track twice (the echo/double-audio bug). */}
-      {!onCallPage && <RoomAudioRenderer />}
+      {/* THE single remote-audio renderer for the whole call. CallDock is
+          mounted outside the router (main.tsx), so this never unmounts during
+          a call regardless of navigation - exactly one renderer, always, on
+          every page including the call page. (CallStage no longer renders its
+          own; two renderers = every track played twice = echo.) */}
+      <RoomAudioRenderer />
       {!onCallPage && (
         <div
           data-minicall
