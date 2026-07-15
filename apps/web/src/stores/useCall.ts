@@ -171,7 +171,14 @@ export const useCall = create<CallState>((set, get) => {
     toggleScreen: async () => {
       const r = get().room;
       if (!r) return;
-      await r.localParticipant.setScreenShareEnabled(!get().screen);
+      // audio: true → the browser's share picker offers "also share audio"
+      // (tab audio anywhere; system audio on Windows when sharing a screen).
+      // Without it the picker never even shows the checkbox.
+      await r.localParticipant.setScreenShareEnabled(!get().screen, {
+        audio: true,
+        // Let people share the Gossip tab itself (demos) instead of hiding it.
+        selfBrowserSurface: "include",
+      });
       syncLocal();
     },
   };
