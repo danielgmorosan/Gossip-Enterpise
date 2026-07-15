@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Track, RemoteParticipant, type Participant } from "livekit-client";
 import {
   RoomAudioRenderer,
@@ -9,14 +9,14 @@ import {
   useTracks,
   type TrackReferenceOrPlaceholder,
 } from "@livekit/components-react";
-import { Mic, MicOff, Video, VideoOff, MonitorUp, PhoneOff, MessageSquareText, VolumeX, X } from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, MonitorUp, PhoneOff, MessageSquareText, VolumeX, X, Maximize } from "lucide-react";
 import { Tooltip } from "@gossip/ui/stack";
 import { UserAvatar } from "@/components/UserAvatar";
 import { useCall, type CallTarget } from "@/stores/useCall";
 import { ChannelView } from "@/pages/ChannelView";
 import { RealDmView } from "@/components/chat/RealDmView";
 import { ParticipantMenu } from "./ParticipantMenu";
-import { useCallVolumes } from "@/stores/useCallVolumes";
+import { useCallVolumes, effectiveMicVolume } from "@/stores/useCallVolumes";
 import { cn, truncateHandle } from "@/lib/utils";
 
 /**
@@ -24,7 +24,7 @@ import { cn, truncateHandle } from "@/lib/utils";
  * compact strip of fixed-size participant tiles (a screenshare gets a large
  * focus area above the strip), the control tray below, and the text chat
  * (channel or E2E DM) docked at the bottom, full-width. The stage stays dark
- * in both themes — video surfaces read as a stage, not a document.
+ * in both themes - video surfaces read as a stage, not a document.
  *
  * Must render inside RoomContext.Provider (the Room lives in useCall, T-14).
  */
@@ -40,6 +40,29 @@ export function CallStage({ target }: { target: CallTarget }) {
   const openMenu = (e: React.MouseEvent, participant: Participant) => {
     e.preventDefault();
     setMenu({ x: e.clientX, y: e.clientY, participant });
+  };
+
+  // Screenshare area is resizable (T3): drag the handle under it; the size
+  // sticks. Double duty: a fullscreen button on the share itself.
+  const [shareVh, setShareVh] = useState(() => {
+    const saved = Number(localStorage.getItem("gossip-share-vh"));
+    return saved >= 15 && saved <= 75 ? saved : 38;
+  });
+  const shareRef = useRef<HTMLDivElement>(null);
+  const startShareResize = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const top = shareRef.current?.getBoundingClientRect().top ?? 0;
+    const move = (ev: PointerEvent) => {
+      const vh = Math.min(75, Math.max(15, ((ev.clientY - top) / window.innerHeight) * 100));
+      setShareVh(vh);
+      localStorage.setItem("gossip-share-vh", String(Math.round(vh)));
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
   };
 
   const tracks = useTracks(
@@ -61,13 +84,34 @@ export function CallStage({ target }: { target: CallTarget }) {
 
       <div className={cn("flex min-h-0 flex-col bg-[#101014]", chatOpen ? "shrink-0" : "flex-1 justify-center")}>
         {screenShare && (
-          <div
-            className={cn("min-h-0 p-3 pb-0", chatOpen ? "h-[38vh]" : "min-h-[38vh] flex-1")}
-            onContextMenu={(e) => openMenu(e, screenShare.participant)}
-            title="Right-click for volume"
-          >
-            <VideoTrack trackRef={screenShare} className="h-full w-full rounded-card object-contain" />
-          </div>
+          <>
+            <div
+              ref={shareRef}
+              className={cn("group/share relative min-h-0 p-3 pb-0", !chatOpen && "min-h-[38vh] flex-1")}
+              style={chatOpen ? { height: `${shareVh}vh` } : undefined}
+              onContextMenu={(e) => openMenu(e, screenShare.participant)}
+              title="Right-click for volume"
+            >
+              <VideoTrack trackRef={screenShare} className="h-full w-full rounded-card object-contain" />
+              <button
+                onClick={() => void shareRef.current?.requestFullscreen().catch(() => {})}
+                title="Fullscreen"
+                aria-label="Fullscreen screenshare"
+                className="absolute right-5 top-5 grid size-9 place-items-center rounded-control bg-black/60 text-white opacity-0 transition-opacity hover:bg-black/80 group-hover/share:opacity-100"
+              >
+                <Maximize className="size-4" />
+              </button>
+            </div>
+            {chatOpen && (
+              <div
+                onPointerDown={startShareResize}
+                title="Drag to resize the screenshare"
+                className="group/handle flex h-2.5 shrink-0 cursor-row-resize items-center justify-center"
+              >
+                <span className="h-1 w-16 rounded-full bg-white/15 transition-colors group-hover/handle:bg-white/40" />
+              </div>
+            )}
+          </>
         )}
         <div className="flex max-h-[38vh] shrink-0 flex-wrap items-center justify-center gap-2 overflow-y-auto px-4 py-3">
           {cameras.map((t) => (
@@ -79,14 +123,14 @@ export function CallStage({ target }: { target: CallTarget }) {
       {menu && <ParticipantMenu x={menu.x} y={menu.y} participant={menu.participant} onClose={() => setMenu(null)} />}
 
       {/* Sharer-side heads-up: this share carries NO audio (browser/picker
-          choice) — better than mystery silence on the other end (T3). */}
+          choice) - better than mystery silence on the other end (T3). */}
       {screenAudioMissing && (
         <div className="flex shrink-0 items-center gap-2.5 border-t border-line bg-paper-2 px-4 py-2 text-[12.5px] text-ink-mute">
           <VolumeX className="size-4 shrink-0 text-negative" />
           <span className="min-w-0">
             <span className="font-semibold text-ink">Your share has no sound.</span>{" "}
             To include audio: share a <span className="font-medium text-ink">browser tab</span> and tick “Also share tab
-            audio”, or your entire screen with “Share system audio”. Window shares — and Firefox — can't capture audio.
+            audio”, or your entire screen with “Share system audio”. Window shares - and Firefox - can't capture audio.
           </span>
           <button
             onClick={() => useCall.getState().dismissScreenAudioHint()}
@@ -98,7 +142,7 @@ export function CallStage({ target }: { target: CallTarget }) {
         </div>
       )}
 
-      {/* Control tray — Stack tokens (no white-on-dark blobs in dark mode). */}
+      {/* Control tray - Stack tokens (no white-on-dark blobs in dark mode). */}
       <div className="flex h-16 shrink-0 items-center justify-center gap-2 border-t border-line bg-paper px-4">
         <CallButton label={mic ? "Mute microphone" : "Unmute microphone"} off={!mic} onClick={() => void toggleMic()}>
           {mic ? <Mic className="size-5" /> : <MicOff className="size-5" />}
@@ -125,7 +169,7 @@ export function CallStage({ target }: { target: CallTarget }) {
       </div>
 
       {/* The REAL conversation, not a mini copy (T3): full ChannelView / DM
-          view docked under the call — links, previews, threads, attachments,
+          view docked under the call - links, previews, threads, attachments,
           edit/delete all behave exactly like on the normal page. */}
       {chatOpen && (
         <div className="flex min-h-0 flex-1 flex-col border-t border-line">
@@ -142,7 +186,7 @@ export function CallStage({ target }: { target: CallTarget }) {
 
 /**
  * Fixed-size 16:9 participant tile. Camera on fills the tile with video;
- * camera off shows a small circular avatar — never a tile-sized silhouette.
+ * camera off shows a small circular avatar - never a tile-sized silhouette.
  * Speaking gets the green ring; a muted mic is flagged in the name chip.
  * Right-click opens the per-user volume menu (T3).
  */
@@ -159,18 +203,19 @@ function ParticipantCard({
   const speaking = useIsSpeaking(p);
   const micMuted = useIsMuted({ participant: p, source: Track.Source.Microphone });
   const camMuted = useIsMuted(trackRef);
-  // Identity carries a per-connection suffix (duplicate-kick fix) — strip it
+  // Identity carries a per-connection suffix (duplicate-kick fix) - strip it
   // so avatars and handles resolve to the real user.
   const handle = p.identity.split("#")[0];
   const name = p.name || truncateHandle(handle, 8, 4);
 
-  // Apply this listener's saved volume prefs for this person (T3) — voice and
-  // screenshare audio. Re-applied when prefs change or their tracks appear.
+  // Apply this listener's saved volume prefs for this person (T3) - voice
+  // (incl. per-user mute) and screenshare audio. Re-applied when prefs
+  // change or their tracks appear.
   const vol = useCallVolumes((s) => s.volumes[handle]);
   const sharingAudio = !!p.getTrackPublication(Track.Source.ScreenShareAudio);
   useEffect(() => {
     if (!(p instanceof RemoteParticipant)) return;
-    p.setVolume(vol?.mic ?? 1);
+    p.setVolume(effectiveMicVolume(vol));
     if (sharingAudio) p.setVolume(vol?.screen ?? 1, Track.Source.ScreenShareAudio);
   }, [p, vol, sharingAudio]);
 
@@ -211,9 +256,9 @@ function CallButton({
   children,
 }: {
   label: string;
-  /** Device explicitly off (mic muted / cam off) — negative fill, Discord-style. */
+  /** Device explicitly off (mic muted / cam off) - negative fill, Discord-style. */
   off?: boolean;
-  /** Feature engaged (screenshare, chat) — inverse fill. */
+  /** Feature engaged (screenshare, chat) - inverse fill. */
   active?: boolean;
   onClick: () => void;
   children: ReactNode;

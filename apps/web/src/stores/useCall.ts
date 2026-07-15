@@ -3,7 +3,7 @@ import { create } from "zustand";
 import { syncNoiseGate, resetNoiseGate } from "@/lib/audioProcessing";
 import { playJoinBlip, playLeaveBlip, playCallEnd } from "@/lib/sounds";
 
-// Reloading mid-call would silently drop the call — ask first (browsers show
+// Reloading mid-call would silently drop the call - ask first (browsers show
 // their own generic wording; registering the handler is what arms the prompt).
 function guardUnload(e: BeforeUnloadEvent) {
   e.preventDefault();
@@ -11,8 +11,8 @@ function guardUnload(e: BeforeUnloadEvent) {
 }
 
 /**
- * Global call session (T-14). The LiveKit `Room` lives HERE — module scope,
- * above the router — so navigating between channels/DMs/settings never
+ * Global call session (T-14). The LiveKit `Room` lives HERE - module scope,
+ * above the router - so navigating between channels/DMs/settings never
  * unmounts the media session. Route components only render UI bound to it
  * via RoomContext; the persistent CallDock (mounted beside the router in
  * main.tsx) keeps remote audio playing and offers controls everywhere.
@@ -41,7 +41,7 @@ interface CallState {
   mic: boolean;
   cam: boolean;
   screen: boolean;
-  /** Sharing without an audio track — the browser/picker choice gave no sound (T3 hint). */
+  /** Sharing without an audio track - the browser/picker choice gave no sound (T3 hint). */
   screenAudioMissing: boolean;
   dismissScreenAudioHint: () => void;
   /** Why the last session ended (server kick, duplicate identity, …); null after a user-initiated leave. */
@@ -76,7 +76,7 @@ export const useCall = create<CallState>((set, get) => {
       const cur = get();
       // Idempotent for the same target (also absorbs StrictMode double-effects).
       if (cur.status !== "idle" && sameTarget(cur.target, target)) return;
-      // Exactly one active session — leave the old call before joining a new one.
+      // Exactly one active session - leave the old call before joining a new one.
       if (cur.room) await get().leave();
 
       const room = new Room(options);
@@ -112,7 +112,7 @@ export const useCall = create<CallState>((set, get) => {
         });
       try {
         await room.connect(url, token);
-        // Mic only on join — the camera permission prompt is intrusive, so the
+        // Mic only on join - the camera permission prompt is intrusive, so the
         // browser only asks when the user actually turns their camera on.
         await room.localParticipant.setMicrophoneEnabled(true);
         // Only flip to connected if this room is still current (no race with leave()).
@@ -149,7 +149,7 @@ export const useCall = create<CallState>((set, get) => {
       if (room) {
         playCallEnd();
         try {
-          await room.disconnect(); // stops all local tracks — mic light goes off
+          await room.disconnect(); // stops all local tracks - mic light goes off
         } catch {
           /* already down */
         }
@@ -190,11 +190,11 @@ export const useCall = create<CallState>((set, get) => {
           systemAudio: "include",
         });
       } catch {
-        // User cancelled the share picker — not an error.
+        // User cancelled the share picker - not an error.
       }
       syncLocal();
       // Sharing but no audio track came with it (window share, unchecked box,
-      // or Firefox — which can't capture display audio at all): tell the
+      // or Firefox - which can't capture display audio at all): tell the
       // sharer, so silence isn't a mystery on the other end.
       const sharingNow = get().screen;
       const hasShareAudio = !!r.localParticipant.getTrackPublication(Track.Source.ScreenShareAudio);

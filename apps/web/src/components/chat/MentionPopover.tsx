@@ -12,7 +12,7 @@ export interface MentionCandidate {
 /**
  * @mention picker (T2-05). Purely presentational: the composer owns the
  * query, filtering, and keyboard state, and drives this listbox via
- * activeIndex — options carry ids so the textarea can point at the active
+ * activeIndex - options carry ids so the textarea can point at the active
  * one with aria-activedescendant.
  */
 export function MentionPopover({

@@ -4,13 +4,13 @@ import { dicebearUri } from "@/lib/avatar";
 
 /**
  * Local avatar choices, keyed by user handle. Local-first: persisted to
- * localStorage only — no avatar data or PII leaves the device. Without an
+ * localStorage only - no avatar data or PII leaves the device. Without an
  * override, avatars are deterministic DiceBear identicons seeded by the
  * handle (so every device renders the same default for a given user).
  *
  * Known gap (flagged in ralph/PROGRESS.md): a custom upload / reseed is
  * visible only on this device until the relay/member protocol carries
- * avatars — peers still see the deterministic default.
+ * avatars - peers still see the deterministic default.
  */
 export type AvatarOverride = { kind: "seed"; seed: string } | { kind: "image"; dataUrl: string };
 

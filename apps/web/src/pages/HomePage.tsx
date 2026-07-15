@@ -11,7 +11,7 @@ import { contactLink } from "@/lib/contact";
 import { truncateHandle } from "@/lib/utils";
 
 /**
- * Home landing (/home) — the Discord-"Friends"-style contacts page. Lists
+ * Home landing (/home) - the Discord-"Friends"-style contacts page. Lists
  * everyone you can DM, lets you start a chat or call, and shares your
  * contact link so others can reach you. No workspace required.
  */

@@ -880,6 +880,85 @@ wss.on("connection", (ws) => {
         break;
       }
 
+      case "deleteWorkspace": {
+        // Owner only (T3). Confirmed client-side; enforced here.
+        const workspace = db.workspaces[m.workspaceId];
+        if (!workspace) {
+          send(ws, { type: "error", ref: m.ref, message: "Workspace not found." });
+          break;
+        }
+        if (memberOf(workspace, client.userId)?.role !== "owner") {
+          send(ws, { type: "error", ref: m.ref, message: "Only the workspace owner can delete it." });
+          break;
+        }
+        broadcastWorkspace(workspace.id, { type: "workspaceDeleted", workspaceId: workspace.id, name: workspace.name });
+        for (const c of clients) {
+          c.wsSubs.delete(workspace.id);
+          for (const chId of Object.keys(workspace.channels)) c.chSubs.delete(`${workspace.id}/${chId}`);
+        }
+        for (const chId of Object.keys(workspace.channels)) delete db.messages[`${workspace.id}/${chId}`];
+        for (const room of [...activeCalls.keys()]) if (room.startsWith(`${workspace.id}:`)) activeCalls.delete(room);
+        delete db.workspaces[workspace.id];
+        save();
+        send(ws, { type: "workspaceDeleted", ref: m.ref, workspaceId: m.workspaceId });
+        break;
+      }
+
+      case "deleteChannel": {
+        // manageChannels permission (owner always) - T3.
+        const workspace = db.workspaces[m.workspaceId];
+        const channel = workspace?.channels?.[m.channelId];
+        if (!workspace || !channel) {
+          send(ws, { type: "error", ref: m.ref, message: "Channel not found." });
+          break;
+        }
+        if (!can(workspace, client.userId, "manageChannels")) {
+          send(ws, { type: "error", ref: m.ref, message: "You need the manage-channels permission to delete a channel." });
+          break;
+        }
+        const evt = { type: "channelRemoved", workspaceId: workspace.id, channelId: channel.id };
+        if (channel.type === "private") {
+          for (const uid of Object.keys(channel.members ?? {})) sendToUser(uid, evt);
+        } else {
+          broadcastWorkspace(workspace.id, evt);
+        }
+        for (const c of clients) c.chSubs.delete(`${workspace.id}/${channel.id}`);
+        delete workspace.channels[channel.id];
+        delete db.messages[`${workspace.id}/${channel.id}`];
+        save();
+        send(ws, { type: "channelRemoved", ref: m.ref, workspaceId: workspace.id, channelId: m.channelId });
+        break;
+      }
+
+      case "makeChannelPrivate": {
+        // Convert public → private (T3). Membership starts as everyone
+        // currently in the workspace, so nobody gets locked out silently;
+        // the admin can prune from there. Optional join password.
+        const workspace = db.workspaces[m.workspaceId];
+        const channel = workspace?.channels?.[m.channelId];
+        if (!workspace || !channel) {
+          send(ws, { type: "error", ref: m.ref, message: "Channel not found." });
+          break;
+        }
+        if (!can(workspace, client.userId, "manageChannels")) {
+          send(ws, { type: "error", ref: m.ref, message: "You need the manage-channels permission to change a channel." });
+          break;
+        }
+        if (channel.type !== "private") {
+          channel.type = "private";
+          channel.members = Object.fromEntries(Object.keys(workspace.members).map((id) => [id, true]));
+        }
+        const password = String(m.password ?? "").slice(0, 100);
+        if (password) channel.joinPassword = password;
+        save();
+        const chPayload = serializeChannel(channel);
+        for (const uid of Object.keys(channel.members ?? {})) {
+          sendToUser(uid, { type: "channelUpdated", workspaceId: workspace.id, channel: chPayload });
+        }
+        send(ws, { type: "channelUpdated", ref: m.ref, workspaceId: workspace.id, channel: chPayload });
+        break;
+      }
+
       case "leaveWorkspace": {
         const workspace = db.workspaces[m.workspaceId];
         if (!workspace) {
@@ -975,6 +1054,21 @@ wss.on("connection", (ws) => {
         break;
       }
 
+      case "typing": {
+        // Ephemeral typing signal (T3): fan out to channel subscribers, never
+        // persisted. Client throttles sends; receivers expire entries locally.
+        if (isBanned(db.workspaces[m.workspaceId], client.userId)) break;
+        if (!canReadChannel(db.workspaces[m.workspaceId]?.channels?.[m.channelId] ?? null, client.userId)) break;
+        broadcastChannel(`${m.workspaceId}/${m.channelId}`, {
+          type: "typing",
+          workspaceId: m.workspaceId,
+          channelId: m.channelId,
+          userId: client.userId,
+          name: client.name,
+        });
+        break;
+      }
+
       case "post": {
         if (isBanned(db.workspaces[m.workspaceId], client.userId)) break;
         if (!canReadChannel(db.workspaces[m.workspaceId]?.channels?.[m.channelId] ?? null, client.userId)) break;
@@ -987,6 +1081,20 @@ wss.on("connection", (ws) => {
           attachment = { id: m.attachment.id, url: `/uploads/${m.attachment.id}`, name: meta.name, type: meta.type, size: meta.size };
         }
         if (!body.trim() && !attachment) break;
+        // Quote-reply (T3): snapshot the referenced message so history-capped
+        // originals still render a sensible quote.
+        let replyTo = null;
+        if (m.replyToId) {
+          const orig = (db.messages[chKey] ?? []).find((x) => x.id === m.replyToId && !x.deleted);
+          if (orig) {
+            replyTo = {
+              id: orig.id,
+              senderId: orig.senderId,
+              senderName: orig.senderName,
+              body: String(orig.body || (orig.attachment ? `📎 ${orig.attachment.name}` : "")).slice(0, 140),
+            };
+          }
+        }
         const msg = {
           id: randomUUID(),
           workspaceId: m.workspaceId,
@@ -997,6 +1105,7 @@ wss.on("connection", (ws) => {
           ts: Date.now(),
           clientMsgId: m.clientMsgId ?? null,
           threadRootId: m.threadRootId ? String(m.threadRootId).slice(0, 80) : null,
+          replyTo,
           attachment,
         };
         const arr = db.messages[chKey] ?? [];

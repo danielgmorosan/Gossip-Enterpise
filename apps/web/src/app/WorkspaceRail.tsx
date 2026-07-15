@@ -1,9 +1,11 @@
-import { Link, useLocation, useParams } from "react-router-dom";
-import { Plus, Mail, Calendar, FileText, NotebookPen, Video, Settings } from "lucide-react";
+import { useState } from "react";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { Plus, Mail, Calendar, FileText, NotebookPen, Video, Settings, LogOut, Trash2 } from "lucide-react";
 import { BrandLogo, Tooltip } from "@gossip/ui/stack";
 import { UserAvatar as Avatar } from "@/components/UserAvatar";
 import { NotificationCenter } from "@/components/NotificationCenter";
-import { useRelay } from "@/stores/useRelay";
+import { ContextMenu, ConfirmDialog } from "@/components/ContextMenu";
+import { useRelay, type MyWorkspace } from "@/stores/useRelay";
 import { useSession } from "@/stores/useSession";
 import { useNotifications } from "@/stores/useNotifications";
 import { cn } from "@/lib/utils";
@@ -25,6 +27,21 @@ export function WorkspaceRail() {
   const userId = useSession((s) => s.userId);
   // DM unread total badges the home (DM) button, Discord-style.
   const dmUnread = useNotifications((s) => Object.values(s.unreadByDm).reduce((a, b) => a + b, 0));
+
+  // Right-click a workspace (T3): leave it, or delete it if you're the owner.
+  const nav = useNavigate();
+  const [menu, setMenu] = useState<{ x: number; y: number; ws: MyWorkspace } | null>(null);
+  const [confirm, setConfirm] = useState<{ kind: "leave" | "delete"; ws: MyWorkspace } | null>(null);
+  const confirmAction = async (): Promise<string | null> => {
+    if (!confirm) return null;
+    const res =
+      confirm.kind === "delete"
+        ? await useRelay.getState().deleteWorkspace(confirm.ws.id)
+        : await useRelay.getState().leaveWorkspace(confirm.ws.id);
+    if (!res.ok) return res.error;
+    if (workspaceId === confirm.ws.id) nav("/home");
+    return null;
+  };
 
   return (
     <aside className="flex h-full w-[72px] shrink-0 flex-col items-center gap-2 border-r border-line bg-paper-2 py-3 font-stack">
@@ -58,7 +75,14 @@ export function WorkspaceRail() {
       <div className="flex flex-col items-center gap-2.5">
         {myWorkspaces.map((w) => (
           <Tooltip key={w.id} label={w.name} side="right">
-            <Link to={`/w/${w.id}`} className="group relative flex items-center justify-center">
+            <Link
+              to={`/w/${w.id}`}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setMenu({ x: e.clientX, y: e.clientY, ws: w });
+              }}
+              className="group relative flex items-center justify-center"
+            >
               <span
                 className={cn(
                   "absolute -left-2 w-1 rounded-r-full bg-ink transition-all",
@@ -89,7 +113,7 @@ export function WorkspaceRail() {
         </Tooltip>
       </div>
 
-      {/* Mini-app dock — workspace-scoped, so only shown inside one */}
+      {/* Mini-app dock - workspace-scoped, so only shown inside one */}
       {workspaceId && (
         <>
           <div className="my-1 h-px w-8 bg-line" />
@@ -107,6 +131,41 @@ export function WorkspaceRail() {
             ))}
           </div>
         </>
+      )}
+
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          header={menu.ws.name}
+          onClose={() => setMenu(null)}
+          items={[
+            {
+              label: "Leave workspace",
+              icon: <LogOut className="size-4" />,
+              onClick: () => setConfirm({ kind: "leave", ws: menu.ws }),
+            },
+            {
+              label: "Delete workspace (owner)",
+              icon: <Trash2 className="size-4" />,
+              danger: true,
+              onClick: () => setConfirm({ kind: "delete", ws: menu.ws }),
+            },
+          ]}
+        />
+      )}
+      {confirm && (
+        <ConfirmDialog
+          title={confirm.kind === "delete" ? `Delete "${confirm.ws.name}"?` : `Leave "${confirm.ws.name}"?`}
+          body={
+            confirm.kind === "delete"
+              ? "This permanently deletes the workspace for EVERYONE: all channels, messages, and uploads. There is no undo."
+              : "You'll lose access to its channels until someone invites you back. Your E2E DMs are unaffected."
+          }
+          confirmLabel={confirm.kind === "delete" ? "Delete workspace" : "Leave workspace"}
+          onConfirm={confirmAction}
+          onClose={() => setConfirm(null)}
+        />
       )}
 
       <div className="mt-auto flex flex-col items-center gap-2">

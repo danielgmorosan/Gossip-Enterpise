@@ -5,7 +5,7 @@ const TRAIL = /[.,!?;:)\]}>"']+$/;
 
 /**
  * URLs worth previewing in `text`, in order, deduped, capped. Code spans and
- * fenced blocks are stripped first — a URL inside code is being *shown*, not
+ * fenced blocks are stripped first - a URL inside code is being *shown*, not
  * shared.
  */
 export function extractUrls(text: string, cap = 2): string[] {

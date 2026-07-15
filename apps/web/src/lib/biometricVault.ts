@@ -4,7 +4,7 @@
  *
  * Two protection modes, negotiated at enrollment:
  *
- * - "prf" (strongest): the passkey's PRF extension derives the AES key —
+ * - "prf" (strongest): the passkey's PRF extension derives the AES key -
  *   the secret physically lives in the authenticator and only exists after
  *   a verified gesture. Chrome/Edge on modern Windows/macOS.
  * - "gate" (fallback): a NON-EXTRACTABLE AES key in IndexedDB decrypts the
@@ -12,7 +12,7 @@
  *   assertion. Needed because Firefox/older Windows can't do PRF (their
  *   WebAuthn errors out with "unknown transient reason"). No plaintext on
  *   disk and the key can't be exported, but the gate is app-enforced rather
- *   than chip-enforced — we label it honestly.
+ *   than chip-enforced - we label it honestly.
  */
 
 const VAULT_KEY = "gossip-bio-vault";
@@ -24,9 +24,9 @@ export type VaultMode = "prf" | "gate";
 interface VaultBlob {
   mode: VaultMode;
   credentialId: string; // base64url
-  salt: string; // base64url — PRF eval input (prf mode)
-  iv: string; // base64url — AES-GCM nonce
-  ciphertext: string; // base64url — encrypted passphrase
+  salt: string; // base64url - PRF eval input (prf mode)
+  iv: string; // base64url - AES-GCM nonce
+  ciphertext: string; // base64url - encrypted passphrase
 }
 
 const b64u = {
@@ -118,7 +118,7 @@ function friendlyWebAuthnError(e: unknown): Error {
   }
   if (/transient|unknown/i.test(err.message)) {
     return new Error(
-      "The browser's authenticator failed (a Firefox + Windows Hello quirk). Try again — or use Chrome/Edge on this device for the stronger PRF mode.",
+      "The browser's authenticator failed (a Firefox + Windows Hello quirk). Try again - or use Chrome/Edge on this device for the stronger PRF mode.",
     );
   }
   return err;
@@ -187,7 +187,7 @@ export async function enrollBiometricVault(mnemonic: string, displayName: string
     prfEnabled = !!(credential.getClientExtensionResults() as { prf?: { enabled?: boolean } }).prf?.enabled;
   } catch (e) {
     if ((e as Error)?.name === "NotAllowedError") throw friendlyWebAuthnError(e);
-    // PRF-flavored create failed (Firefox/Hello) — retry without the extension.
+    // PRF-flavored create failed (Firefox/Hello) - retry without the extension.
     credential = null;
   }
   try {
@@ -224,7 +224,7 @@ export async function enrollBiometricVault(mnemonic: string, displayName: string
         return "prf";
       }
     } catch {
-      /* PRF evaluation failed — fall through to gate mode */
+      /* PRF evaluation failed - fall through to gate mode */
     }
   }
 
@@ -259,7 +259,7 @@ export async function unlockBiometricVault(): Promise<string> {
     // Gate mode: verify the user first, then use the local key.
     await assertUv(b64u.decode(blob.credentialId));
     const gateKey = await idbGet<CryptoKey>(VAULT_KEY);
-    if (!gateKey) throw new Error("The vault key is missing — remove and re-enable biometric unlock.");
+    if (!gateKey) throw new Error("The vault key is missing - remove and re-enable biometric unlock.");
     const plain = await crypto.subtle.decrypt(
       { name: "AES-GCM", iv: b64u.decode(blob.iv) as BufferSource },
       gateKey,

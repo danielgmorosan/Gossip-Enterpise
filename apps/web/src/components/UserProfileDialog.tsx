@@ -10,7 +10,7 @@ import { useStartDm } from "@/lib/useStartDm";
 import { truncateHandle } from "@/lib/utils";
 
 /**
- * Profile card popup (T3) — opens when you click someone's avatar or name.
+ * Profile card popup (T3) - opens when you click someone's avatar or name.
  * Shows who they are (avatar, name, pseudonymous handle, workspace role) and
  * the two things you'd do next: message or call them (E2E, via /home).
  */
@@ -30,7 +30,7 @@ export function UserProfileDialog({
   const [copied, setCopied] = useState(false);
   const me = userId === myId;
 
-  // Nickname (T3): your local label for this contact — SDK-persisted, shows
+  // Nickname (T3): your local label for this contact - SDK-persisted, shows
   // everywhere in your DMs. Only editable once they're actually a contact.
   const shownName = contact?.name || name;
   const [editing, setEditing] = useState(false);

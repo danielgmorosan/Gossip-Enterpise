@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
  * Tab is trapped inside, Esc / outside-click closes.
  *
  * "Attach file or media" opens the OS file picker; the actual upload flow is
- * T-13 — until then the caller shows an honest "coming soon" notice and does
+ * T-13 - until then the caller shows an honest "coming soon" notice and does
  * NOT fake a successful upload. Disabled rows are placeholders for later
  * options, labelled "Soon".
  */

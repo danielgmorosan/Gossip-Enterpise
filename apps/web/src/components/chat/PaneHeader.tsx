@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Mobile-only back affordance (Discord-style): content pages are full-screen
- * below md, so every pane header returns to the shell's sidebar view — the
+ * below md, so every pane header returns to the shell's sidebar view - the
  * workspace root inside /w/…, the DM list at /home.
  */
 export function MobileBackButton() {
@@ -30,7 +30,7 @@ export function PaneHeader({
   badge,
   actions,
 }: {
-  /** Back affordance slot (top-left, before the icon) — e.g. <BackButton/>. Defaults to the mobile-only back button. */
+  /** Back affordance slot (top-left, before the icon) - e.g. <BackButton/>. Defaults to the mobile-only back button. */
   back?: ReactNode;
   icon?: ReactNode;
   title: ReactNode;

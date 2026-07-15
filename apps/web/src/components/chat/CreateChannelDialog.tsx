@@ -38,7 +38,7 @@ export function CreateChannelDialog({ workspaceId, onClose }: { workspaceId: str
         {!sessionOpen && (
           <div className="mb-4 flex items-center justify-between gap-3 rounded-card bg-field p-3">
             <p className="text-[12.5px] leading-snug text-ink-mute">
-              Channels are owned by your handle — unlock your session to create one.
+              Channels are owned by your handle - unlock your session to create one.
             </p>
             <Button size="sm" variant="secondary" onClick={() => useUnlockPrompt.getState().show()}>
               Unlock

@@ -89,7 +89,7 @@ export function AiSidePanel({
         {answer && (
           <div className="rounded-card bg-field p-3">
             <div className="mb-1.5 font-mono text-[10px] uppercase tracking-wider text-ink-mute">Gossip AI</div>
-            {/* Same safe markdown path as chat — fenced code gets highlight + copy. */}
+            {/* Same safe markdown path as chat - fenced code gets highlight + copy. */}
             <div className="text-[13px] leading-relaxed text-ink">
               <MessageBody text={answer} />
             </div>

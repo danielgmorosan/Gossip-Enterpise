@@ -5,9 +5,9 @@ import { cn } from "@/lib/utils";
 
 /**
  * Per-message hover actions: Copy (raw text) + Share (quoted text with
- * attribution — and the real channel URL where one exists; there are no
+ * attribution - and the real channel URL where one exists; there are no
  * per-message deep links yet, so Share deliberately falls back to text
- * rather than inventing a route). Purely client-side clipboard writes —
+ * rather than inventing a route). Purely client-side clipboard writes -
  * no storage/transport changes.
  *
  * `children` lets a surface prepend its own actions (e.g. channel "Reply").

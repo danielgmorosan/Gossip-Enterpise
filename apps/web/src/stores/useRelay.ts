@@ -12,11 +12,13 @@ export interface ChannelMsg {
   senderName: string;
   body: string;
   ts: number;
-  /** Set on replies — id of the thread's root message. */
+  /** Set on replies - id of the thread's root message. */
   threadRootId?: string | null;
+  /** Quote-reply (T3): snapshot of the message this one replies to. */
+  replyTo?: { id: string; senderId: string; senderName: string; body: string } | null;
   /** Set when the author edited the message. */
   editedAt?: number | null;
-  /** Soft delete — body is cleared server-side; render a tombstone. */
+  /** Soft delete - body is cleared server-side; render a tombstone. */
   deleted?: boolean;
   deletedAt?: number | null;
   deletedBy?: string | null;
@@ -34,10 +36,10 @@ export interface RelayChannel {
   members?: string[];
   /** T3: the channel has a join password (the password itself never leaves the relay). */
   hasPassword?: boolean;
-  /** T3: you're NOT a member — this is a password-protected stub (no messages until you join). */
+  /** T3: you're NOT a member - this is a password-protected stub (no messages until you join). */
   locked?: boolean;
 }
-/** Granular admin permissions (T2-07) — the Owner picks these at promotion. */
+/** Granular admin permissions (T2-07) - the Owner picks these at promotion. */
 export type AdminPermission = "manageChannels" | "manageMembers" | "manageRoles" | "ban" | "moderateMessages";
 export const ADMIN_PERMISSIONS: { id: AdminPermission; label: string; desc: string }[] = [
   { id: "manageChannels", label: "Manage channels", desc: "Create, edit, and manage channels." },
@@ -101,21 +103,32 @@ interface RelayState {
   presenceByChannel: Record<string, number>;
   /** channelId → live huddle info; empty when no calls are running (T3). */
   activeCallByChannel: Record<string, ActiveCall>;
+  /** channelId → userId → who's typing right now (entries expire after 4s). */
+  typingByChannel: Record<string, Record<string, { name: string; ts: number }>>;
   joinedChannels: Set<string>;
 
   connect: () => void;
   /** Re-announce name/avatar to the relay (call after profile changes). */
   syncProfile: () => void;
+  /** Remove the synced avatar for everyone (profile "remove picture"). */
+  clearProfileAvatar: () => void;
   rememberWorkspace: (w: MyWorkspace) => void;
   createWorkspace: (name: string) => Promise<{ ok: true; workspace: RelayWorkspace } | { ok: false; error: string }>;
   joinWorkspace: (key: string) => Promise<{ ok: true; workspace: RelayWorkspace } | { ok: false; error: string }>;
   leaveWorkspace: (workspaceId: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+  /** Owner only (T3): delete the whole workspace, relay-enforced. */
+  deleteWorkspace: (workspaceId: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+  /** manageChannels permission (T3). */
+  deleteChannel: (workspaceId: string, channelId: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+  makeChannelPrivate: (workspaceId: string, channelId: string, password?: string) => Promise<{ ok: true } | { ok: false; error: string }>;
   openWorkspace: (workspaceId: string) => Promise<RelayWorkspace | null>;
   createChannel: (workspaceId: string, name: string, type?: "public" | "private", topic?: string, password?: string) => Promise<{ ok: true; channel: RelayChannel } | { ok: false; error: string }>;
   /** T3: join a password-protected private channel. */
   joinChannelWithPassword: (workspaceId: string, channelId: string, password: string) => Promise<{ ok: true } | { ok: false; error: string }>;
   joinChannel: (workspaceId: string, channelId: string) => void;
-  post: (workspaceId: string, channelId: string, body: string, threadRootId?: string, attachmentId?: string) => void;
+  post: (workspaceId: string, channelId: string, body: string, threadRootId?: string, attachmentId?: string, replyToId?: string) => void;
+  /** Throttled "I'm typing" signal for a channel (T3). */
+  sendTyping: (workspaceId: string, channelId: string) => void;
   /** Last leaver tells the relay the call is over (verified server-side) and clears it locally. */
   callEndedHint: (workspaceId: string, channelId: string) => void;
   editMessage: (workspaceId: string, channelId: string, messageId: string, body: string) => void;
@@ -124,7 +137,7 @@ interface RelayState {
   setRole: (workspaceId: string, userId: string, role: "admin" | "member", permissions?: AdminPermission[]) => Promise<{ ok: true } | { ok: false; error: string }>;
   banMember: (workspaceId: string, userId: string, reason?: string) => Promise<{ ok: true } | { ok: false; error: string }>;
   unbanMember: (workspaceId: string, userId: string) => Promise<{ ok: true } | { ok: false; error: string }>;
-  /** Private-channel membership (T2-08) — creator or manageMembers; relay-enforced. */
+  /** Private-channel membership (T2-08) - creator or manageMembers; relay-enforced. */
   addChannelMember: (workspaceId: string, channelId: string, userId: string) => Promise<{ ok: true } | { ok: false; error: string }>;
   removeChannelMember: (workspaceId: string, channelId: string, userId: string) => Promise<{ ok: true } | { ok: false; error: string }>;
 }
@@ -133,6 +146,7 @@ let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let refCounter = 0;
 const pending = new Map<string, (m: RelayMsg) => void>();
+const lastTypingSent = new Map<string, number>();
 
 interface RelayMsg {
   type: string;
@@ -149,6 +163,7 @@ interface RelayMsg {
   userId?: string;
   count?: number;
   startedByName?: string;
+  name?: string;
   error?: string;
 }
 
@@ -167,18 +182,20 @@ function wsUrl() {
   return relayWsUrl("/group-ws");
 }
 
-function sendHello() {
+function sendHello(clearAvatar = false) {
   if (!ws || ws.readyState !== WebSocket.OPEN) return; // onopen will send hello once connected
   const s = useSession.getState();
   const name = s.displayName || (s.userId ? `user-${s.userId.slice(7, 11)}` : "Someone");
   // Custom avatar rides along (small webp data-URI) so workspace members see
-  // it — null explicitly clears a previously-synced one.
-  let avatar: string | null = null;
-  if (s.userId) {
+  // it. IMPORTANT: omit the field when this device has no local copy - a
+  // second browser/device without the localStorage override must NOT wipe the
+  // synced avatar. Explicit removal sends null (clearAvatar).
+  let avatar: string | null | undefined = clearAvatar ? null : undefined;
+  if (!clearAvatar && s.userId) {
     const o = useAvatars.getState().overrides[s.userId];
     if (o?.kind === "image" && o.dataUrl.length <= 65536) avatar = o.dataUrl;
   }
-  ws.send(JSON.stringify({ type: "hello", userId: s.userId, name, avatar }));
+  ws.send(JSON.stringify({ type: "hello", userId: s.userId, name, ...(avatar !== undefined ? { avatar } : {}) }));
 }
 
 function request<T extends RelayMsg>(payload: object): Promise<T> {
@@ -202,6 +219,7 @@ export const useRelay = create<RelayState>((set, get) => ({
   messagesByChannel: {},
   presenceByChannel: {},
   activeCallByChannel: {},
+  typingByChannel: {},
   joinedChannels: new Set(),
 
   connect: () => {
@@ -233,7 +251,7 @@ export const useRelay = create<RelayState>((set, get) => ({
       switch (m.type) {
         case "workspace":
         case "workspaceCreated":
-          // Fresh snapshot — the relay follows with callActive events for any
+          // Fresh snapshot - the relay follows with callActive events for any
           // live huddles, so reset the map instead of carrying stale entries.
           if (m.workspace) set({ workspace: m.workspace, activeCallByChannel: {} });
           break;
@@ -335,6 +353,31 @@ export const useRelay = create<RelayState>((set, get) => ({
               : st,
           );
           break;
+        case "workspaceDeleted": {
+          // The owner deleted the workspace (T3): forget it, tell the user,
+          // and get them somewhere that still exists.
+          const wsId = m.workspaceId;
+          if (!wsId) break;
+          const wasCurrent = get().workspace?.id === wsId;
+          const list = get().myWorkspaces.filter((x) => x.id !== wsId);
+          saveMyWorkspaces(list);
+          set((st) => ({
+            myWorkspaces: list,
+            workspace: st.workspace?.id === wsId ? null : st.workspace,
+          }));
+          if (wasCurrent) {
+            useNotifications.getState().notify({
+              type: "membership",
+              title: m.name ? `Workspace "${m.name}"` : "Workspace",
+              body: "This workspace was deleted by its owner.",
+              link: "/home",
+            });
+            void import("@/app/router").then(({ router }) => {
+              if (window.location.pathname.startsWith(`/w/${wsId}`)) void router.navigate("/home");
+            });
+          }
+          break;
+        }
         case "banned": {
           // WE got banned: the relay already kicked our subscriptions. Drop
           // the workspace locally and forget it in the switcher.
@@ -358,6 +401,13 @@ export const useRelay = create<RelayState>((set, get) => ({
               const cur = st.messagesByChannel[msg.channelId] ?? [];
               if (cur.some((x) => x.id === msg.id)) return st;
               return { messagesByChannel: { ...st.messagesByChannel, [msg.channelId]: [...cur, msg] } };
+            });
+            // Their message arrived - they're no longer "typing".
+            set((st) => {
+              if (!st.typingByChannel[msg.channelId]?.[msg.senderId]) return st;
+              const nextCh = { ...st.typingByChannel[msg.channelId] };
+              delete nextCh[msg.senderId];
+              return { typingByChannel: { ...st.typingByChannel, [msg.channelId]: nextCh } };
             });
             // T2-09: notify for other people's messages; mentions get their own type.
             const myId = useSession.getState().userId;
@@ -399,6 +449,30 @@ export const useRelay = create<RelayState>((set, get) => ({
         case "presence":
           if (m.channelId) set((st) => ({ presenceByChannel: { ...st.presenceByChannel, [m.channelId!]: m.count ?? 0 } }));
           break;
+        case "typing": {
+          // "X is typing" (T3) - entries expire after 4s unless refreshed.
+          const myId = useSession.getState().userId;
+          const chId = m.channelId;
+          const uid = m.userId;
+          if (!chId || !uid || uid === myId) break;
+          const ts = Date.now();
+          set((st) => ({
+            typingByChannel: {
+              ...st.typingByChannel,
+              [chId]: { ...st.typingByChannel[chId], [uid]: { name: m.name ?? "Someone", ts } },
+            },
+          }));
+          setTimeout(() => {
+            set((st) => {
+              const cur = st.typingByChannel[chId]?.[uid];
+              if (!cur || cur.ts !== ts) return st; // refreshed since - keep
+              const nextCh = { ...st.typingByChannel[chId] };
+              delete nextCh[uid];
+              return { typingByChannel: { ...st.typingByChannel, [chId]: nextCh } };
+            });
+          }, 4000);
+          break;
+        }
         case "callActive":
           // Live huddle state (T3): drives the in-channel banner + sidebar dot.
           if (m.channelId) {
@@ -423,7 +497,7 @@ export const useRelay = create<RelayState>((set, get) => ({
         case "callStarted": {
           // T2-09: relay signals a channel call starting (LiveKit token issued).
           const myId = useSession.getState().userId;
-          // Call identities carry a "#suffix" (duplicate-kick fix) — compare the base handle.
+          // Call identities carry a "#suffix" (duplicate-kick fix) - compare the base handle.
           if (m.userId?.split("#")[0] === myId || !m.channelId) break;
           const chName = get().workspace?.channels.find((c) => c.id === m.channelId)?.name ?? "channel";
           useNotifications.getState().notify({
@@ -445,7 +519,17 @@ export const useRelay = create<RelayState>((set, get) => ({
     ws.onerror = () => ws?.close();
   },
 
-  syncProfile: () => sendHello(),
+  syncProfile: () => {
+    // The socket may still be connecting right after unlock - retry briefly
+    // so the profile announcement isn't silently dropped.
+    const attempt = (left: number) => {
+      if (ws && ws.readyState === WebSocket.OPEN) sendHello();
+      else if (left > 0) setTimeout(() => attempt(left - 1), 500);
+    };
+    attempt(10);
+  },
+
+  clearProfileAvatar: () => sendHello(true),
 
   rememberWorkspace: (w) => {
     // Keep a stable order: update in place if known, append if new (no reshuffle on open).
@@ -488,6 +572,36 @@ export const useRelay = create<RelayState>((set, get) => ({
       myWorkspaces: list,
       workspace: st.workspace?.id === workspaceId ? null : st.workspace,
     }));
+    return { ok: true };
+  },
+
+  deleteWorkspace: async (workspaceId) => {
+    get().connect();
+    sendHello();
+    const m = await request({ type: "deleteWorkspace", workspaceId });
+    if (m.type === "error") return { ok: false, error: errText(m, "Couldn't delete the workspace.") };
+    const list = get().myWorkspaces.filter((x) => x.id !== workspaceId);
+    saveMyWorkspaces(list);
+    set((st) => ({
+      myWorkspaces: list,
+      workspace: st.workspace?.id === workspaceId ? null : st.workspace,
+    }));
+    return { ok: true };
+  },
+
+  deleteChannel: async (workspaceId, channelId) => {
+    get().connect();
+    sendHello();
+    const m = await request({ type: "deleteChannel", workspaceId, channelId });
+    if (m.type === "error") return { ok: false, error: errText(m, "Couldn't delete the channel.") };
+    return { ok: true };
+  },
+
+  makeChannelPrivate: async (workspaceId, channelId, password) => {
+    get().connect();
+    sendHello();
+    const m = await request({ type: "makeChannelPrivate", workspaceId, channelId, password });
+    if (m.type === "error") return { ok: false, error: errText(m, "Couldn't update the channel.") };
     return { ok: true };
   },
 
@@ -534,7 +648,7 @@ export const useRelay = create<RelayState>((set, get) => ({
     trySend();
   },
 
-  post: (workspaceId, channelId, body, threadRootId, attachmentId) => {
+  post: (workspaceId, channelId, body, threadRootId, attachmentId, replyToId) => {
     const text = body.trim();
     if ((!text && !attachmentId) || !ws || ws.readyState !== WebSocket.OPEN) return;
     ws.send(
@@ -545,16 +659,27 @@ export const useRelay = create<RelayState>((set, get) => ({
         body: text,
         threadRootId,
         attachment: attachmentId ? { id: attachmentId } : undefined,
+        replyToId,
         clientMsgId: crypto.randomUUID(),
       }),
     );
+  },
+
+  sendTyping: (workspaceId, channelId) => {
+    const key = `${workspaceId}/${channelId}`;
+    const now = Date.now();
+    if (now - (lastTypingSent.get(key) ?? 0) < 2500) return; // throttle
+    lastTypingSent.set(key, now);
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: "typing", workspaceId, channelId }));
+    }
   },
 
   callEndedHint: (workspaceId, channelId) => {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: "callEndedHint", workspaceId, channelId }));
     }
-    // Optimistic: we were the last one out — don't wait for the round-trip.
+    // Optimistic: we were the last one out - don't wait for the round-trip.
     set((st) => {
       if (!(channelId in st.activeCallByChannel)) return st;
       const next = { ...st.activeCallByChannel };
@@ -574,7 +699,7 @@ export const useRelay = create<RelayState>((set, get) => ({
     ws.send(JSON.stringify({ type: "deleteMessage", workspaceId, channelId, messageId }));
   },
 
-  // ── Roles & bans (T2-07) — enforced server-side at the relay ────────
+  // ── Roles & bans (T2-07) - enforced server-side at the relay ────────
   setRole: async (workspaceId, userId, role, permissions) => {
     get().connect();
     sendHello();

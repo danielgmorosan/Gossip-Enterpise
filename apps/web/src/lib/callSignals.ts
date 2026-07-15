@@ -2,7 +2,7 @@ import { gossipSdk } from "@/lib/sdk";
 
 /**
  * DM call signaling (T3). DM call rooms are deterministic digests, so there is
- * no server that could announce a call — instead the caller sends a tiny
+ * no server that could announce a call - instead the caller sends a tiny
  * marker message over the E2E DM channel itself. The recipient's client
  * recognizes the marker, rings, and renders it as a call chip (never as raw
  * text). Works with plain sendText: no SDK changes, fully E2E, and a client

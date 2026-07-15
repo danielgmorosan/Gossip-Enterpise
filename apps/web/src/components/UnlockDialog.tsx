@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * In-place unlock (T3). Anywhere the app hits a locked session it can call
- * useUnlockPrompt.getState().show() — the user unlocks in a popup and stays
+ * useUnlockPrompt.getState().show() - the user unlocks in a popup and stays
  * exactly where they were, instead of being bounced to /identity/unlock.
  */
 export const useUnlockPrompt = create<{ open: boolean; show: () => void; hide: () => void }>((set) => ({

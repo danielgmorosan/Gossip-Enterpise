@@ -1,7 +1,7 @@
 import { relayUrl } from "./relayBase";
 
 /**
- * Channel attachment upload (T-13). Channels only — the E2E DM path has no
+ * Channel attachment upload (T-13). Channels only - the E2E DM path has no
  * SDK attachment support yet, and we never send DM files in the clear around
  * the crypto boundary.
  */
@@ -15,7 +15,7 @@ export interface AttachmentRef {
 
 export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024; // keep in sync with the relay
 
-/** Image types the relay serves inline (SVG deliberately excluded — script-capable). */
+/** Image types the relay serves inline (SVG deliberately excluded - script-capable). */
 export const INLINE_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"]);
 
 export async function uploadAttachment(file: File): Promise<AttachmentRef> {

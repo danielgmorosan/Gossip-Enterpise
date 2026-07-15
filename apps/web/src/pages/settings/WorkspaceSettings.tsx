@@ -16,7 +16,7 @@ export function WorkspaceSettings() {
   const leaveWorkspace = useRelay((s) => s.leaveWorkspace);
   const current = workspace ?? null;
   const wsId = current?.id ?? myWorkspaces[0]?.id ?? "";
-  const name = current?.name ?? myWorkspaces[0]?.name ?? "—";
+  const name = current?.name ?? myWorkspaces[0]?.name ?? "-";
   const code = current?.code ?? myWorkspaces[0]?.code ?? "";
   const members = current?.members ?? [];
   const [copied, setCopied] = useState(false);
@@ -44,7 +44,7 @@ export function WorkspaceSettings() {
         <div className="px-4 py-4">
           <div className="mb-2 text-[14px] font-medium text-ink">Invite link</div>
           <div className="mb-2 text-[12.5px] text-ink-mute">
-            Anyone with this link lands in the join flow with the code ({code || "—"}) prefilled.
+            Anyone with this link lands in the join flow with the code ({code || "-"}) prefilled.
           </div>
           <CopyField
             value={copied ? "Copied!" : code ? inviteLink(code) : "no invite code"}

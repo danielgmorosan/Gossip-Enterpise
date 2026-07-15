@@ -96,6 +96,9 @@ export function Composer({
   attachNotice,
   staged,
   onRemoveStaged,
+  replyingTo,
+  onCancelReply,
+  onTyping,
   mentionCandidates,
   className,
 }: {
@@ -104,13 +107,18 @@ export function Composer({
   /** Disables send while an async send is in flight (spinner on the button). */
   busy?: boolean;
   onSend?: (text: string) => void;
-  /** Stages files (T3) — nothing uploads or sends until the user hits Send. */
+  /** Stages files (T3) - nothing uploads or sends until the user hits Send. */
   onAttach?: (files: FileList) => void;
   /** Notice shown when attaching isn't available on this surface. */
   attachNotice?: string;
   /** Files staged by the parent, rendered as removable chips above the input. */
   staged?: File[];
   onRemoveStaged?: (index: number) => void;
+  /** Quote-reply target (T3): shows a "Replying to X" bar above the input. */
+  replyingTo?: { senderName: string; body: string } | null;
+  onCancelReply?: () => void;
+  /** Fired (throttled by the caller) while the user is typing (T3). */
+  onTyping?: () => void;
   /** Members/contacts offered by the @mention picker (T2-05). Absent → no picker. */
   mentionCandidates?: MentionCandidate[];
   className?: string;
@@ -144,7 +152,11 @@ export function Composer({
     if (q !== null) setMentionIndex(0);
   };
 
-  /** Replace the trigger "@query" with a structured token: @[Name](id). */
+  /**
+   * Replace the trigger "@query" with the plain display name. The draft stays
+   * readable (no gossip1… ids); the structured @[Name](id) token is created
+   * at SEND time by tokenizeMentions below.
+   */
   const insertMention = (c: MentionCandidate) => {
     const el = textareaRef.current;
     if (!el) return;
@@ -153,14 +165,28 @@ export function Composer({
     if (!m) return;
     const start = caret - m[2].length - 1; // position of "@"
     const display = c.name.replace(/[[\]()]/g, "").trim() || c.id.slice(0, 12);
-    const token = `@[${display}](${c.id}) `;
-    setValue(value.slice(0, start) + token + value.slice(caret));
+    const inserted = `@${display} `;
+    setValue(value.slice(0, start) + inserted + value.slice(caret));
     setMentionQuery(null);
     requestAnimationFrame(() => {
       el.focus();
-      const pos = start + token.length;
+      const pos = start + inserted.length;
       el.setSelectionRange(pos, pos);
     });
+  };
+
+  /** "@Display Name" → "@[Display Name](gossip1…)" for every known member. */
+  const tokenizeMentions = (text: string): string => {
+    if (!mentionCandidates?.length) return text;
+    let out = text;
+    // Longest names first so "Dan Smith" wins over "Dan".
+    for (const c of [...mentionCandidates].sort((a, b) => b.name.length - a.name.length)) {
+      const display = c.name.replace(/[[\]()]/g, "").trim();
+      if (!display) continue;
+      const esc = display.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      out = out.replace(new RegExp(`@${esc}(?=$|[\\s.,!?;:])`, "gm"), `@[${display}](${c.id})`);
+    }
+    return out;
   };
 
   const showNotice = (msg: string) => {
@@ -175,7 +201,7 @@ export function Composer({
     const text = value.trim();
     // Staged attachments can be sent without any text (image-only message).
     if ((!text && !hasStaged) || busy) return;
-    onSend?.(text);
+    onSend?.(tokenizeMentions(text));
     setValue("");
     setMentionQuery(null);
   };
@@ -195,7 +221,7 @@ export function Composer({
   };
 
   /**
-   * Wrap the selection in markdown markers (or unwrap if already wrapped —
+   * Wrap the selection in markdown markers (or unwrap if already wrapped -
    * toggling). With no selection, inserts the markers and parks the caret
    * between them.
    */
@@ -242,7 +268,7 @@ export function Composer({
     textareaRef.current?.focus();
   };
 
-  // "Improve draft" — sends the user's OWN unsent draft to the local model via
+  // "Improve draft" - sends the user's OWN unsent draft to the local model via
   // the openclaw-bridge, pinned to route:"local" (the gateway refuses cloud).
   // Never reads received messages; nothing is persisted. Accept replaces the
   // draft; dismiss leaves it untouched.
@@ -291,10 +317,10 @@ export function Composer({
             onAttach={(files) => {
               if (!files || files.length === 0) return;
               if (onAttach) {
-                onAttach(files); // real upload flow (channels — T-13)
+                onAttach(files); // real upload flow (channels - T-13)
               } else {
                 // No handler on this surface (e.g. E2E DMs: no SDK attachment
-                // API) — honest no-op, never a fake success.
+                // API) - honest no-op, never a fake success.
                 showNotice(attachNotice ?? "Attachments are coming soon. Nothing was uploaded.");
               }
             }}
@@ -365,6 +391,20 @@ export function Composer({
             onHover={setMentionIndex}
           />
         )}
+        {replyingTo && (
+          <div className="flex items-center gap-2 border-b border-line px-3.5 py-2 text-[12.5px]">
+            <span className="shrink-0 text-ink-faint">Replying to</span>
+            <span className="shrink-0 font-semibold text-ink">{replyingTo.senderName}</span>
+            <span className="min-w-0 truncate text-ink-mute">{replyingTo.body}</span>
+            <button
+              onClick={onCancelReply}
+              aria-label="Cancel reply"
+              className="ml-auto grid size-6 shrink-0 place-items-center rounded-control text-ink-faint hover:bg-field hover:text-ink"
+            >
+              <X className="size-3.5" />
+            </button>
+          </div>
+        )}
         {hasStaged && (
           <div className="flex flex-wrap gap-2.5 border-b border-line px-3.5 pb-2.5 pt-3">
             {staged!.map((f, i) => (
@@ -378,11 +418,12 @@ export function Composer({
           onChange={(e) => {
             setValue(e.target.value);
             syncMention(e.target.value);
+            if (e.target.value.trim()) onTyping?.();
           }}
           onSelect={() => syncMention(value)}
           onPaste={(e) => {
             // Ctrl+V with an image/file on the clipboard (screenshots!) stages
-            // it like a drop — text pastes keep their normal behavior.
+            // it like a drop - text pastes keep their normal behavior.
             const files = e.clipboardData?.files;
             if (!files?.length) return;
             e.preventDefault();

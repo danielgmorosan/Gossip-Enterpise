@@ -16,13 +16,8 @@ import {
   AiPromptComposer,
 } from "@gossip/ui/stack";
 import { useRelay } from "@/stores/useRelay";
+import { useAiChat } from "@/stores/useAiChat";
 import { aiHealth, runAiJob, type AiHealth } from "@/lib/ai";
-
-interface Turn {
-  role: "user" | "assistant";
-  text: string;
-  model?: string;
-}
 
 const quickPrompts: { icon: typeof FileText; label: string; desc: string; type: "recap" | "notes" | "qa"; prompt?: string }[] = [
   { icon: FileText, label: "Recap all my channels", desc: "A digest of what happened across the workspace.", type: "recap" },
@@ -35,7 +30,9 @@ export function AiPage() {
   const workspace = useRelay((s) => s.workspace);
   const channelIds = workspace?.channels.map((c) => c.id) ?? [];
   const [health, setHealth] = useState<AiHealth | null>(null);
-  const [turns, setTurns] = useState<Turn[]>([]);
+  // Conversation lives in the persisted store (T3) - leaving the page keeps it.
+  const chatKey = `ws:${workspaceId}`;
+  const turns = useAiChat((s) => s.turnsByKey[chatKey]) ?? [];
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -49,14 +46,15 @@ export function AiPage() {
 
   const ask = async (type: "recap" | "notes" | "qa", prompt?: string, label?: string) => {
     if (busy) return;
+    const { append } = useAiChat.getState();
     const userText = label ?? prompt ?? "";
-    setTurns((t) => [...t, { role: "user", text: userText }]);
+    append(chatKey, { role: "user", text: userText });
     setBusy(true);
     try {
       const res = await runAiJob({ workspaceId, channelScope: channelIds, type, prompt });
-      setTurns((t) => [...t, { role: "assistant", text: res.text, model: res.model }]);
+      append(chatKey, { role: "assistant", text: res.text, model: res.model });
     } catch (e) {
-      setTurns((t) => [...t, { role: "assistant", text: `⚠️ ${e instanceof Error ? e.message : "Request failed"}` }]);
+      append(chatKey, { role: "assistant", text: `⚠️ ${e instanceof Error ? e.message : "Request failed"}` });
     } finally {
       setBusy(false);
     }
@@ -105,6 +103,16 @@ export function AiPage() {
             <span className={`size-1.5 rounded-full ${health?.ok ? "bg-positive" : "bg-ink-faint"}`} />
             {health?.ok ? `local · ${health.model}` : "model offline"}
           </span>
+        }
+        actions={
+          turns.length > 0 ? (
+            <button
+              onClick={() => useAiChat.getState().clear(chatKey)}
+              className="rounded-control px-2.5 py-1.5 text-[12px] font-medium text-ink-mute transition-colors hover:bg-field hover:text-ink"
+            >
+              Clear conversation
+            </button>
+          ) : undefined
         }
       />
 
@@ -160,7 +168,7 @@ export function AiPage() {
                         </span>
                       </div>
                       <AiAssistantBlock>
-                        {/* Same safe markdown path as chat — fenced code gets highlight + copy. */}
+                        {/* Same safe markdown path as chat - fenced code gets highlight + copy. */}
                         <MessageBody text={t.text} />
                       </AiAssistantBlock>
                     </div>

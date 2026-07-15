@@ -27,7 +27,7 @@ export function CodeBlock({ code, lang, className }: { code: string; lang?: stri
           if (alive) setHtml(h);
         },
         () => {
-          /* highlighter failed to load — plain rendering stays */
+          /* highlighter failed to load - plain rendering stays */
         },
       );
     }
@@ -73,7 +73,7 @@ export function CodeBlock({ code, lang, className }: { code: string; lang?: stri
         </Tooltip>
       </div>
       {html ? (
-        // Shiki-escaped output only — see the XSS note above.
+        // Shiki-escaped output only - see the XSS note above.
         <div className="code-block-body overflow-x-auto px-2.5 py-2" dangerouslySetInnerHTML={{ __html: html }} />
       ) : (
         <pre className="code-block-body overflow-x-auto px-2.5 py-2">

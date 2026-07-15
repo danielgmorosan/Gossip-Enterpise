@@ -40,7 +40,7 @@ export function ProfileSettings() {
     if (!userId) {
       // Locked session = no handle to key the avatar on. Saying so beats
       // silently dropping the upload (the old behavior).
-      setAvatarError("Unlock your session first — the avatar is stored under your handle.");
+      setAvatarError("Unlock your session first - the avatar is stored under your handle.");
       return;
     }
     if (pendingAvatar) {
@@ -220,7 +220,15 @@ export function ProfileSettings() {
                     <Upload className="size-4" /> Upload…
                   </Button>
                   {hasOverride && (
-                    <Button variant="secondary" size="sm" onClick={() => userId && clearOverride(userId)}>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        if (!userId) return;
+                        clearOverride(userId);
+                        useRelay.getState().clearProfileAvatar(); // remove for everyone too
+                      }}
+                    >
                       Reset to default
                     </Button>
                   )}

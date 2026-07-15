@@ -1,8 +1,8 @@
 /**
- * Notification sounds (T3) — synthesized via WebAudio: no assets, no network,
+ * Notification sounds (T3) - synthesized via WebAudio: no assets, no network,
  * nothing to load. One shared AudioContext, lazily created and resumed on
  * first use (autoplay policy: until the user has interacted once, the context
- * may stay suspended — we fail silent, never throw).
+ * may stay suspended - we fail silent, never throw).
  */
 
 let ctx: AudioContext | null = null;

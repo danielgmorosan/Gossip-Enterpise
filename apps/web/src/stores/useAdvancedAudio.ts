@@ -8,7 +8,7 @@ import { persist } from "zustand/middleware";
  */
 interface AdvancedAudioState {
   enabled: boolean;
-  /** Gate threshold in dBFS — signal below this is silenced. */
+  /** Gate threshold in dBFS - signal below this is silenced. */
   thresholdDb: number;
   /** Post-gate gain in dB. */
   gainDb: number;

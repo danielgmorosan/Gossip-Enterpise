@@ -2,7 +2,7 @@
  * Media helpers (T3): inline image/GIF URLs, and E2E image sending for DMs.
  *
  * DMs can't use the relay's upload store (that would leak E2E content), and
- * the gossip-sdk has no attachment API — so DM images travel INSIDE the
+ * the gossip-sdk has no attachment API - so DM images travel INSIDE the
  * encrypted message text as a compressed data-URI marker. Small, but truly
  * end-to-end: the image bytes get the same crypto as the words around them.
  */
@@ -18,10 +18,10 @@ export function isImageUrl(url: string): boolean {
 
 const IMG_PREFIX = "[[img:";
 const IMG_SUFFIX = "]]";
-/** Keep encrypted messages lean — ~128KB of base64 after compression. */
+/** Keep encrypted messages lean - ~128KB of base64 after compression. */
 const MAX_MARKER_CHARS = 150_000;
 
-/** Image + optional caption on the line(s) after the marker — one E2E message. */
+/** Image + optional caption on the line(s) after the marker - one E2E message. */
 export function imageMarkerBody(dataUrl: string, caption = ""): string {
   return `${IMG_PREFIX}${dataUrl}${IMG_SUFFIX}${caption ? `\n${caption}` : ""}`;
 }

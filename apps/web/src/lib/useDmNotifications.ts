@@ -12,7 +12,7 @@ import { truncateHandle } from "@/lib/utils";
  * DM → notification wiring (T2-09) + DM call signaling (T3). Mounted by both
  * shells.
  *
- * Privacy: DM notifications NEVER carry message content — only "who". The
+ * Privacy: DM notifications NEVER carry message content - only "who". The
  * content stays inside the SDK's encrypted store; nothing is sent anywhere
  * (the notification store is local state).
  */
@@ -50,7 +50,7 @@ export function useDmNotifications() {
             peerId,
           });
         } else if (signal === "decline") {
-          // We're the caller: they said no — end the outgoing call.
+          // We're the caller: they said no - end the outgoing call.
           const call = useCall.getState();
           if (call.status !== "idle" && call.target?.kind === "dm" && call.target.peerId === peerId) {
             void call.leave();

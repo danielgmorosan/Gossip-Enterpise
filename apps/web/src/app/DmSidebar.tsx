@@ -23,7 +23,7 @@ function DmUnreadBadge({ peerId }: { peerId: string }) {
 }
 
 /**
- * Sidebar of the personal home space (/home) — Discord-style: DMs live here,
+ * Sidebar of the personal home space (/home) - Discord-style: DMs live here,
  * outside any workspace. Contacts landing on top, then the conversation list.
  */
 export function DmSidebar() {
@@ -85,19 +85,19 @@ export function DmSidebar() {
 
         <div className="mt-2 px-2.5 py-2 text-[11px] leading-relaxed text-ink-faint">
           {sessionStatus === "open" ? (
-            <span className="inline-flex items-center gap-1.5" title="Session unlocked — your full handle is in Settings → Profile">
+            <span className="inline-flex items-center gap-1.5" title="Session unlocked - your full handle is in Settings → Profile">
               <span className="size-1.5 rounded-full bg-positive" />
               {useSession.getState().displayName || "unlocked"}
             </span>
           ) : (
             <button onClick={() => useUnlockPrompt.getState().show()} className="underline underline-offset-2 hover:text-ink">
-              session locked — unlock
+              session locked - unlock
             </button>
           )}
         </div>
       </div>
 
-      {/* Live call panel — pinned to the sidebar bottom while in a call, Discord-style. */}
+      {/* Live call panel - pinned to the sidebar bottom while in a call, Discord-style. */}
       <CallSidebarPanel />
 
       {newDm && <NewDmDialog onClose={() => setNewDm(false)} />}

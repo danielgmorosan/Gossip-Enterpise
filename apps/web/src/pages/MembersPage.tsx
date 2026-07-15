@@ -12,7 +12,7 @@ import { inviteLink } from "@/lib/invite";
 /**
  * Members directory + role/ban management (T2-07). Role assignment is
  * owner-only; ban/unban needs the "ban" permission. All of it is enforced
- * server-side at the relay — the buttons here are gated for UX, not security.
+ * server-side at the relay - the buttons here are gated for UX, not security.
  */
 export function MembersPage() {
   const workspace = useRelay((s) => s.workspace);

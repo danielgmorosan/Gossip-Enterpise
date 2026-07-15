@@ -9,7 +9,7 @@ import { truncateHandle } from "@/lib/utils";
 /**
  * Private-channel membership management (T2-08). Members see the roster;
  * the channel creator + owner/admins with manageMembers can invite and
- * remove; anyone can remove themselves (leave). The buttons are UX gating —
+ * remove; anyone can remove themselves (leave). The buttons are UX gating -
  * the relay enforces every action server-side.
  */
 export function ChannelMembersDialog({

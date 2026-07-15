@@ -42,7 +42,7 @@ export function SettingsLayout() {
 
   return (
     <div className="relative z-10 flex h-dvh w-screen overflow-hidden bg-paper font-stack text-ink max-md:flex-col">
-      {/* Desktop: left nav column. Mobile: a slim top bar — back button plus a
+      {/* Desktop: left nav column. Mobile: a slim top bar - back button plus a
           horizontally scrollable row of the same nav items (Discord-style). */}
       <aside className="flex w-[260px] shrink-0 flex-col border-r border-line bg-paper-2 max-md:w-full max-md:flex-row max-md:items-center max-md:gap-1 max-md:border-b max-md:border-r-0 max-md:px-2 max-md:py-2">
         <div className="flex items-center gap-2.5 border-b border-line px-4 py-4 max-md:hidden">

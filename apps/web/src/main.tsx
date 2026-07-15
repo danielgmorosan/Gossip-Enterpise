@@ -19,7 +19,7 @@ void useSession
   .then(() => useSession.getState().autoUnlock());
 
 // Register the notification service worker (required for OS notifications on
-// Android/PWA; harmless elsewhere — it has no fetch handler).
+// Android/PWA; harmless elsewhere - it has no fetch handler).
 if ("serviceWorker" in navigator) {
   void navigator.serviceWorker.register("/sw.js").catch(() => {});
 }
@@ -27,16 +27,16 @@ if ("serviceWorker" in navigator) {
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <RouterProvider router={router} />
-    {/* Persistent call dock — outside the router so an active call survives
+    {/* Persistent call dock - outside the router so an active call survives
         every navigation (T-14). Renders nothing while no call is live. */}
     <CallDock />
-    {/* Incoming DM call ring (T3) — outside the router so it rings on every page. */}
+    {/* Incoming DM call ring (T3) - outside the router so it rings on every page. */}
     <IncomingCallOverlay />
-    {/* In-place session unlock (T3) — usable from any page without navigation. */}
+    {/* In-place session unlock (T3) - usable from any page without navigation. */}
     <UnlockDialog />
-    {/* Image lightbox (T3) — inline images open here instead of a new tab. */}
+    {/* Image lightbox (T3) - inline images open here instead of a new tab. */}
     <ImageLightbox />
-    {/* Live notification toasts (T2-09) — outside the router for the same reason. */}
+    {/* Live notification toasts (T2-09) - outside the router for the same reason. */}
     <NotificationToaster />
   </StrictMode>,
 );

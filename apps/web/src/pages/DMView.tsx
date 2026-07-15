@@ -20,7 +20,7 @@ export function DMView() {
   if (dmId === "dm_self") return <RealDmView peerId="self" />;
   if (dmId.startsWith("gossip1")) return <RealDmView peerId={dmId} peerName={contactName(dmId)} />;
 
-  // Unknown conversation id (stale link) — no mock content.
+  // Unknown conversation id (stale link) - no mock content.
   return (
     <PaneEmptyState
       icon={<MessageSquareOff />}

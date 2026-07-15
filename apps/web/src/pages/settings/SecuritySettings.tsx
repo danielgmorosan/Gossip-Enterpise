@@ -42,8 +42,8 @@ export function SecuritySettings() {
       setBioEnrolled(true);
       setBioMsg(
         mode === "prf"
-          ? "Done — hardware-bound (PRF). Next unlock is one fingerprint/PIN away."
-          : "Done — biometric-gated mode (this browser can't do PRF, but nothing is stored in plaintext). Next unlock is one fingerprint/PIN away.",
+          ? "Done - hardware-bound (PRF). Next unlock is one fingerprint/PIN away."
+          : "Done - biometric-gated mode (this browser can't do PRF, but nothing is stored in plaintext). Next unlock is one fingerprint/PIN away.",
       );
     } catch (e) {
       setBioMsg(e instanceof Error ? e.message : "Couldn't set up biometric unlock.");
@@ -89,10 +89,10 @@ export function SecuritySettings() {
           desc={
             bioMsg ??
             (bioEnrolled
-              ? "Unlock with Windows Hello / Touch ID / device PIN. Your passphrase is stored encrypted — only your biometric gesture can decrypt it."
+              ? "Unlock with Windows Hello / Touch ID / device PIN. Your passphrase is stored encrypted - only your biometric gesture can decrypt it."
               : bioAvailable
                 ? "Encrypt your passphrase behind Windows Hello / Touch ID / your device PIN. One touch to unlock, nothing stored in plaintext."
-                : "No platform authenticator found — set up Windows Hello (or your device's biometrics/PIN) first.")
+                : "No platform authenticator found - set up Windows Hello (or your device's biometrics/PIN) first.")
           }
           control={
             bioEnrolled ? (
@@ -119,7 +119,7 @@ export function SecuritySettings() {
           desc={
             remembered
               ? "Your passphrase is stored in this browser so the app opens unlocked. Forgetting it means unlocking manually after every reload."
-              : "Off — you unlock manually after each reload. Tick “Keep me unlocked” next time you unlock to turn it on."
+              : "Off - you unlock manually after each reload. Tick “Keep me unlocked” next time you unlock to turn it on."
           }
           control={
             <Button variant="secondary" size="sm" onClick={forgetDevice} disabled={!remembered}>

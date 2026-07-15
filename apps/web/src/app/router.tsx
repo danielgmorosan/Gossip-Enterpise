@@ -66,7 +66,7 @@ export const router = createBrowserRouter([
     ],
   },
   {
-    // Personal space — DMs and DM calls live here, outside any workspace.
+    // Personal space - DMs and DM calls live here, outside any workspace.
     path: "/home",
     element: <HomeShell />,
     children: [

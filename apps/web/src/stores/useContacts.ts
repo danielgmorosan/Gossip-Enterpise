@@ -10,7 +10,7 @@ const PLACEHOLDER_NAME = /^new request\s*\d*$/i;
 /**
  * Incoming requests arrive with the SDK's placeholder name (T3). Upgrade
  * them: rename to the sender's workspace display name when we know it
- * (persisted via the SDK), and never *show* a placeholder — fall back to the
+ * (persisted via the SDK), and never *show* a placeholder - fall back to the
  * truncated handle.
  */
 async function upgradePlaceholderNames(list: Contact[]): Promise<boolean> {
@@ -31,7 +31,7 @@ async function upgradePlaceholderNames(list: Contact[]): Promise<boolean> {
   return renamed;
 }
 
-/** Placeholder names never reach the UI — show the handle instead. */
+/** Placeholder names never reach the UI - show the handle instead. */
 function displayable(list: Contact[]): Contact[] {
   return list.map((c) =>
     PLACEHOLDER_NAME.test((c.name ?? "").trim()) ? { ...c, name: truncateHandle(c.userId, 10, 4) } : c,
@@ -44,7 +44,7 @@ interface ContactsState {
   refresh: () => Promise<void>;
   /** Add a contact by their gossip userId; the SDK fetches their public key from the relay. */
   add: (userId: string, name: string) => Promise<{ ok: boolean; error?: string }>;
-  /** Set your local nickname for a contact (T3) — what all your DM UI shows. */
+  /** Set your local nickname for a contact (T3) - what all your DM UI shows. */
   rename: (userId: string, name: string) => Promise<{ ok: boolean; error?: string }>;
   subscribe: () => () => void;
 }
@@ -78,7 +78,7 @@ export const useContacts = create<ContactsState>((set, get) => ({
     try {
       // Fetches their key, adds the contact, AND creates+initiates the
       // discussion. `username` rides inside the E2E announcement so the other
-      // side names the contact after US — without it their SDK falls back to
+      // side names the contact after US - without it their SDK falls back to
       // "New Request N" (the bug everyone saw).
       const res = await gossipSdk.discussions.startByUserId(id, name.trim() || id.slice(0, 12), {
         username: useSession.getState().displayName || undefined,
@@ -127,7 +127,7 @@ export function useContactsLive() {
     if (sessionStatus !== "open") return;
     refresh();
     // Workspace membership arriving later can resolve placeholder contact
-    // names — re-run the refresh (and its rename pass) when members change.
+    // names - re-run the refresh (and its rename pass) when members change.
     let unsubRelay: (() => void) | undefined;
     void import("./useRelay").then(({ useRelay }) => {
       let lastKey = "";

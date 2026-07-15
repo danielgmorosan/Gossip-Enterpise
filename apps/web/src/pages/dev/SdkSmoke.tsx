@@ -6,11 +6,11 @@ type StepState = { name: string; ok: boolean | null; detail?: string };
 /** Dev-only smoke test: runs the full gossip-sdk crypto pipeline in the browser. */
 export function SdkSmoke() {
   const [steps, setSteps] = useState<StepState[]>([
-    { name: "1. init() — load WASM (crypto + wa-sqlite)", ok: null },
-    { name: "2. generateMnemonic() — BIP39", ok: null },
-    { name: "3. openSession() — derive keys", ok: null },
-    { name: "4. selfMessages.send() — encrypt + store", ok: null },
-    { name: "5. selfMessages.getMessages() — decrypt", ok: null },
+    { name: "1. init() - load WASM (crypto + wa-sqlite)", ok: null },
+    { name: "2. generateMnemonic() - BIP39", ok: null },
+    { name: "3. openSession() - derive keys", ok: null },
+    { name: "4. selfMessages.send() - encrypt + store", ok: null },
+    { name: "5. selfMessages.getMessages() - decrypt", ok: null },
   ]);
   const [userId, setUserId] = useState("");
   const [messages, setMessages] = useState<string[]>([]);
@@ -94,7 +94,7 @@ export function SdkSmoke() {
             </span>
             <span className="text-text">
               {s.name}
-              {s.detail && <span className="text-muted"> — {s.detail}</span>}
+              {s.detail && <span className="text-muted"> - {s.detail}</span>}
             </span>
           </li>
         ))}

@@ -5,7 +5,7 @@ import { router } from "@/app/router";
 
 /**
  * Full-screen incoming DM call (T3). Mounted outside the router (main.tsx) so
- * it rings on every page. Accept navigates to the call page with ?answer=1 —
+ * it rings on every page. Accept navigates to the call page with ?answer=1 -
  * the flag tells CallPage NOT to send its own invite marker back.
  */
 export function IncomingCallOverlay() {

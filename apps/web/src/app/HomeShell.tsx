@@ -6,7 +6,7 @@ import { useDmNotifications } from "@/lib/useDmNotifications";
 import { cn } from "@/lib/utils";
 
 /**
- * Personal home space (/home) — Discord-style: DMs and DM calls live here,
+ * Personal home space (/home) - Discord-style: DMs and DM calls live here,
  * fully outside any workspace. Same rail as the workspace shell (so switching
  * is one click), but the sidebar lists conversations instead of channels.
  *

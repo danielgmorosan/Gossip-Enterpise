@@ -38,7 +38,7 @@ export const useIncomingCall = create<IncomingCallState>((set, get) => {
     call: null,
 
     ring: (call) => {
-      if (get().call) return; // already ringing — one call at a time
+      if (get().call) return; // already ringing - one call at a time
       set({ call });
       startRing();
       void showOsNotification(`${call.name} is calling you`, "Encrypted DM call", `/home/dm/${encodeURIComponent(call.peerId)}`);

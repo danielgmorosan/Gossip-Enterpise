@@ -8,7 +8,7 @@ import { takePendingContact } from "@/lib/contact";
  * Resolve a stashed contact link (/contact/:handle visited while locked):
  * once the session is open, add the contact if needed and open the DM in the
  * home space. Mounted by both shells so it fires wherever the user lands
- * after unlock — a workspace or /home (DMs don't need a workspace).
+ * after unlock - a workspace or /home (DMs don't need a workspace).
  */
 export function usePendingContactRedirect() {
   const nav = useNavigate();

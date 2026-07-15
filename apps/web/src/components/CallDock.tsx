@@ -39,13 +39,20 @@ export function CallDock() {
   // Draggable position (null → default bottom-right corner).
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const grip = useRef<{ dx: number; dy: number } | null>(null);
+  // True after a real drag - swallows the click that fires on release so
+  // dropping the window doesn't ALSO navigate back to the call.
+  const dragged = useRef(false);
   const startDrag = (e: React.PointerEvent) => {
     const card = (e.currentTarget as HTMLElement).closest("[data-minicall]") as HTMLElement | null;
     if (!card) return;
     const rect = card.getBoundingClientRect();
+    const start = { x: e.clientX, y: e.clientY };
     grip.current = { dx: e.clientX - rect.left, dy: e.clientY - rect.top };
+    dragged.current = false;
     const move = (ev: PointerEvent) => {
       if (!grip.current) return;
+      if (Math.abs(ev.clientX - start.x) + Math.abs(ev.clientY - start.y) > 5) dragged.current = true;
+      if (!dragged.current) return; // ignore micro-jitter: stay a click
       setPos({
         x: Math.min(Math.max(8, ev.clientX - grip.current.dx), window.innerWidth - rect.width - 8),
         y: Math.min(Math.max(8, ev.clientY - grip.current.dy), window.innerHeight - 96),
@@ -55,6 +62,11 @@ export function CallDock() {
       grip.current = null;
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
+      // Let the click event (which fires after pointerup) see dragged=true,
+      // then reset for the next interaction.
+      setTimeout(() => {
+        dragged.current = false;
+      }, 0);
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
@@ -72,6 +84,12 @@ export function CallDock() {
           data-minicall
           className="fixed z-50 w-72 max-w-[calc(100vw-16px)] overflow-hidden rounded-card border border-line bg-paper font-stack shadow-[var(--st-shadow-card)]"
           style={pos ? { left: pos.x, top: pos.y } : { right: 16, bottom: 16 }}
+          onClickCapture={(e) => {
+            if (dragged.current) {
+              e.preventDefault();
+              e.stopPropagation();
+            }
+          }}
         >
           {/* Drag handle + return-to-call */}
           <div
@@ -92,7 +110,7 @@ export function CallDock() {
               </span>
             </button>
           </div>
-          {/* Live picture — click returns to the call */}
+          {/* Live picture - click returns to the call */}
           <button
             onClick={() => void router.navigate(callPath(target))}
             title="Return to call"
@@ -163,7 +181,7 @@ function MiniStage() {
  * In-sidebar call panel (Discord's "voice connected" block). Pinned above the
  * bottom of both sidebars while a call is live: status row navigates back to
  * the call, controls row below. Renders nothing when no call is active.
- * Audio is NOT handled here — CallDock's renderer covers every route.
+ * Audio is NOT handled here - CallDock's renderer covers every route.
  */
 export function CallSidebarPanel() {
   const status = useCall((s) => s.status);

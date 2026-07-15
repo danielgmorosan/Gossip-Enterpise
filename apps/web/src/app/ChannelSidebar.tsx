@@ -20,8 +20,12 @@ import { useSession } from "@/stores/useSession";
 import { useRelay } from "@/stores/useRelay";
 import { useNotifications } from "@/stores/useNotifications";
 import { CreateChannelDialog } from "@/components/chat/CreateChannelDialog";
+import { ChannelMembersDialog } from "@/components/chat/ChannelMembersDialog";
+import { ContextMenu, ConfirmDialog } from "@/components/ContextMenu";
 import { CallSidebarPanel } from "@/components/CallDock";
 import { useUnlockPrompt } from "@/components/UnlockDialog";
+import type { RelayChannel } from "@/stores/useRelay";
+import { Trash2, Users as UsersIcon } from "lucide-react";
 
 /** NavLink styled like the Stack kit's NavItem (kept as a real link for router semantics). */
 export function Row({
@@ -126,6 +130,14 @@ export function ChannelSidebar() {
   const channels = workspace?.id === workspaceId ? workspace.channels : [];
   const sessionStatus = useSession((s) => s.status);
 
+  // Right-click channel management (T3) - admins/owner only.
+  const myId = useSession((s) => s.userId);
+  const myRole = workspace?.members.find((x) => x.userId === myId)?.role;
+  const isAdmin = myRole === "owner" || myRole === "admin";
+  const [chMenu, setChMenu] = useState<{ x: number; y: number; channel: RelayChannel } | null>(null);
+  const [chDelete, setChDelete] = useState<RelayChannel | null>(null);
+  const [chMembers, setChMembers] = useState<RelayChannel | null>(null);
+
   return (
     <aside className="flex h-full w-[264px] shrink-0 flex-col border-r border-line bg-paper-2 font-stack max-md:w-auto max-md:min-w-0 max-md:flex-1">
       {/* Workspace header */}
@@ -174,12 +186,24 @@ export function ChannelSidebar() {
         <GroupLabel label="Channels" open={showCh} onToggle={() => setShowCh((v) => !v)} onAdd={() => setNewChannel(true)} addLabel="Create a channel" />
         {showCh &&
           channels.map((c) => (
-            <Row key={c.id} to={`${base}/c/${c.id}`} active={c.id === channelId}>
-              {c.type === "private" ? <Lock className="size-4 shrink-0" /> : <Hash className="size-4 shrink-0" />}
-              <span className="min-w-0 flex-1 truncate">{c.name}</span>
-              <ChannelCallBadge channelId={c.id} />
-              <ChannelUnreadBadge channelId={c.id} />
-            </Row>
+            <div
+              key={c.id}
+              onContextMenu={
+                isAdmin
+                  ? (e) => {
+                      e.preventDefault();
+                      setChMenu({ x: e.clientX, y: e.clientY, channel: c });
+                    }
+                  : undefined
+              }
+            >
+              <Row to={`${base}/c/${c.id}`} active={c.id === channelId}>
+                {c.type === "private" ? <Lock className="size-4 shrink-0" /> : <Hash className="size-4 shrink-0" />}
+                <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                <ChannelCallBadge channelId={c.id} />
+                <ChannelUnreadBadge channelId={c.id} />
+              </Row>
+            </div>
           ))}
         {showCh && channels.length === 0 && (
           <button onClick={() => setNewChannel(true)} className="mt-1 flex w-full items-center gap-2 rounded-control px-2 py-1.5 text-[13px] text-ink-faint hover:bg-field hover:text-ink">
@@ -189,20 +213,70 @@ export function ChannelSidebar() {
 
         <div className="mt-2 px-2.5 py-2 text-[11px] leading-relaxed text-ink-faint">
           {sessionStatus === "open" ? (
-            <span className="inline-flex items-center gap-1.5" title="Session unlocked — your full handle is in Settings → Profile">
+            <span className="inline-flex items-center gap-1.5" title="Session unlocked - your full handle is in Settings → Profile">
               <span className="size-1.5 rounded-full bg-positive" />
               {useSession.getState().displayName || "unlocked"}
             </span>
           ) : (
             <button onClick={() => useUnlockPrompt.getState().show()} className="underline underline-offset-2 hover:text-ink">
-              session locked — unlock
+              session locked - unlock
             </button>
           )}
         </div>
       </div>
 
-      {/* Live call panel — pinned to the sidebar bottom while in a call, Discord-style. */}
+      {/* Live call panel - pinned to the sidebar bottom while in a call, Discord-style. */}
       <CallSidebarPanel />
+
+      {chMenu && (
+        <ContextMenu
+          x={chMenu.x}
+          y={chMenu.y}
+          header={`#${chMenu.channel.name}`}
+          onClose={() => setChMenu(null)}
+          items={[
+            ...(chMenu.channel.type === "public"
+              ? [
+                  {
+                    label: "Make private",
+                    icon: <Lock className="size-4" />,
+                    onClick: () => {
+                      const ch = chMenu.channel;
+                      void useRelay.getState().makeChannelPrivate(workspaceId, ch.id);
+                    },
+                  },
+                ]
+              : [
+                  {
+                    label: "Manage members / invite",
+                    icon: <UsersIcon className="size-4" />,
+                    onClick: () => setChMembers(chMenu.channel),
+                  },
+                ]),
+            {
+              label: "Delete channel",
+              icon: <Trash2 className="size-4" />,
+              danger: true,
+              onClick: () => setChDelete(chMenu.channel),
+            },
+          ]}
+        />
+      )}
+      {chDelete && (
+        <ConfirmDialog
+          title={`Delete #${chDelete.name}?`}
+          body="This permanently deletes the channel and its full message history for everyone. There is no undo."
+          confirmLabel="Delete channel"
+          onConfirm={async () => {
+            const res = await useRelay.getState().deleteChannel(workspaceId, chDelete.id);
+            return res.ok ? null : res.error;
+          }}
+          onClose={() => setChDelete(null)}
+        />
+      )}
+      {chMembers && (
+        <ChannelMembersDialog workspaceId={workspaceId} channel={chMembers} onClose={() => setChMembers(null)} />
+      )}
 
       {newChannel && workspaceId && <CreateChannelDialog workspaceId={workspaceId} onClose={() => setNewChannel(false)} />}
     </aside>

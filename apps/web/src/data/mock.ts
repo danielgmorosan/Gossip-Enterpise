@@ -76,7 +76,7 @@ export const channels: Channel[] = [
 export const channelById = (id: string) => channels.find((c) => c.id === id) ?? channels[0];
 
 export const dms: DM[] = [
-  { id: "dm_kev", memberId: "u_kev", lastPreview: "Pushed the relay seam — take a look", unread: 2 },
+  { id: "dm_kev", memberId: "u_kev", lastPreview: "Pushed the relay seam - take a look", unread: 2 },
   { id: "dm_mara", memberId: "u_mara", lastPreview: "Mint on the outgoing bubbles is 🔥" },
   { id: "dm_seb", memberId: "u_seb", lastPreview: "Robot demo recording is up" },
   { id: "dm_ada", memberId: "u_ada", lastPreview: "Reviewed the DPA, two notes" },
@@ -84,17 +84,17 @@ export const dms: DM[] = [
 
 export const messagesByChannel: Record<string, Message[]> = {
   c_design: [
-    { id: "m1", authorId: "u_mara", body: "Locked the dark theme tokens — near-black canvas with the mint accent reads really premium.", ts: "09:02", reactions: [{ emoji: "🔥", count: 4, mine: true }] },
+    { id: "m1", authorId: "u_mara", body: "Locked the dark theme tokens - near-black canvas with the mint accent reads really premium.", ts: "09:02", reactions: [{ emoji: "🔥", count: 4, mine: true }] },
     { id: "m2", authorId: "u_kev", body: "Agreed. Can we keep the monospace for the identity handle? It sells the crypto story.", ts: "09:05" },
-    { id: "m3", authorId: "u_mara", body: "Yes — handles, key fingerprints, and the AI route badge all go mono.", ts: "09:06", replyCount: 3 },
+    { id: "m3", authorId: "u_mara", body: "Yes - handles, key fingerprints, and the AI route badge all go mono.", ts: "09:06", replyCount: 3 },
     { id: "m4", authorId: "u_me", body: "Love it. One ask: make the channel-vs-DM privacy difference obvious in the header. Channels are workspace-confidential, DMs are E2E.", ts: "09:11" },
     { id: "m5", authorId: "u_mara", body: "On it. DM headers get the mint shield, channels get a neutral lock with a tooltip explaining the v1 tradeoff.", ts: "09:13", reactions: [{ emoji: "✅", count: 2 }, { emoji: "🛡️", count: 1 }] },
     { id: "m6", authorId: "u_oc", body: "Recap of this thread: the team aligned on (1) dark + mint as the default theme, (2) monospace for all cryptographic identity, and (3) a clear header treatment distinguishing E2E DMs from workspace-confidential channels. Action: Mara to ship header variants.", ts: "09:15", system: false },
   ],
   c_eng: [
-    { id: "e1", authorId: "u_kev", body: "Relay seam is in. `services/relay` is optional — defaults to api.usegossip.com but a workspace can point at a self-hosted URL.", ts: "11:20" },
+    { id: "e1", authorId: "u_kev", body: "Relay seam is in. `services/relay` is optional - defaults to api.usegossip.com but a workspace can point at a self-hosted URL.", ts: "11:20" },
     { id: "e2", authorId: "u_seb", body: "Nice. Does that touch the DM path at all?", ts: "11:22" },
-    { id: "e3", authorId: "u_kev", body: "No — DMs stay on the gossip-sdk E2E channel verbatim. The relay only carries channel transport.", ts: "11:23", reactions: [{ emoji: "🔒", count: 3 }] },
+    { id: "e3", authorId: "u_kev", body: "No - DMs stay on the gossip-sdk E2E channel verbatim. The relay only carries channel transport.", ts: "11:23", reactions: [{ emoji: "🔒", count: 3 }] },
   ],
   c_general: [
     { id: "g1", authorId: "u_jun", body: "Welcome Ada from external counsel 👋 added to #legal-ext only.", ts: "08:30" },
@@ -131,7 +131,7 @@ export const integrations: IntegrationDef[] = [
   { id: "fastmail", name: "Fastmail", kind: "mail", protocol: "JMAP · IMAP · SMTP", blurb: "Reference mail integration. Privacy-respecting, not zero-knowledge.", privacy: "standards", status: "connected", note: "JMAP token" },
   { id: "mailbox", name: "mailbox.org", kind: "mail", protocol: "IMAP · CalDAV", blurb: "EU standards-based mail + calendar.", privacy: "standards", status: "available" },
   { id: "proton", name: "Proton Mail", kind: "mail", protocol: "Bridge → IMAP/SMTP", blurb: "Via Proton Bridge. Desktop only; Calendar has no API.", privacy: "bridge", status: "desktop-only" },
-  { id: "tuta", name: "Tuta", kind: "mail", protocol: "—", blurb: "Fully E2E but exposes no third-party API. Not integrable today.", privacy: "e2e", status: "unavailable" },
+  { id: "tuta", name: "Tuta", kind: "mail", protocol: "-", blurb: "Fully E2E but exposes no third-party API. Not integrable today.", privacy: "e2e", status: "unavailable" },
   { id: "caldav", name: "CalDAV / CardDAV", kind: "calendar", protocol: "RFC 4791 / 6352", blurb: "Universal calendar + contacts. Works with Fastmail, Nextcloud, Radicale.", privacy: "standards", status: "connected" },
   { id: "standardnotes", name: "Standard Notes", kind: "notes", protocol: "E2E · API", blurb: "End-to-end encrypted notes with an embeddable client.", privacy: "e2e", status: "available" },
   { id: "cryptpad", name: "CryptPad", kind: "notes", protocol: "E2E · embed", blurb: "Zero-knowledge collaborative docs.", privacy: "e2e", status: "available" },

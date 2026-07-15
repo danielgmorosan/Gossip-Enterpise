@@ -4,7 +4,7 @@ import { CodeBlock } from "./CodeBlock";
 
 /**
  * Minimal, safe markdown renderer for chat messages.
- * Supports **bold**, *italic*, `inline code`, and ``` fenced code blocks —
+ * Supports **bold**, *italic*, `inline code`, and ``` fenced code blocks -
  * exactly what the composer toolbar produces. Storage stays plain markdown
  * text (transport-agnostic, E2E-safe; no rich HTML over the wire).
  *
@@ -20,7 +20,7 @@ import { CodeBlock } from "./CodeBlock";
  */
 const INLINE = /(@\[[^\]\n]+\]\(gossip1[a-z0-9]+\))|(`[^`\n]+`)|(\*\*[^\n]+?\*\*)|(\*[^*\s][^*\n]*?\*)|(https?:\/\/[^\s<>"]+)/;
 const MENTION = /^@\[([^\]]+)\]\((gossip1[a-z0-9]+)\)$/;
-/** Punctuation that ends a sentence, not a URL — rendered outside the link. */
+/** Punctuation that ends a sentence, not a URL - rendered outside the link. */
 const URL_TRAIL = /[.,!?;:)\]}>"']+$/;
 
 function renderInline(text: string): ReactNode[] {

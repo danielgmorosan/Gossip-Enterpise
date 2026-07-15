@@ -878,7 +878,7 @@ function DetailDemo() {
         <SearchResultRow type="Initiative" icon={<Circle className="size-4" />} title="Design System & UI Kit Creation" time="1d" />
         <SearchResultRow type="Issue" meta="GW-6" icon={<Circle className="size-4 text-positive" />} title="Conduct stakeholder interviews" time="9d" />
         <SearchResultRow type="Project" icon={<Box className="size-4" />} title="AI UX Research Assistant" time="3d" />
-        <SearchResultRow type="Document" icon={<FileText className="size-4" />} title="Product Document — User Insight Dashboard" time="7h" />
+        <SearchResultRow type="Document" icon={<FileText className="size-4" />} title="Product Document - User Insight Dashboard" time="7h" />
       </div>
       <AskDock onAsk={() => undefined} onHistory={() => undefined} />
     </div>
@@ -1135,7 +1135,7 @@ function SettingsDemo() {
         title="Verify workspace deletion request"
         description={
           <>
-            Deleting <strong>Mothkeep Labs</strong> is irreversible. All data — users, channels, and messages — will be permanently removed.
+            Deleting <strong>Mothkeep Labs</strong> is irreversible. All data - users, channels, and messages - will be permanently removed.
           </>
         }
         codeLabel="Enter deletion code sent to alex@mothkeep.com"
@@ -1284,7 +1284,7 @@ function SettingsDemo() {
         <StatusListRow dot="#9ca3af" label="Lost" />
       </SettingsCard>
     </SettingsGroup>
-    <SettingsGroup title="Asks — email">
+    <SettingsGroup title="Asks - email">
       <SettingsCard>
         <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
           <span className="text-[13px] font-medium text-ink-mute">2 emails</span>
@@ -1519,7 +1519,7 @@ export function Styleguide() {
 
           <Section
             title="AI chat"
-            note="Gossip AI assistant flow — welcome, thread, and ready states. Preview locked to dark."
+            note="Gossip AI assistant flow - welcome, thread, and ready states. Preview locked to dark."
           >
             <AiChatDemo />
           </Section>
@@ -1540,7 +1540,7 @@ export function Styleguide() {
 
           <Section
             title="Settings & admin"
-            note="Workspace configuration — security, billing, integrations, API, import wizard, and danger zone. Preview locked to dark."
+            note="Workspace configuration - security, billing, integrations, API, import wizard, and danger zone. Preview locked to dark."
           >
             <SettingsDemo />
           </Section>
@@ -1637,7 +1637,7 @@ export function Styleguide() {
             </div>
             <p className="mt-4 text-sm text-ink-mute">
               Full-page version: <code className="font-mono text-[13px]">{"<AuthLayout brand legal panel footer>"}</code>{" "}
-              from <code className="font-mono text-[13px]">@gossip/ui/stack</code> — same composition at viewport height.
+              from <code className="font-mono text-[13px]">@gossip/ui/stack</code> - same composition at viewport height.
             </p>
           </Section>
         </div>

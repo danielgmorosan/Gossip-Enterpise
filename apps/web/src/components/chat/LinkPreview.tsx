@@ -10,8 +10,8 @@ import { cn } from "@/lib/utils";
  * Link previews under a message (T3), Discord-style.
  *
  * Channels: metadata comes from the relay's /unfurl (the message already
- * lives on the relay — no new exposure). DMs are E2E: their URLs are never
- * sent to the relay, so DMs only preview YouTube links — the thumbnail and
+ * lives on the relay - no new exposure). DMs are E2E: their URLs are never
+ * sent to the relay, so DMs only preview YouTube links - the thumbnail and
  * title come straight from YouTube (i.ytimg.com / oEmbed), touching only the
  * host the link already points at.
  */
@@ -171,7 +171,7 @@ export function MessagePreviews({ text, e2e, className }: { text: string; e2e?: 
   if (urls.length === 0) return null;
   const cards = urls
     .map((url) => {
-      // Direct image/GIF links render inline everywhere — the browser fetches
+      // Direct image/GIF links render inline everywhere - the browser fetches
       // straight from the linked host, same as clicking would.
       if (isImageUrl(url)) return <ImageCard key={url} url={url} />;
       const vid = youtubeId(url);

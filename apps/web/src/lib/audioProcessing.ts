@@ -4,7 +4,7 @@ import { useAdvancedAudio } from "@/stores/useAdvancedAudio";
 
 /**
  * Advanced audio (T-15): a LiveKit TrackProcessor that pipes the mic through
- * a Web Audio graph — getUserMedia track → AudioWorklet noise gate + gain →
+ * a Web Audio graph - getUserMedia track → AudioWorklet noise gate + gain →
  * MediaStreamDestination → published track. VAD state from the worklet lands
  * in the useAdvancedAudio store (dock/settings indicators).
  */

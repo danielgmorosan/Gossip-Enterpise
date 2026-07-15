@@ -5,7 +5,7 @@ type Status = "locked" | "opening" | "open" | "error";
 
 /**
  * Opt-in device persistence (T3): the recovery passphrase stored locally so
- * the session auto-unlocks on load. Convenience over maximum paranoia — the
+ * the session auto-unlocks on load. Convenience over maximum paranoia - the
  * user chooses it via "Keep me unlocked on this device", the UI says exactly
  * what it does, and signing out (or Security → forget) removes it.
  */
@@ -77,7 +77,7 @@ export const useSession = create<SessionState>((set, get) => ({
         localStorage.removeItem(REMEMBER_KEY);
       }
       set({ status: "open", userId, mnemonic, remembered: !!localStorage.getItem(REMEMBER_KEY) });
-      // The relay may already hold an anonymous socket for this tab —
+      // The relay may already hold an anonymous socket for this tab -
       // re-announce with the real identity and refresh the open workspace so
       // membership-gated things (private channels, posting) work immediately.
       try {
@@ -100,7 +100,7 @@ export const useSession = create<SessionState>((set, get) => ({
     if (!stored || gossipSdk.isSessionOpen || get().status === "opening") return;
     const ok = await get().unlock(stored);
     if (!ok) {
-      // Stored phrase no longer opens a session — don't retry-loop on it.
+      // Stored phrase no longer opens a session - don't retry-loop on it.
       localStorage.removeItem(REMEMBER_KEY);
       set({ status: "locked", remembered: false, error: null });
     }

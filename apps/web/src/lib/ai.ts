@@ -1,4 +1,4 @@
-// Gossip AI client. The frontend only ever talks to the gateway (relay) over HTTP —
+// Gossip AI client. The frontend only ever talks to the gateway (relay) over HTTP -
 // the model runs locally (Ollama) and only sees channel data, never DMs.
 import { relayUrl } from "./relayBase";
 

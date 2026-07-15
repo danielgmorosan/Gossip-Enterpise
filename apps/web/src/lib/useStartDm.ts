@@ -4,7 +4,7 @@ import { useContacts } from "@/stores/useContacts";
 import { useSession } from "@/stores/useSession";
 
 /**
- * Start (or open) a 1:1 E2E DM with someone by their gossip userId — e.g. from a
+ * Start (or open) a 1:1 E2E DM with someone by their gossip userId - e.g. from a
  * channel message or the members list. DMs live in the personal home space
  * (/home), outside any workspace. Navigates immediately; if they aren't a
  * contact yet, kicks off the discussion in the background (RealDmView shows pending).

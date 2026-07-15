@@ -77,7 +77,7 @@ export function AiEngineSettings() {
           }
           control={
             <span className={cn("font-mono text-[12px]", health?.ok ? "text-ink" : "text-ink-faint")}>
-              {health ? `${health.model} · ${health.route}` : "—"}
+              {health ? `${health.model} · ${health.route}` : "-"}
             </span>
           }
         />

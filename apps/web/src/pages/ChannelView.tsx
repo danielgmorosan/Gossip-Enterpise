@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams, Link, Navigate } from "react-router-dom";
-import { Hash, Lock, Phone, Sparkles, Users, ShieldAlert, Circle, MessageSquareReply, Pencil } from "lucide-react";
+import { Hash, Lock, Phone, Sparkles, Users, ShieldAlert, Circle, MessageSquareReply, Pencil, Reply } from "lucide-react";
 import { PaneHeader, HeaderIconButton } from "@/components/chat/PaneHeader";
 import { Composer } from "@/components/chat/Composer";
 import { MessageBody } from "@/components/chat/MessageBody";
@@ -21,6 +21,29 @@ import { useFileDrop } from "@/lib/useFileDrop";
 import { useNotifications } from "@/stores/useNotifications";
 import { useCall } from "@/stores/useCall";
 import { formatTime } from "@/lib/utils";
+
+/** "X is typing…" line above the composer (T3). Entries expire in the store. */
+function TypingLine({ channelId }: { channelId: string }) {
+  const typing = useRelay((s) => s.typingByChannel[channelId]);
+  const names = Object.values(typing ?? {}).map((t) => t.name);
+  if (names.length === 0) return null;
+  const label =
+    names.length === 1
+      ? `${names[0]} is typing…`
+      : names.length === 2
+        ? `${names[0]} and ${names[1]} are typing…`
+        : "Several people are typing…";
+  return (
+    <div className="flex items-center gap-1.5 px-5 pb-1 text-[12px] text-ink-mute">
+      <span className="inline-flex gap-0.5">
+        <span className="size-1 animate-bounce rounded-full bg-ink-mute [animation-delay:0ms]" />
+        <span className="size-1 animate-bounce rounded-full bg-ink-mute [animation-delay:150ms]" />
+        <span className="size-1 animate-bounce rounded-full bg-ink-mute [animation-delay:300ms]" />
+      </span>
+      {label}
+    </div>
+  );
+}
 
 /** The "door" of a password-protected private channel (T3). */
 function LockedChannelJoin({ workspaceId, channel }: { workspaceId: string; channel: RelayChannel }) {
@@ -81,6 +104,8 @@ export function ChannelView({ embedded }: { embedded?: boolean } = {}) {
   const [membersOpen, setMembersOpen] = useState(false);
   const [profileUser, setProfileUser] = useState<{ id: string; name: string } | null>(null);
   const [staged, setStaged] = useState<File[]>([]);
+  // Quote-reply target (T3): the DEFAULT reply mode; threads are secondary.
+  const [replyTo, setReplyTo] = useState<{ id: string; senderName: string; body: string } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   // Dropping or picking files only STAGES them in the composer (consent +
   // caption). Nothing touches the relay until the user hits Send.
@@ -90,18 +115,22 @@ export function ChannelView({ embedded }: { embedded?: boolean } = {}) {
   /** Send text and/or staged files (T-13): the text rides with the first file. */
   const sendMessage = async (text: string) => {
     const files = staged;
+    const replyToId = replyTo?.id;
     setStaged([]);
+    setReplyTo(null);
     if (files.length === 0) {
-      if (text) useRelay.getState().post(workspaceId, channelId, text);
+      if (text) useRelay.getState().post(workspaceId, channelId, text, undefined, undefined, replyToId);
       return;
     }
     let caption = text;
+    let reply = replyToId;
     for (let i = 0; i < files.length; i++) {
       try {
         setUploadNotice(`Uploading ${files[i].name}…`);
         const ref = await uploadAttachment(files[i]);
-        useRelay.getState().post(workspaceId, channelId, caption, undefined, ref.id);
+        useRelay.getState().post(workspaceId, channelId, caption, undefined, ref.id, reply);
         caption = "";
+        reply = undefined;
         setUploadNotice(null);
       } catch (e) {
         // Put the unsent files back so nothing is silently lost.
@@ -160,7 +189,7 @@ export function ChannelView({ embedded }: { embedded?: boolean } = {}) {
 
   const isLockedStub = !!channel?.locked;
   useEffect(() => {
-    // Locked stubs (T3) have no readable history — don't subscribe until joined.
+    // Locked stubs (T3) have no readable history - don't subscribe until joined.
     if (workspaceId && channelId && !isLockedStub) useRelay.getState().joinChannel(workspaceId, channelId);
   }, [workspaceId, channelId, isLockedStub]);
 
@@ -184,13 +213,13 @@ export function ChannelView({ embedded }: { embedded?: boolean } = {}) {
     return <Navigate to={`/w/${workspaceId}/call/${channelId}`} replace />;
   }
 
-  // T3: password-protected private channel you're not in — show the door.
+  // T3: password-protected private channel you're not in - show the door.
   if (channel?.locked) {
     return <LockedChannelJoin workspaceId={workspaceId} channel={channel} />;
   }
 
   // T2-08: private channels you aren't in are filtered out of the workspace
-  // snapshot server-side — a stale/shared link lands here with no channel.
+  // snapshot server-side - a stale/shared link lands here with no channel.
   if (workspace && workspace.id === workspaceId && !channel) {
     return (
       <div className="grid min-h-0 flex-1 place-items-center p-6">
@@ -213,10 +242,10 @@ export function ChannelView({ embedded }: { embedded?: boolean } = {}) {
       <div className="relative flex min-w-0 flex-1 flex-col" {...drop.props}>
         {drop.dragging && (
           <div className="pointer-events-none absolute inset-2 z-30 grid place-items-center rounded-card border-2 border-dashed border-ink bg-paper/85">
-            <span className="text-[14px] font-semibold text-ink">Drop to attach — nothing sends until you hit Send</span>
+            <span className="text-[14px] font-semibold text-ink">Drop to attach - nothing sends until you hit Send</span>
           </div>
         )}
-        {/* Inside the call page the stage's header already names the channel —
+        {/* Inside the call page the stage's header already names the channel -
             skip this one so there's a single banner (T3). */}
         {!embedded && (
         <PaneHeader
@@ -257,7 +286,7 @@ export function ChannelView({ embedded }: { embedded?: boolean } = {}) {
         />
         )}
 
-        {/* Live huddle banner (T3) — Discord-style "call in progress" strip. */}
+        {/* Live huddle banner (T3) - Discord-style "call in progress" strip. */}
         {activeCall && !inThisCall && (
           <div className="flex shrink-0 items-center gap-2.5 border-b border-line bg-paper-2 px-4 py-2">
             <span className="relative flex size-2.5 shrink-0">
@@ -305,7 +334,7 @@ export function ChannelView({ embedded }: { embedded?: boolean } = {}) {
             const mine = m.senderId === myId;
             const stats = replyStats.get(m.id);
             return (
-              <div key={m.id} className={`group relative flex gap-3 px-5 ${showAuthor ? "mt-3 pt-1" : "py-0.5"} hover:bg-paper-2`}>
+              <div key={m.id} id={`msg-${m.id}`} className={`group relative flex gap-3 px-5 ${showAuthor ? "mt-3 pt-1" : "py-0.5"} hover:bg-paper-2`}>
                 <div className="w-9 shrink-0">
                   {showAuthor && (
                     <button
@@ -318,6 +347,19 @@ export function ChannelView({ embedded }: { embedded?: boolean } = {}) {
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
+                  {/* Quote-reply reference (T3) - click scrolls to the original. */}
+                  {m.replyTo && (
+                    <button
+                      onClick={() =>
+                        document.getElementById(`msg-${m.replyTo!.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })
+                      }
+                      className="mb-0.5 flex max-w-full items-center gap-1.5 text-[12px] text-ink-faint hover:text-ink"
+                    >
+                      <Reply className="size-3 shrink-0 -scale-x-100" />
+                      <span className="shrink-0 font-medium text-ink-mute">{m.replyTo.senderName}</span>
+                      <span className="min-w-0 truncate">{m.replyTo.body}</span>
+                    </button>
+                  )}
                   {showAuthor && (
                     <div className="flex items-center gap-2">
                       <button
@@ -366,17 +408,26 @@ export function ChannelView({ embedded }: { embedded?: boolean } = {}) {
                 {!m.deleted && editingId !== m.id && (
                   <MessageActionsBar
                     copyText={m.body}
-                    shareText={`"${m.body}"\n— ${m.senderName} in #${name}\n${window.location.origin}/w/${workspaceId}/c/${channelId}`}
+                    shareText={`"${m.body}"\n- ${m.senderName} in #${name}\n${window.location.origin}/w/${workspaceId}/c/${channelId}`}
                     className="absolute -top-2.5 right-4 hidden group-hover:flex"
                   >
                     <button
-                      onClick={() => openThread(m.id)}
-                      title="Reply in thread"
-                      aria-label="Reply in thread"
+                      onClick={() => setReplyTo({ id: m.id, senderName: m.senderName, body: m.body || (m.attachment ? `📎 ${m.attachment.name}` : "") })}
+                      title="Reply"
+                      aria-label="Reply"
                       className="inline-flex items-center gap-1 rounded-[calc(var(--radius-control)-2px)] px-2 py-1 text-[12px] text-ink-mute transition-colors hover:bg-field hover:text-ink"
                     >
-                      <MessageSquareReply className="size-3.5" /> Reply
+                      <Reply className="size-3.5" /> Reply
                     </button>
+                    <Tooltip label="Open a thread (side conversation)">
+                      <button
+                        onClick={() => openThread(m.id)}
+                        aria-label="Reply in thread"
+                        className="grid size-7 place-items-center rounded-[calc(var(--radius-control)-2px)] text-ink-mute transition-colors hover:bg-field hover:text-ink"
+                      >
+                        <MessageSquareReply className="size-3.5" />
+                      </button>
+                    </Tooltip>
                     {mine && (
                       <Tooltip label="Edit message">
                         <button
@@ -404,12 +455,16 @@ export function ChannelView({ embedded }: { embedded?: boolean } = {}) {
             <StackToast tone="info" message={uploadNotice} onDismiss={() => setUploadNotice(null)} />
           </div>
         )}
+        <TypingLine channelId={channelId} />
         <Composer
           placeholder={`Message #${name}`}
           onSend={(text) => void sendMessage(text)}
+          onTyping={() => useRelay.getState().sendTyping(workspaceId, channelId)}
           onAttach={stageFiles}
           staged={staged}
           onRemoveStaged={(i) => setStaged((s) => s.filter((_, idx) => idx !== i))}
+          replyingTo={replyTo}
+          onCancelReply={() => setReplyTo(null)}
           mentionCandidates={mentionCandidates}
         />
       </div>

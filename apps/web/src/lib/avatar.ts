@@ -3,7 +3,7 @@ import { identicon } from "@dicebear/collection";
 
 /**
  * DiceBear identicon avatars (GitHub-style, developer-flavored).
- * Deterministic: same seed → same SVG, on every device, with no server —
+ * Deterministic: same seed → same SVG, on every device, with no server -
  * so peers see the same default avatar for a handle without any sync.
  */
 const cache = new Map<string, string>();

@@ -6,7 +6,7 @@ import { playChime, playCallChime } from "@/lib/sounds";
  *
  * Fed by the existing event streams only: the relay socket (channel messages,
  * workspace joins, private-channel invites, call starts) and the gossip-sdk
- * (DM messages / new conversations). Everything stays on this device — the
+ * (DM messages / new conversations). Everything stays on this device - the
  * store never sends anything anywhere, and DM notifications carry NO message
  * content (just "new encrypted message from X"), so nothing can leak even
  * into OS notification logs.
@@ -57,7 +57,7 @@ const INBOX_CAP = 100;
 
 /**
  * OS-level notification. Android (and installed PWAs generally) reject the
- * `new Notification()` constructor — the service-worker registration's
+ * `new Notification()` constructor - the service-worker registration's
  * showNotification is the only path that works there, so prefer it.
  */
 export async function showOsNotification(title: string, body: string, link: string, tag?: string) {
@@ -74,7 +74,7 @@ export async function showOsNotification(title: string, body: string, link: stri
   try {
     new Notification(title, { body, tag, silent: true });
   } catch {
-    /* blocked — in-app toast still shows */
+    /* blocked - in-app toast still shows */
   }
 }
 
@@ -126,7 +126,7 @@ export const useNotifications = create<NotificationsState>((set, get) => {
       if (!prefs.types[n.type]) return;
       if (n.channelId && prefs.mutedChannels.includes(n.channelId)) return;
       if (n.peerId && prefs.mutedDms.includes(n.peerId)) return;
-      // Suppress for the conversation currently on screen — it's already read.
+      // Suppress for the conversation currently on screen - it's already read.
       const path = window.location.pathname;
       if (n.channelId && path.includes(`/c/${n.channelId}`)) return;
       if (n.peerId && path.includes(`/dm/${encodeURIComponent(n.peerId)}`)) return;

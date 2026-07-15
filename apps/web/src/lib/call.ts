@@ -4,7 +4,7 @@
  *
  * DM rooms are named by hashing the *sorted* pair of public handles, so both
  * participants derive the same room independently, and the room name is an
- * opaque digest — no DM content (and not even the raw handles) appears in
+ * opaque digest - no DM content (and not even the raw handles) appears in
  * signaling or room names.
  */
 export async function dmRoomName(a: string, b: string): Promise<string> {

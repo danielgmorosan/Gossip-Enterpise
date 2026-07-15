@@ -47,7 +47,7 @@ export function RealDmView({ peerId, peerName, embedded }: { peerId: string; pee
   const [staged, setStaged] = useState<File[]>([]);
   const [profileOpen, setProfileOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  // Dropping/picking images only STAGES them (consent + caption) — nothing is
+  // Dropping/picking images only STAGES them (consent + caption) - nothing is
   // encrypted or sent until the user hits Send.
   const stageImages = (files: FileList) => {
     const images = Array.from(files).filter((f) => f.type.startsWith("image/"));
@@ -83,7 +83,7 @@ export function RealDmView({ peerId, peerName, embedded }: { peerId: string; pee
         const d = await r.json();
         if (on) setLiveCallCount(d.count ?? 0);
       } catch {
-        /* relay unreachable — keep last state */
+        /* relay unreachable - keep last state */
       }
       if (on) timer = setTimeout(check, 15_000);
     };
@@ -159,7 +159,7 @@ export function RealDmView({ peerId, peerName, embedded }: { peerId: string; pee
   /**
    * Send text and/or staged images (T3). Images travel as compressed
    * data-URIs inside the encrypted message; the text rides as the first
-   * image's caption — one E2E message, rendered as image + caption.
+   * image's caption - one E2E message, rendered as image + caption.
    */
   const send = async (text: string) => {
     if (sending) return;
@@ -225,9 +225,9 @@ export function RealDmView({ peerId, peerName, embedded }: { peerId: string; pee
           <span className="text-[14px] font-semibold text-ink">Drop an image to send it end-to-end encrypted</span>
         </div>
       )}
-      {/* Inside the call page the stage's header already names the contact —
+      {/* Inside the call page the stage's header already names the contact -
           skip this one so there's a single banner (T3). The raw gossip handle
-          is deliberately NOT shown here — it lives in the profile popup. */}
+          is deliberately NOT shown here - it lives in the profile popup. */}
       {!embedded && (
         <PaneHeader
           icon={
@@ -345,7 +345,7 @@ export function RealDmView({ peerId, peerName, embedded }: { peerId: string; pee
             const actions = !deleted ? (
               <MessageActionsBar
                 copyText={m.content}
-                shareText={`"${m.content}"\n— ${attribution}, ${formatTime(new Date(m.timestamp))}`}
+                shareText={`"${m.content}"\n- ${attribution}, ${formatTime(new Date(m.timestamp))}`}
                 className="hidden shrink-0 self-center group-hover:flex"
               >
                 {canMutate && (

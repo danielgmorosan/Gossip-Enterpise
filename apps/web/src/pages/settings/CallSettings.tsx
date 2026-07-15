@@ -10,7 +10,7 @@ import { syncNoiseGate, updateNoiseGate } from "@/lib/audioProcessing";
 import { cn } from "@/lib/utils";
 
 /**
- * Calls & audio settings (T-12). Device labels require mic permission — the
+ * Calls & audio settings (T-12). Device labels require mic permission - the
  * "Allow device access" button requests it once, then enumerates. Selections
  * persist (zustand/persist) and are applied to the next LiveKit call via
  * CallPage's room options (output uses setSinkId where supported).
@@ -38,7 +38,7 @@ export function CallSettings() {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const ins = devices.filter((d) => d.kind === "audioinput");
       const outs = devices.filter((d) => d.kind === "audiooutput");
-      // Without permission, labels come back empty — offer the request button.
+      // Without permission, labels come back empty - offer the request button.
       setNeedsPermission(ins.length > 0 && ins.every((d) => !d.label));
       setInputs(ins);
       setOutputs(outs);
@@ -57,7 +57,7 @@ export function CallSettings() {
     setError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach((t) => t.stop()); // permission only — release the mic
+      stream.getTracks().forEach((t) => t.stop()); // permission only - release the mic
       await refresh();
     } catch {
       setError("Microphone access was denied. Device names stay hidden without it.");

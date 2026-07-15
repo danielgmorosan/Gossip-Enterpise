@@ -57,6 +57,24 @@ export async function openSession(mnemonic: string) {
       }
     });
   }
+  // The event only covers requests that arrive while we're online - requests
+  // received while offline sit pending forever (replies stuck on
+  // "waiting_session"). Sweep and accept them on every unlock (T3).
+  void (async () => {
+    try {
+      const discussions = (await gossipSdk.discussions.list()) as { weAccepted?: boolean }[];
+      for (const d of discussions) {
+        if (d.weAccepted) continue;
+        try {
+          await gossipSdk.discussions.accept(d as never);
+        } catch (e) {
+          console.error("pending-discussion accept failed", e);
+        }
+      }
+    } catch (e) {
+      console.error("pending-discussion sweep failed", e);
+    }
+  })();
   return gossipSdk.userId;
 }
 

@@ -39,11 +39,11 @@ function disconnectMessage(reason: DisconnectReason): string {
 
 /**
  * Call surface. The LiveKit Room itself lives in the global call store (T-14),
- * NOT in this component — navigating away keeps the call alive (the CallDock
+ * NOT in this component - navigating away keeps the call alive (the CallDock
  * takes over audio + controls); coming back re-binds the UI to the same room.
  */
 export function CallPage() {
-  // Channel call: /w/:workspaceId/call/:channelId — DM call: /home/call/dm/:peerId
+  // Channel call: /w/:workspaceId/call/:channelId - DM call: /home/call/dm/:peerId
   const { workspaceId = "", channelId = "", peerId = "" } = useParams();
   const isDm = !!peerId;
   const nav = useNavigate();
@@ -83,10 +83,13 @@ export function CallPage() {
         // Mono capture: a dynamic mic on one input channel otherwise arrives
         // as stereo-with-a-dead-side and plays in one ear. Mono downmixes at
         // the source and plays centered for everyone. (Screenshare audio is
-        // unaffected — stereo is right there.)
+        // unaffected - stereo is right there.)
         channelCount: 1,
       },
       ...(audio.outputId ? { audioOutput: { deviceId: audio.outputId } } : {}),
+      // WebAudio mixing: per-participant volume goes through a GainNode, so
+      // the volume sliders can BOOST quiet mics past 100% (T3).
+      webAudioMix: true,
     }),
     [audio.inputId, audio.outputId, audio.echoCancellation, audio.noiseSuppression, audio.autoGainControl],
   );
@@ -115,7 +118,7 @@ export function CallPage() {
       let room: string;
       if (isDm) {
         if (!userId) throw new Error("Unlock your session to start a DM call.");
-        // Opaque digest of the sorted pair — both sides derive the same room.
+        // Opaque digest of the sorted pair - both sides derive the same room.
         room = await dmRoomName(userId, peerId);
       } else {
         room = `${workspaceId}:${channelId}`;
@@ -144,7 +147,7 @@ export function CallPage() {
     }
   }, [isDm, userId, peerId, workspaceId, channelId, displayName, target, roomOptions, answering]);
 
-  // T3: remember whether the other side ever connected — an unanswered
+  // T3: remember whether the other side ever connected - an unanswered
   // hangup sends a cancel marker so their ring stops (and logs a missed call).
   useEffect(() => {
     if (!callRoom || !isDm) return;

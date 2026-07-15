@@ -25,7 +25,7 @@ export function WorkspaceIndex() {
 
   useEffect(() => {
     // Desktop only: the root auto-opens the first channel. On mobile the root
-    // IS the sidebar screen (Discord-style) — redirecting would trap the user
+    // IS the sidebar screen (Discord-style) - redirecting would trap the user
     // in the channel with no way back.
     const desktop = window.matchMedia("(min-width: 768px)").matches;
     if (desktop && workspace?.id === workspaceId && workspace.channels.length > 0) {

@@ -11,7 +11,7 @@ import { truncateHandle } from "@/lib/utils";
 /**
  * Contact-link landing: /contact/:handle?name=…
  * Open session → "start DM" confirmation, then the home-space DM route
- * (/home/dm/:handle) — no workspace needed. Locked session → stash the
+ * (/home/dm/:handle) - no workspace needed. Locked session → stash the
  * contact (single-use, sessionStorage) and route through unlock/create; the
  * shells pick it up afterwards. Only the PUBLIC handle is ever in the URL.
  */
