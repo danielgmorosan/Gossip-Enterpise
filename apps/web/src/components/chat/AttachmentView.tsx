@@ -1,11 +1,22 @@
-import { FileText, Download } from "lucide-react";
+import { FileText, Download, Mic } from "lucide-react";
 import { relayUrl } from "@/lib/relayBase";
 import { formatBytes, INLINE_IMAGE_TYPES, type AttachmentRef } from "@/lib/uploads";
 import { useLightbox } from "@/components/ImageLightbox";
 
-/** Inline render of a channel attachment: image preview or a file card. */
+/** Inline render of a channel attachment: image, voice player, or file card. */
 export function AttachmentView({ a }: { a: AttachmentRef }) {
   const href = relayUrl(a.url);
+  // Voice message (T3): a compact player instead of a download card.
+  if (a.type.startsWith("audio/") || a.name.startsWith("voice-")) {
+    return (
+      <div className="mt-1 flex w-fit max-w-sm items-center gap-2.5 rounded-card border border-line bg-paper-2 px-3 py-2">
+        <span className="grid size-8 shrink-0 place-items-center rounded-full bg-field text-ink">
+          <Mic className="size-4" />
+        </span>
+        <audio src={href} controls preload="metadata" className="h-9 max-w-[240px]" />
+      </div>
+    );
+  }
   if (INLINE_IMAGE_TYPES.has(a.type)) {
     return (
       <button

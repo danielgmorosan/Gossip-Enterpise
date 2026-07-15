@@ -58,6 +58,9 @@ const MAX_MSGS_PER_CHANNEL = 120;
 const UPLOAD_DIR = join(process.env.DATA_DIR ?? HERE, "uploads");
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MB
 const INLINE_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"]);
+// Audio (voice messages, T3) is served inline so the <audio> player can play
+// it. Not script-capable, so it's safe to serve with its real content-type.
+const INLINE_AUDIO_TYPES = new Set(["audio/webm", "audio/ogg", "audio/mpeg", "audio/mp4", "audio/wav", "audio/x-m4a"]);
 
 function readBodyBinary(req, cap) {
   return new Promise((resolve) => {
@@ -616,6 +619,38 @@ const httpServer = createServer(async (req, res) => {
     if (!room || room.length > 200) return json(400, { error: "room required" });
     return json(200, { count: await roomParticipantCount(room) });
   }
+  if (req.method === "GET" && req.url.startsWith("/gif-search")) {
+    // GIF search proxy (T3) - keeps the API key server-side. Giphy by
+    // default; set GIPHY_API_KEY in .env for your own quota.
+    const u = new URL(req.url, "http://relay");
+    const q = (u.searchParams.get("q") || "").slice(0, 100).trim();
+    const offset = Math.max(0, Math.min(200, Number(u.searchParams.get("pos")) || 0));
+    // Provider by env: GIPHY_API_KEY, or TENOR_API_KEY (Google). Free keys:
+    // developers.giphy.com or Google Cloud console. No key → picker explains.
+    const giphyKey = process.env.GIPHY_API_KEY;
+    const tenorKey = process.env.TENOR_API_KEY;
+    if (!giphyKey && !tenorKey) {
+      return json(200, { gifs: [], needsKey: true });
+    }
+    try {
+      let gifs = [];
+      if (giphyKey) {
+        const base = q ? `https://api.giphy.com/v1/gifs/search?q=${encodeURIComponent(q)}` : "https://api.giphy.com/v1/gifs/trending?";
+        const r = await fetch(`${base}&api_key=${giphyKey}&limit=24&offset=${offset}&rating=pg-13&bundle=messaging_non_clips`);
+        const d = await r.json();
+        if (d?.meta?.status && d.meta.status >= 400) return json(200, { gifs: [], needsKey: true, error: d.meta.msg });
+        gifs = (d.data || []).map((g) => ({ id: g.id, preview: g.images?.fixed_width_small?.url || g.images?.preview_gif?.url, url: g.images?.downsized_medium?.url || g.images?.original?.url }));
+      } else {
+        const base = q ? `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(q)}` : "https://tenor.googleapis.com/v2/featured?";
+        const r = await fetch(`${base}&key=${tenorKey}&limit=24&pos=${offset}&contentfilter=medium&media_filter=tinygif,gif`);
+        const d = await r.json();
+        gifs = (d.results || []).map((g) => ({ id: g.id, preview: g.media_formats?.tinygif?.url, url: g.media_formats?.gif?.url }));
+      }
+      return json(200, { gifs: gifs.filter((g) => g.preview && g.url) });
+    } catch {
+      return json(200, { gifs: [], error: "GIF search unavailable." });
+    }
+  }
   if (req.method === "GET" && req.url.startsWith("/unfurl?")) {
     // Link previews (T3) — used for CHANNEL messages only (the client never
     // sends DM urls here; that would leak E2E content to the relay).
@@ -772,7 +807,7 @@ const httpServer = createServer(async (req, res) => {
       res.writeHead(404);
       return res.end();
     }
-    const inline = INLINE_IMAGE_TYPES.has(meta.type);
+    const inline = INLINE_IMAGE_TYPES.has(meta.type) || INLINE_AUDIO_TYPES.has(meta.type);
     res.writeHead(200, {
       "content-type": inline ? meta.type : "application/octet-stream",
       "content-length": meta.size,

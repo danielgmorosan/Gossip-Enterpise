@@ -107,6 +107,11 @@ export function ChannelView({ embedded }: { embedded?: boolean } = {}) {
   const [staged, setStaged] = useState<File[]>([]);
   // Quote-reply target (T3): the DEFAULT reply mode; threads are secondary.
   const [replyTo, setReplyTo] = useState<{ id: string; senderName: string; body: string } | null>(null);
+  const [composerFocus, setComposerFocus] = useState(0);
+  const startReply = (r: { id: string; senderName: string; body: string }) => {
+    setReplyTo(r);
+    setComposerFocus((n) => n + 1); // jump the cursor into the input
+  };
   const scrollRef = useRef<HTMLDivElement>(null);
   // Dropping or picking files only STAGES them in the composer (consent +
   // caption). Nothing touches the relay until the user hits Send.
@@ -425,7 +430,7 @@ export function ChannelView({ embedded }: { embedded?: boolean } = {}) {
                     className="absolute -top-2.5 right-4 hidden group-hover:flex group-focus-within:flex"
                   >
                     <button
-                      onClick={() => setReplyTo({ id: m.id, senderName: m.senderName, body: m.body || (m.attachment ? `📎 ${m.attachment.name}` : "") })}
+                      onClick={() => startReply({ id: m.id, senderName: m.senderName, body: m.body || (m.attachment ? `📎 ${m.attachment.name}` : "") })}
                       title="Reply"
                       aria-label="Reply"
                       className="inline-flex items-center gap-1 rounded-[calc(var(--radius-control)-2px)] px-2 py-1 text-[12px] text-ink-mute transition-colors hover:bg-field hover:text-ink"
@@ -478,6 +483,7 @@ export function ChannelView({ embedded }: { embedded?: boolean } = {}) {
           onRemoveStaged={(i) => setStaged((s) => s.filter((_, idx) => idx !== i))}
           replyingTo={replyTo}
           onCancelReply={() => setReplyTo(null)}
+          focusSignal={composerFocus}
           mentionCandidates={mentionCandidates}
         />
       </div>

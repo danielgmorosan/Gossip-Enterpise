@@ -75,6 +75,8 @@ export default defineConfig({
       "/unfurl": { target: "http://localhost:8788" },
       // Live call-room participant counts (DM call presence), served by the relay.
       "/room-count": { target: "http://localhost:8788" },
+      // GIF search proxy (keeps the API key server-side), served by the relay.
+      "/gif-search": { target: "http://localhost:8788" },
     },
   },
   preview: { headers: coopCoep },

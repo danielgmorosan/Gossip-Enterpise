@@ -11,16 +11,25 @@ import {
   SquareCode,
   FileText,
 } from "lucide-react";
-import { Plus, WandSparkles, X } from "lucide-react";
+import { Plus, WandSparkles, X, Mic, Square, Trash2 } from "lucide-react";
+import { VoiceRecorder, formatDuration } from "@/lib/voiceRecorder";
 import { StackToast, Tooltip } from "@gossip/ui/stack";
 import { cn } from "@/lib/utils";
 import { openclaw } from "@/lib/openclaw";
 import { EmojiPickerPopover } from "./EmojiPickerPopover";
+import { GifPicker } from "./GifPicker";
 import { ComposerPlusMenu } from "./ComposerPlusMenu";
 import { MentionPopover, type MentionCandidate } from "./MentionPopover";
 
 /** Active "@query" right before the caret (starts a mention), or null. */
 const MENTION_TRIGGER = /(^|\s)@(\S{0,30})$/;
+
+/** onAttach takes a FileList; wrap File[]s (recordings, picks) into one. */
+function dataTransferFrom(files: File[]): FileList {
+  const dt = new DataTransfer();
+  for (const f of files) dt.items.add(f);
+  return dt.files;
+}
 
 function ToolBtn({
   label,
@@ -98,6 +107,7 @@ export function Composer({
   onRemoveStaged,
   replyingTo,
   onCancelReply,
+  focusSignal,
   onTyping,
   mentionCandidates,
   className,
@@ -117,6 +127,8 @@ export function Composer({
   /** Quote-reply target (T3): shows a "Replying to X" bar above the input. */
   replyingTo?: { senderName: string; body: string } | null;
   onCancelReply?: () => void;
+  /** Changes to this value focus the input (e.g. bumped when Reply is clicked). */
+  focusSignal?: number;
   /** Fired (throttled by the caller) while the user is typing (T3). */
   onTyping?: () => void;
   /** Members/contacts offered by the @mention picker (T2-05). Absent → no picker. */
@@ -125,6 +137,7 @@ export function Composer({
 }) {
   const [value, setValue] = useState("");
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [gifOpen, setGifOpen] = useState(false);
   const [plusOpen, setPlusOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -189,10 +202,50 @@ export function Composer({
     return out;
   };
 
+  // Focus the input when the parent bumps focusSignal (Reply clicked, etc).
+  useEffect(() => {
+    if (focusSignal) textareaRef.current?.focus();
+  }, [focusSignal]);
+
   const showNotice = (msg: string) => {
     setNotice(msg);
     if (noticeTimer.current) clearTimeout(noticeTimer.current);
     noticeTimer.current = setTimeout(() => setNotice(null), 4000);
+  };
+
+  // ── Voice messages (T3) - channels only (needs the attachment path) ──
+  const voiceSupported = !!onAttach && !e2e && typeof MediaRecorder !== "undefined";
+  const recorderRef = useRef<VoiceRecorder | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [recMs, setRecMs] = useState(0);
+  const recTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const startRecording = async () => {
+    try {
+      const r = new VoiceRecorder();
+      await r.start();
+      recorderRef.current = r;
+      setRecording(true);
+      setRecMs(0);
+      const t0 = Date.now();
+      recTimer.current = setInterval(() => setRecMs(Date.now() - t0), 200);
+    } catch {
+      showNotice("Couldn't access the microphone.");
+    }
+  };
+  const stopRecordingAnd = async (send: boolean) => {
+    if (recTimer.current) clearInterval(recTimer.current);
+    const r = recorderRef.current;
+    recorderRef.current = null;
+    setRecording(false);
+    if (!r) return;
+    if (!send) {
+      r.cancel();
+      return;
+    }
+    const rec = await r.stop();
+    if (rec) onAttach?.(dataTransferFrom([rec.file]));
+    else showNotice("That recording was too short.");
   };
 
   const hasStaged = !!staged?.length;
@@ -311,6 +364,16 @@ export function Composer({
             onClose={closeEmoji}
           />
         )}
+        {gifOpen && (
+          <GifPicker
+            className="absolute bottom-full right-0 z-40 mb-2"
+            onPick={(url) => {
+              onSend?.(url); // renders inline via the image path
+              setGifOpen(false);
+            }}
+            onClose={() => setGifOpen(false)}
+          />
+        )}
         {plusOpen && (
           <ComposerPlusMenu
             className="absolute bottom-full left-0 z-30 mb-2"
@@ -412,9 +475,36 @@ export function Composer({
             ))}
           </div>
         )}
+        {recording && (
+          <div className="flex items-center gap-3 px-3.5 py-3">
+            <span className="flex items-center gap-2 text-[13px] font-medium text-negative">
+              <span className="size-2.5 animate-pulse rounded-full bg-negative" />
+              Recording {formatDuration(recMs)}
+            </span>
+            <span className="text-[12px] text-ink-faint">Stop to attach, then Send</span>
+            <div className="ml-auto flex items-center gap-1.5">
+              <Tooltip label="Discard">
+                <button
+                  onClick={() => void stopRecordingAnd(false)}
+                  aria-label="Discard recording"
+                  className="grid size-9 place-items-center rounded-control text-ink-mute transition-colors hover:bg-field hover:text-ink"
+                >
+                  <Trash2 className="size-4" />
+                </button>
+              </Tooltip>
+              <button
+                onClick={() => void stopRecordingAnd(true)}
+                className="inline-flex items-center gap-1.5 rounded-control bg-ink px-3 py-2 text-[13px] font-medium text-paper transition-colors hover:bg-ink-hover"
+              >
+                <Square className="size-3.5 fill-current" /> Stop
+              </button>
+            </div>
+          </div>
+        )}
         <textarea
           ref={textareaRef}
           value={value}
+          hidden={recording}
           onChange={(e) => {
             setValue(e.target.value);
             syncMention(e.target.value);
@@ -509,6 +599,11 @@ export function Composer({
             </span>
           </div>
           <div className="flex items-center gap-0.5">
+            {voiceSupported && !recording && (
+              <ToolBtn label="Record a voice message" onClick={() => void startRecording()}>
+                <Mic className="size-4" />
+              </ToolBtn>
+            )}
             <ToolBtn label="Improve draft (local AI)" active={aiBusy} onClick={() => void improveDraft()}>
               <WandSparkles className={cn("size-4", aiBusy && "animate-pulse")} />
             </ToolBtn>
@@ -530,6 +625,9 @@ export function Composer({
               </ToolBtn>
             </span>
             <span aria-hidden className="mx-1 h-4 w-px bg-line max-sm:hidden" />
+            <ToolBtn label="Add a GIF" active={gifOpen} onClick={() => setGifOpen((o) => !o)}>
+              <span className="text-[11px] font-bold leading-none tracking-tight">GIF</span>
+            </ToolBtn>
             <ToolBtn
               label="Add emoji"
               active={emojiOpen}

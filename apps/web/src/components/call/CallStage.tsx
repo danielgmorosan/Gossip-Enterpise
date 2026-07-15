@@ -13,6 +13,7 @@ import { Mic, MicOff, Video, VideoOff, MonitorUp, PhoneOff, MessageSquareText, V
 import { Tooltip } from "@gossip/ui/stack";
 import { UserAvatar } from "@/components/UserAvatar";
 import { useCall, type CallTarget } from "@/stores/useCall";
+import { useSession } from "@/stores/useSession";
 import { ChannelView } from "@/pages/ChannelView";
 import { RealDmView } from "@/components/chat/RealDmView";
 import { ParticipantMenu } from "./ParticipantMenu";
@@ -214,8 +215,13 @@ function ParticipantCard({
   const micMuted = useIsMuted({ participant: p, source: Track.Source.Microphone });
   const camMuted = useIsMuted(trackRef);
   // Identity carries a per-connection suffix (duplicate-kick fix) - strip it
-  // so avatars and handles resolve to the real user.
-  const handle = p.identity.split("#")[0];
+  // so avatars and handles resolve to the real user. For OUR OWN tile, prefer
+  // the session userId: after a refresh the call can reconnect before the
+  // session unlocks, giving a "guest#…" identity with no avatar - the session
+  // id keeps our local custom pic showing.
+  const sessionUserId = useSession((s) => s.userId);
+  const rawHandle = p.identity.split("#")[0];
+  const handle = p.isLocal && sessionUserId ? sessionUserId : rawHandle;
   const name = p.name || truncateHandle(handle, 8, 4);
 
   // Apply this listener's saved volume prefs for this person (T3) - voice

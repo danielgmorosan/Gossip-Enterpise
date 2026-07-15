@@ -83,7 +83,8 @@ export function CallDock() {
       {!onCallPage && (
         <div
           data-minicall
-          className="fixed z-50 w-72 max-w-[calc(100vw-16px)] overflow-hidden rounded-card border border-line bg-paper font-stack shadow-[var(--st-shadow-card)] max-sm:w-60"
+          onPointerDown={startDrag}
+          className="fixed z-50 w-72 max-w-[calc(100vw-16px)] cursor-move select-none overflow-hidden rounded-card border border-line bg-paper font-stack shadow-[var(--st-shadow-card)] active:cursor-grabbing max-sm:w-60"
           style={pos ? { left: pos.x, top: pos.y } : { right: 16, bottom: 16 }}
           onClickCapture={(e) => {
             if (dragged.current) {
@@ -92,16 +93,13 @@ export function CallDock() {
             }
           }}
         >
-          {/* Drag handle + return-to-call */}
-          <div
-            onPointerDown={startDrag}
-            className="flex cursor-grab select-none items-center gap-2 px-3 py-2 active:cursor-grabbing"
-          >
+          {/* Status row + return-to-call */}
+          <div className="flex items-center gap-2 px-3 py-2">
             <LiveBars />
             <button
               onClick={() => void router.navigate(callPath(target))}
               title="Return to call"
-              className="min-w-0 flex-1 text-left"
+              className="min-w-0 flex-1 cursor-pointer text-left"
             >
               <span className="block truncate text-[12.5px] font-semibold text-ink">
                 {target.kind === "channel" ? `#${target.label}` : target.label}
@@ -115,11 +113,11 @@ export function CallDock() {
           <button
             onClick={() => void router.navigate(callPath(target))}
             title="Return to call"
-            className="block aspect-video w-full bg-[#101014]"
+            className="block aspect-video w-full cursor-pointer bg-[#101014]"
           >
             <MiniStage />
           </button>
-          <div className="flex items-center justify-center gap-1 p-1.5">
+          <div className="flex items-center justify-center gap-1 p-1.5 [&_button]:cursor-pointer">
             <DockBtn label={mic ? "Mute mic" : "Unmute mic"} active={mic} onClick={() => void toggleMic()}>
               {mic ? <Mic className="size-4" /> : <MicOff className="size-4" />}
             </DockBtn>
