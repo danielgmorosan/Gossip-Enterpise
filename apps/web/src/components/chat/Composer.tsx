@@ -11,7 +11,7 @@ import {
   SquareCode,
   FileText,
 } from "lucide-react";
-import { Plus, WandSparkles, X, Mic, Square, Trash2 } from "lucide-react";
+import { Plus, WandSparkles, X, Mic, Trash2 } from "lucide-react";
 import { VoiceRecorder, formatDuration } from "@/lib/voiceRecorder";
 import { RecordingWaveform } from "./RecordingWaveform";
 import { StackToast, Tooltip } from "@gossip/ui/stack";
@@ -103,6 +103,7 @@ export function Composer({
   busy,
   onSend,
   onAttach,
+  onSendVoice,
   attachNotice,
   staged,
   onRemoveStaged,
@@ -120,6 +121,9 @@ export function Composer({
   onSend?: (text: string) => void;
   /** Stages files (T3) - nothing uploads or sends until the user hits Send. */
   onAttach?: (files: FileList) => void;
+  /** Sends a voice recording immediately (no staging chip). Falls back to
+      onAttach staging when absent. */
+  onSendVoice?: (file: File) => void;
   /** Notice shown when attaching isn't available on this surface. */
   attachNotice?: string;
   /** Files staged by the parent, rendered as removable chips above the input. */
@@ -248,8 +252,14 @@ export function Composer({
       return;
     }
     const rec = await r.stop();
-    if (rec) onAttach?.(dataTransferFrom([rec.file]));
-    else showNotice("That recording was too short.");
+    if (!rec) {
+      showNotice("That recording was too short.");
+      return;
+    }
+    // Send the voice note straight away (no staging chip). Only channels that
+    // can't send directly fall back to staging it as an attachment.
+    if (onSendVoice) onSendVoice(rec.file);
+    else onAttach?.(dataTransferFrom([rec.file]));
   };
 
   const hasStaged = !!staged?.length;
@@ -480,32 +490,40 @@ export function Composer({
           </div>
         )}
         {recording && (
-          <div className="flex items-center gap-3 px-3 py-2.5">
-            <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-negative/10 px-2.5 py-1 text-[12px] font-semibold text-negative">
-              <span className="size-2 animate-pulse rounded-full bg-negative" />
-              REC
-            </span>
-            {/* Live mic waveform (T3) - the accent trace reacts to your voice. */}
-            <RecordingWaveform stream={recStream} className="h-9 min-w-0 flex-1" />
-            <span className="shrink-0 font-mono text-[12px] tabular-nums text-ink-mute">{formatDuration(recMs)}</span>
-            <Tooltip label="Discard">
-              <button
-                onClick={() => void stopRecordingAnd(false)}
-                aria-label="Discard recording"
-                className="grid size-9 shrink-0 place-items-center rounded-full text-ink-mute transition-colors hover:bg-field hover:text-negative"
-              >
-                <Trash2 className="size-4" />
-              </button>
-            </Tooltip>
-            <Tooltip label="Stop &amp; attach">
-              <button
-                onClick={() => void stopRecordingAnd(true)}
-                aria-label="Stop and attach"
-                className="grid size-9 shrink-0 place-items-center rounded-full bg-positive text-white transition-transform hover:scale-105 active:scale-95"
-              >
-                <Square className="size-3.5 fill-current" />
-              </button>
-            </Tooltip>
+          // Compact recorder that slides out from the mic button toward the
+          // left (Discord-style, our colors): discard · live pill · send. No
+          // full-width bar, no staged file chip - hitting send posts it.
+          <div className="flex items-center justify-end px-3 py-2.5">
+            <style>{"@keyframes voicein{from{opacity:0;transform:translateX(16px) scaleX(.94)}to{opacity:1;transform:none}}"}</style>
+            <div
+              className="flex items-center gap-2"
+              style={{ animation: "voicein .18s cubic-bezier(.2,.8,.2,1) both", transformOrigin: "right center" }}
+            >
+              <Tooltip label="Discard">
+                <button
+                  onClick={() => void stopRecordingAnd(false)}
+                  aria-label="Discard recording"
+                  className="grid size-9 shrink-0 place-items-center rounded-full text-ink-mute transition-colors hover:bg-field hover:text-negative"
+                >
+                  <Trash2 className="size-4" />
+                </button>
+              </Tooltip>
+              <div className="flex items-center gap-2.5 rounded-full border border-line bg-field px-3 py-1.5">
+                <span className="size-2 shrink-0 animate-pulse rounded-full bg-negative" />
+                <span className="shrink-0 font-mono text-[12px] tabular-nums text-ink">{formatDuration(recMs)}</span>
+                {/* Live mic waveform (T3) - the accent trace reacts to your voice. */}
+                <RecordingWaveform stream={recStream} className="h-6 w-24 sm:w-40" />
+              </div>
+              <Tooltip label="Send voice message">
+                <button
+                  onClick={() => void stopRecordingAnd(true)}
+                  aria-label="Send voice message"
+                  className="grid size-9 shrink-0 place-items-center rounded-full bg-positive text-white shadow-[0_2px_8px_-2px_var(--st-positive)] transition-transform hover:scale-105 active:scale-95"
+                >
+                  <SendHorizontal className="size-4" />
+                </button>
+              </Tooltip>
+            </div>
           </div>
         )}
         <textarea
@@ -578,7 +596,7 @@ export function Composer({
           placeholder={hasStaged ? "Add a message… (optional)" : placeholder}
           className="max-h-44 min-h-[44px] w-full resize-none bg-transparent px-3.5 py-2.5 text-[14px] text-ink outline-none placeholder:text-ink-faint max-sm:text-[16px]"
         />
-        <div className="flex items-center justify-between gap-2 px-3 pb-2">
+        <div className={cn("flex items-center justify-between gap-2 px-3 pb-2", recording && "hidden")}>
           <div className="flex items-center gap-2">
             <Tooltip label="More options">
               <button

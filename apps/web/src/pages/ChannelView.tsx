@@ -150,6 +150,21 @@ export function ChannelView({ embedded }: { embedded?: boolean } = {}) {
     }
   };
 
+  /** Voice notes send immediately (no staging chip) - upload then post. */
+  const sendVoiceNote = async (file: File) => {
+    const replyToId = replyTo?.id;
+    setReplyTo(null);
+    try {
+      setUploadNotice("Sending voice message…");
+      const ref = await uploadAttachment(file);
+      useRelay.getState().post(workspaceId, channelId, "", undefined, ref.id, replyToId);
+      setUploadNotice(null);
+    } catch (e) {
+      setUploadNotice(e instanceof Error ? e.message : "Couldn't send that voice message.");
+      setTimeout(() => setUploadNotice(null), 5000);
+    }
+  };
+
   const workspace = useRelay((s) => s.workspace);
   const channel = workspace?.channels.find((c) => c.id === channelId);
   const conn = useRelay((s) => s.conn);
@@ -485,6 +500,7 @@ export function ChannelView({ embedded }: { embedded?: boolean } = {}) {
           onSend={(text) => void sendMessage(text)}
           onTyping={() => useRelay.getState().sendTyping(workspaceId, channelId)}
           onAttach={stageFiles}
+          onSendVoice={(file) => void sendVoiceNote(file)}
           staged={staged}
           onRemoveStaged={(i) => setStaged((s) => s.filter((_, idx) => idx !== i))}
           replyingTo={replyTo}
