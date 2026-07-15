@@ -17,6 +17,7 @@ import { ChannelView } from "@/pages/ChannelView";
 import { RealDmView } from "@/components/chat/RealDmView";
 import { ParticipantMenu } from "./ParticipantMenu";
 import { useCallVolumes, effectiveMicVolume } from "@/stores/useCallVolumes";
+import { longPressProps } from "@/lib/longPress";
 import { cn, truncateHandle } from "@/lib/utils";
 
 /**
@@ -37,9 +38,10 @@ export function CallStage({ target }: { target: CallTarget }) {
   const [chatOpen, setChatOpen] = useState(true);
   // Right-click volume menu (T3): { cursor position, whose audio }.
   const [menu, setMenu] = useState<{ x: number; y: number; participant: Participant } | null>(null);
+  const openMenuAt = (x: number, y: number, participant: Participant) => setMenu({ x, y, participant });
   const openMenu = (e: React.MouseEvent, participant: Participant) => {
     e.preventDefault();
-    setMenu({ x: e.clientX, y: e.clientY, participant });
+    openMenuAt(e.clientX, e.clientY, participant);
   };
 
   // Screenshare area is resizable (T3): drag the handle under it; the size
@@ -115,7 +117,13 @@ export function CallStage({ target }: { target: CallTarget }) {
         )}
         <div className="flex max-h-[38vh] shrink-0 flex-wrap items-center justify-center gap-2 overflow-y-auto px-4 py-3">
           {cameras.map((t) => (
-            <ParticipantCard key={`${t.participant.identity}:${t.source}`} trackRef={t} large={large} onMenu={openMenu} />
+            <ParticipantCard
+              key={`${t.participant.identity}:${t.source}`}
+              trackRef={t}
+              large={large}
+              onMenu={openMenu}
+              onMenuAt={openMenuAt}
+            />
           ))}
         </div>
       </div>
@@ -194,10 +202,12 @@ function ParticipantCard({
   trackRef,
   large,
   onMenu,
+  onMenuAt,
 }: {
   trackRef: TrackReferenceOrPlaceholder;
   large: boolean;
   onMenu?: (e: React.MouseEvent, participant: Participant) => void;
+  onMenuAt?: (x: number, y: number, participant: Participant) => void;
 }) {
   const p = trackRef.participant;
   const speaking = useIsSpeaking(p);
@@ -222,7 +232,8 @@ function ParticipantCard({
   return (
     <div
       onContextMenu={(e) => onMenu?.(e, p)}
-      title="Right-click for volume"
+      {...(onMenuAt ? longPressProps((x, y) => onMenuAt(x, y, p)) : {})}
+      title="Right-click (or hold) for volume"
       className={cn(
         "relative aspect-video shrink-0 overflow-hidden rounded-card bg-[#1b1c22]",
         large ? "w-[300px]" : "w-[216px]",

@@ -26,6 +26,7 @@ import { CallSidebarPanel } from "@/components/CallDock";
 import { useUnlockPrompt } from "@/components/UnlockDialog";
 import type { RelayChannel } from "@/stores/useRelay";
 import { Trash2, Users as UsersIcon } from "lucide-react";
+import { longPressProps } from "@/lib/longPress";
 
 /** NavLink styled like the Stack kit's NavItem (kept as a real link for router semantics). */
 export function Row({
@@ -196,6 +197,7 @@ export function ChannelSidebar() {
                     }
                   : undefined
               }
+              {...(isAdmin ? longPressProps((x, y) => setChMenu({ x, y, channel: c })) : {})}
             >
               <Row to={`${base}/c/${c.id}`} active={c.id === channelId}>
                 {c.type === "private" ? <Lock className="size-4 shrink-0" /> : <Hash className="size-4 shrink-0" />}

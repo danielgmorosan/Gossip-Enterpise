@@ -479,7 +479,7 @@ export function Composer({
           }}
           rows={1}
           placeholder={hasStaged ? "Add a message… (optional)" : placeholder}
-          className="max-h-44 min-h-[44px] w-full resize-none bg-transparent px-3.5 py-2.5 text-[14px] text-ink outline-none placeholder:text-ink-faint"
+          className="max-h-44 min-h-[44px] w-full resize-none bg-transparent px-3.5 py-2.5 text-[14px] text-ink outline-none placeholder:text-ink-faint max-sm:text-[16px]"
         />
         <div className="flex items-center justify-between gap-2 px-3 pb-2">
           <div className="flex items-center gap-2">
@@ -499,29 +499,37 @@ export function Composer({
                 <Plus className={cn("size-4 transition-transform", plusOpen && "rotate-45")} />
               </button>
             </Tooltip>
-            <span className="inline-flex items-center gap-1.5 text-[11px] text-ink-faint">
+            <span
+              className="inline-flex items-center gap-1.5 text-[11px] text-ink-faint"
+              title={e2e ? "End-to-end encrypted" : "Workspace-confidential"}
+            >
               {e2e ? <ShieldCheck className="size-3.5 text-positive" /> : <Shield className="size-3.5" />}
-              {e2e ? "End-to-end encrypted" : "Workspace-confidential"}
+              {/* Icon-only on phones - the text crowds the send button out. */}
+              <span className="max-sm:hidden">{e2e ? "End-to-end encrypted" : "Workspace-confidential"}</span>
             </span>
           </div>
           <div className="flex items-center gap-0.5">
             <ToolBtn label="Improve draft (local AI)" active={aiBusy} onClick={() => void improveDraft()}>
               <WandSparkles className={cn("size-4", aiBusy && "animate-pulse")} />
             </ToolBtn>
-            <span aria-hidden className="mx-1 h-4 w-px bg-line" />
-            <ToolBtn label="Bold (Ctrl+B)" onClick={() => wrapSelection("**")}>
-              <Bold className="size-4" />
-            </ToolBtn>
-            <ToolBtn label="Italic (Ctrl+I)" onClick={() => wrapSelection("*")}>
-              <Italic className="size-4" />
-            </ToolBtn>
-            <ToolBtn label="Inline code (Ctrl+E)" onClick={() => wrapSelection("`")}>
-              <Code className="size-4" />
-            </ToolBtn>
-            <ToolBtn label="Code block" onClick={() => wrapSelection("```\n", "\n```")}>
-              <SquareCode className="size-4" />
-            </ToolBtn>
-            <span aria-hidden className="mx-1 h-4 w-px bg-line" />
+            {/* Markdown shortcuts are desktop conveniences - on phones they
+                push the send button off-screen, so they collapse below sm. */}
+            <span aria-hidden className="mx-1 h-4 w-px bg-line max-sm:hidden" />
+            <span className="contents max-sm:hidden">
+              <ToolBtn label="Bold (Ctrl+B)" onClick={() => wrapSelection("**")}>
+                <Bold className="size-4" />
+              </ToolBtn>
+              <ToolBtn label="Italic (Ctrl+I)" onClick={() => wrapSelection("*")}>
+                <Italic className="size-4" />
+              </ToolBtn>
+              <ToolBtn label="Inline code (Ctrl+E)" onClick={() => wrapSelection("`")}>
+                <Code className="size-4" />
+              </ToolBtn>
+              <ToolBtn label="Code block" onClick={() => wrapSelection("```\n", "\n```")}>
+                <SquareCode className="size-4" />
+              </ToolBtn>
+            </span>
+            <span aria-hidden className="mx-1 h-4 w-px bg-line max-sm:hidden" />
             <ToolBtn
               label="Add emoji"
               active={emojiOpen}

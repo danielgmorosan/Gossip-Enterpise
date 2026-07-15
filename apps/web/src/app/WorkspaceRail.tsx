@@ -6,6 +6,7 @@ import { UserAvatar as Avatar } from "@/components/UserAvatar";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import { ContextMenu, ConfirmDialog } from "@/components/ContextMenu";
 import { useRelay, type MyWorkspace } from "@/stores/useRelay";
+import { longPressProps } from "@/lib/longPress";
 import { useSession } from "@/stores/useSession";
 import { useNotifications } from "@/stores/useNotifications";
 import { cn } from "@/lib/utils";
@@ -81,6 +82,7 @@ export function WorkspaceRail() {
                 e.preventDefault();
                 setMenu({ x: e.clientX, y: e.clientY, ws: w });
               }}
+              {...longPressProps((x, y) => setMenu({ x, y, ws: w }))}
               className="group relative flex items-center justify-center"
             >
               <span

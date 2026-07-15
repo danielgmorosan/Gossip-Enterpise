@@ -334,7 +334,12 @@ export function ChannelView({ embedded }: { embedded?: boolean } = {}) {
             const mine = m.senderId === myId;
             const stats = replyStats.get(m.id);
             return (
-              <div key={m.id} id={`msg-${m.id}`} className={`group relative flex gap-3 px-5 ${showAuthor ? "mt-3 pt-1" : "py-0.5"} hover:bg-paper-2`}>
+              <div
+                key={m.id}
+                id={`msg-${m.id}`}
+                tabIndex={0}
+                className={`group relative flex gap-3 px-5 outline-none ${showAuthor ? "mt-3 pt-1" : "py-0.5"} hover:bg-paper-2 focus-within:bg-paper-2`}
+              >
                 <div className="w-9 shrink-0">
                   {showAuthor && (
                     <button
@@ -409,7 +414,7 @@ export function ChannelView({ embedded }: { embedded?: boolean } = {}) {
                   <MessageActionsBar
                     copyText={m.body}
                     shareText={`"${m.body}"\n- ${m.senderName} in #${name}\n${window.location.origin}/w/${workspaceId}/c/${channelId}`}
-                    className="absolute -top-2.5 right-4 hidden group-hover:flex"
+                    className="absolute -top-2.5 right-4 hidden group-hover:flex group-focus-within:flex"
                   >
                     <button
                       onClick={() => setReplyTo({ id: m.id, senderName: m.senderName, body: m.body || (m.attachment ? `📎 ${m.attachment.name}` : "") })}

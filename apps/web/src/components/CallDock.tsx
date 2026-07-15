@@ -82,7 +82,7 @@ export function CallDock() {
       {!onCallPage && (
         <div
           data-minicall
-          className="fixed z-50 w-72 max-w-[calc(100vw-16px)] overflow-hidden rounded-card border border-line bg-paper font-stack shadow-[var(--st-shadow-card)]"
+          className="fixed z-50 w-72 max-w-[calc(100vw-16px)] overflow-hidden rounded-card border border-line bg-paper font-stack shadow-[var(--st-shadow-card)] max-sm:w-60"
           style={pos ? { left: pos.x, top: pos.y } : { right: 16, bottom: 16 }}
           onClickCapture={(e) => {
             if (dragged.current) {

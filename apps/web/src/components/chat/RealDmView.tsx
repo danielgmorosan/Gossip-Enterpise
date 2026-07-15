@@ -301,7 +301,7 @@ export function RealDmView({ peerId, peerName, embedded }: { peerId: string; pee
             const image = !deleted ? parseImageMarker(m.content) : null;
             if (image) {
               return (
-                <div key={m.id ?? i} className={cn("group flex items-end gap-2", mine ? "justify-end" : "justify-start")}>
+                <div key={m.id ?? i} tabIndex={0} className={cn("group flex items-end gap-2 outline-none", mine ? "justify-end" : "justify-start")}>
                   {!mine && <div className="w-7 shrink-0"><Avatar name={peerName || peerId} id={peerId} className="!size-7 !text-[11px]" /></div>}
                   <div className={cn("flex max-w-[68%] flex-col", mine ? "items-end" : "items-start")}>
                     <button
@@ -346,7 +346,7 @@ export function RealDmView({ peerId, peerName, embedded }: { peerId: string; pee
               <MessageActionsBar
                 copyText={m.content}
                 shareText={`"${m.content}"\n- ${attribution}, ${formatTime(new Date(m.timestamp))}`}
-                className="hidden shrink-0 self-center group-hover:flex"
+                className="hidden shrink-0 self-center group-hover:flex group-focus-within:flex"
               >
                 {canMutate && (
                   <Tooltip label="Edit message">
@@ -372,7 +372,7 @@ export function RealDmView({ peerId, peerName, embedded }: { peerId: string; pee
               );
             }
             return (
-              <div key={m.id ?? i} className={cn("group flex items-end gap-2", mine ? "justify-end" : "justify-start")}>
+              <div key={m.id ?? i} tabIndex={0} className={cn("group flex items-end gap-2 outline-none", mine ? "justify-end" : "justify-start")}>
                 {!mine && <div className="w-7 shrink-0"><Avatar name={peerName || peerId} id={peerId} className="!size-7 !text-[11px]" /></div>}
                 {mine && actions}
                 <div className={cn("flex max-w-[68%] min-w-0 flex-col", mine ? "items-end" : "items-start")}>
