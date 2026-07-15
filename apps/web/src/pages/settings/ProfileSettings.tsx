@@ -97,7 +97,7 @@ export function ProfileSettings() {
       <SettingGroup title="Share my contact">
         <SettingRow
           label={
-            <div className="flex items-start gap-4">
+            <div className="flex items-start gap-4 max-md:flex-col">
               {userId ? (
                 <div className="shrink-0 rounded-card border border-line bg-white p-2.5">
                   {/* Fixed black-on-white for reliable scanning in both themes. */}

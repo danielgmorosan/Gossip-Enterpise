@@ -14,11 +14,12 @@ import type { CallTarget } from "@/stores/useCall";
 /**
  * In-call text chat (T2-06). Not a separate transport: a channel call shows
  * the channel's own messages (relay), a DM call shows the E2E conversation
- * (gossip-sdk) — so chat sent here lands where it always would.
+ * (gossip-sdk) — so chat sent here lands where it always would. Docks below
+ * the call stage, full-width (Discord-style).
  */
 export function CallChatPanel({ target, onClose }: { target: CallTarget; onClose: () => void }) {
   return (
-    <aside className="flex w-80 shrink-0 flex-col border-l border-line bg-paper">
+    <aside className="flex min-h-0 flex-1 flex-col border-t border-line bg-paper">
       <header className="flex h-10 shrink-0 items-center gap-2 border-b border-line px-3">
         <MessageSquareText className="size-4 text-ink-mute" />
         <span className="min-w-0 truncate text-[13px] font-semibold text-ink">

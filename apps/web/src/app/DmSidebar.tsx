@@ -8,6 +8,7 @@ import { useSession } from "@/stores/useSession";
 import { useContacts, useContactsLive } from "@/stores/useContacts";
 import { useNotifications } from "@/stores/useNotifications";
 import { NewDmDialog } from "@/components/chat/NewDmDialog";
+import { CallSidebarPanel } from "@/components/CallDock";
 import { Row, GroupLabel } from "./ChannelSidebar";
 
 /** Unread pill for a DM row (T2-09). */
@@ -35,7 +36,7 @@ export function DmSidebar() {
   useContactsLive();
 
   return (
-    <aside className="flex h-full w-[264px] shrink-0 flex-col border-r border-line bg-paper-2 font-stack">
+    <aside className="flex h-full w-[264px] shrink-0 flex-col border-r border-line bg-paper-2 font-stack max-md:w-auto max-md:min-w-0 max-md:flex-1">
       {/* Home header */}
       <div className="flex items-center gap-2 border-b border-line px-3 py-3">
         <div className="min-w-0 flex-1">
@@ -49,7 +50,9 @@ export function DmSidebar() {
 
       {/* Quick nav */}
       <div className="space-y-0.5 px-2 pt-2">
-        <Row to="/home" end>
+        {/* ?view=contacts keeps the route at /home but tells the mobile shell
+            to show the main pane (desktop ignores the param entirely). */}
+        <Row to="/home?view=contacts" end>
           <Users className="size-4 shrink-0" /> Contacts
         </Row>
       </div>
@@ -84,6 +87,9 @@ export function DmSidebar() {
           {sessionStatus === "open" ? truncateHandle(useSession.getState().userId ?? "", 12, 6) : "session locked"}
         </div>
       </div>
+
+      {/* Live call panel — pinned to the sidebar bottom while in a call, Discord-style. */}
+      <CallSidebarPanel />
 
       {newDm && <NewDmDialog onClose={() => setNewDm(false)} />}
     </aside>

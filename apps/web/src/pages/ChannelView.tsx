@@ -122,7 +122,7 @@ export function ChannelView() {
   }
 
   return (
-    <div className="flex min-h-0 flex-1">
+    <div className="relative flex min-h-0 flex-1">
       <div className="flex min-w-0 flex-1 flex-col">
         <PaneHeader
           icon={isPrivate ? <Lock className="size-4 text-ink-faint" /> : <Hash className="size-4 text-ink-faint" />}
@@ -131,7 +131,7 @@ export function ChannelView() {
           badge={
             <span
               title="Channel messages are workspace-confidential (TLS via the relay), not E2E in v1."
-              className="ml-1 inline-flex items-center gap-1 rounded-control bg-field px-2 py-0.5 text-[11px] font-medium text-ink-mute"
+              className="ml-1 inline-flex items-center gap-1 rounded-control bg-field px-2 py-0.5 text-[11px] font-medium text-ink-mute max-md:hidden"
             >
               <ShieldAlert className="size-3" /> confidential
             </span>

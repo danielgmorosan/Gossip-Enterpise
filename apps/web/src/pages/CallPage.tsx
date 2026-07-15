@@ -161,15 +161,22 @@ export function CallPage() {
   if (state.phase === "ready" && boundToThisCall) {
     return (
       <div className="flex min-h-0 flex-1 flex-col bg-paper font-stack">
-        <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line bg-paper px-4 font-stack">
+        <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line bg-paper px-4 font-stack max-md:px-3">
+          <button
+            onClick={back}
+            aria-label="Back"
+            className="-ml-1.5 grid size-8 shrink-0 place-items-center rounded-control text-ink-mute transition-colors hover:bg-field hover:text-ink md:hidden"
+          >
+            <ArrowLeft className="size-4" />
+          </button>
           <span className="grid size-6 place-items-center rounded-control bg-field text-ink">
             <Video className="size-3.5" />
           </span>
-          <span className="text-[14px] font-semibold text-ink">
+          <span className="min-w-0 truncate text-[14px] font-semibold text-ink">
             {isDm ? `Call · ${peerName || truncateHandle(peerId, 10, 4)}` : `Huddle · #${channel?.name ?? channelId}`}
           </span>
-          <span className="ml-1 font-mono text-[10px] text-ink-faint">LiveKit · E2E-capable</span>
-          <span className="ml-auto text-[11px] text-ink-faint">navigating away keeps the call running</span>
+          <span className="ml-1 font-mono text-[10px] text-ink-faint max-md:hidden">LiveKit · E2E-capable</span>
+          <span className="ml-auto text-[11px] text-ink-faint max-md:hidden">navigating away keeps the call running</span>
         </header>
         <div className="flex min-h-0 flex-1">
           {callStatus === "connected" ? (

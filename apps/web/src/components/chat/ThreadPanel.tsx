@@ -84,7 +84,7 @@ export function ThreadPanel({
   };
 
   return (
-    <aside className="flex w-[360px] shrink-0 flex-col border-l border-line bg-paper-2 font-stack">
+    <aside className="flex w-[360px] shrink-0 flex-col border-l border-line bg-paper-2 font-stack max-md:absolute max-md:inset-0 max-md:z-20 max-md:w-auto max-md:border-l-0">
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line px-4">
         <MessagesSquare className="size-4 text-ink-mute" />
         <div className="text-[14px] font-semibold text-ink">Thread</div>

@@ -40,7 +40,7 @@ export function AiSidePanel({
   };
 
   return (
-    <aside className="flex w-[360px] shrink-0 flex-col border-l border-line bg-paper-2 font-stack">
+    <aside className="flex w-[360px] shrink-0 flex-col border-l border-line bg-paper-2 font-stack max-md:absolute max-md:inset-0 max-md:z-20 max-md:w-auto max-md:border-l-0">
       <header className="flex h-12 items-center gap-2 border-b border-line px-4">
         <span className="grid size-7 place-items-center rounded-control bg-ink text-paper">
           <Sparkles className="size-4" />
