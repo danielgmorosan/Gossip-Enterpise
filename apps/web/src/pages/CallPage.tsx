@@ -80,6 +80,11 @@ export function CallPage() {
         echoCancellation: audio.echoCancellation,
         noiseSuppression: audio.noiseSuppression,
         autoGainControl: audio.autoGainControl,
+        // Mono capture: a dynamic mic on one input channel otherwise arrives
+        // as stereo-with-a-dead-side and plays in one ear. Mono downmixes at
+        // the source and plays centered for everyone. (Screenshare audio is
+        // unaffected — stereo is right there.)
+        channelCount: 1,
       },
       ...(audio.outputId ? { audioOutput: { deviceId: audio.outputId } } : {}),
     }),
