@@ -1,0 +1,12 @@
+{
+  "name": "Gossip Workspace",
+  "short_name": "Gossip",
+  "description": "Private, decentralized team workspace on Gossip's E2E stack.",
+  "theme_color": "#0F1115",
+  "background_color": "#0F1115",
+  "display": "standalone",
+  "icons": [
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/gossip-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
