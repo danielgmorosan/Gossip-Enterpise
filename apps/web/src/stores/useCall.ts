@@ -1,4 +1,4 @@
-import { DisconnectReason, Room, RoomEvent, type RoomOptions } from "livekit-client";
+import { DisconnectReason, Room, RoomEvent, Track, type RoomOptions } from "livekit-client";
 import { create } from "zustand";
 import { syncNoiseGate, resetNoiseGate } from "@/lib/audioProcessing";
 import { playJoinBlip, playLeaveBlip, playCallEnd } from "@/lib/sounds";
@@ -41,6 +41,9 @@ interface CallState {
   mic: boolean;
   cam: boolean;
   screen: boolean;
+  /** Sharing without an audio track — the browser/picker choice gave no sound (T3 hint). */
+  screenAudioMissing: boolean;
+  dismissScreenAudioHint: () => void;
   /** Why the last session ended (server kick, duplicate identity, …); null after a user-initiated leave. */
   lastDisconnectReason: DisconnectReason | null;
 
@@ -65,6 +68,8 @@ export const useCall = create<CallState>((set, get) => {
     mic: false,
     cam: false,
     screen: false,
+    screenAudioMissing: false,
+    dismissScreenAudioHint: () => set({ screenAudioMissing: false }),
     lastDisconnectReason: null,
 
     connect: async ({ url, token, target, options }) => {
@@ -97,6 +102,7 @@ export const useCall = create<CallState>((set, get) => {
               mic: false,
               cam: false,
               screen: false,
+              screenAudioMissing: false,
               lastDisconnectReason: reason ?? null,
             });
             resetNoiseGate();
@@ -127,7 +133,7 @@ export const useCall = create<CallState>((set, get) => {
           /* already down */
         }
         if (get().room === room) {
-          set({ room: null, status: "idle", target: null, mic: false, cam: false, screen: false });
+          set({ room: null, status: "idle", target: null, mic: false, cam: false, screen: false, screenAudioMissing: false });
         }
         throw e;
       }
@@ -137,7 +143,7 @@ export const useCall = create<CallState>((set, get) => {
       const room = get().room;
       const target = get().target;
       const wasAlone = !!room && room.remoteParticipants.size === 0;
-      set({ room: null, status: "idle", target: null, mic: false, cam: false, screen: false });
+      set({ room: null, status: "idle", target: null, mic: false, cam: false, screen: false, screenAudioMissing: false });
       resetNoiseGate();
       window.removeEventListener("beforeunload", guardUnload);
       if (room) {
@@ -171,15 +177,28 @@ export const useCall = create<CallState>((set, get) => {
     toggleScreen: async () => {
       const r = get().room;
       if (!r) return;
-      // audio: true → the browser's share picker offers "also share audio"
-      // (tab audio anywhere; system audio on Windows when sharing a screen).
-      // Without it the picker never even shows the checkbox.
-      await r.localParticipant.setScreenShareEnabled(!get().screen, {
-        audio: true,
-        // Let people share the Gossip tab itself (demos) instead of hiding it.
-        selfBrowserSurface: "include",
-      });
+      const enabling = !get().screen;
+      try {
+        // audio: true → the browser's share picker offers "also share audio"
+        // (tab audio anywhere; system audio on Windows when sharing a screen).
+        // Without it the picker never even shows the checkbox.
+        await r.localParticipant.setScreenShareEnabled(enabling, {
+          audio: true,
+          // Let people share the Gossip tab itself (demos) instead of hiding it.
+          selfBrowserSurface: "include",
+          // Windows Chrome: pre-tick the "share system audio" option for screen shares.
+          systemAudio: "include",
+        });
+      } catch {
+        // User cancelled the share picker — not an error.
+      }
       syncLocal();
+      // Sharing but no audio track came with it (window share, unchecked box,
+      // or Firefox — which can't capture display audio at all): tell the
+      // sharer, so silence isn't a mystery on the other end.
+      const sharingNow = get().screen;
+      const hasShareAudio = !!r.localParticipant.getTrackPublication(Track.Source.ScreenShareAudio);
+      set({ screenAudioMissing: sharingNow && !hasShareAudio });
     },
   };
 });

@@ -9,7 +9,7 @@ import {
   useTracks,
   type TrackReferenceOrPlaceholder,
 } from "@livekit/components-react";
-import { Mic, MicOff, Video, VideoOff, MonitorUp, PhoneOff, MessageSquareText } from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, MonitorUp, PhoneOff, MessageSquareText, VolumeX, X } from "lucide-react";
 import { Tooltip } from "@gossip/ui/stack";
 import { UserAvatar } from "@/components/UserAvatar";
 import { useCall, type CallTarget } from "@/stores/useCall";
@@ -32,6 +32,7 @@ export function CallStage({ target }: { target: CallTarget }) {
   const mic = useCall((s) => s.mic);
   const cam = useCall((s) => s.cam);
   const screen = useCall((s) => s.screen);
+  const screenAudioMissing = useCall((s) => s.screenAudioMissing);
   const { toggleMic, toggleCam, toggleScreen, leave } = useCall.getState();
   const [chatOpen, setChatOpen] = useState(true);
   // Right-click volume menu (T3): { cursor position, whose audio }.
@@ -76,6 +77,26 @@ export function CallStage({ target }: { target: CallTarget }) {
       </div>
 
       {menu && <ParticipantMenu x={menu.x} y={menu.y} participant={menu.participant} onClose={() => setMenu(null)} />}
+
+      {/* Sharer-side heads-up: this share carries NO audio (browser/picker
+          choice) — better than mystery silence on the other end (T3). */}
+      {screenAudioMissing && (
+        <div className="flex shrink-0 items-center gap-2.5 border-t border-line bg-paper-2 px-4 py-2 text-[12.5px] text-ink-mute">
+          <VolumeX className="size-4 shrink-0 text-negative" />
+          <span className="min-w-0">
+            <span className="font-semibold text-ink">Your share has no sound.</span>{" "}
+            To include audio: share a <span className="font-medium text-ink">browser tab</span> and tick “Also share tab
+            audio”, or your entire screen with “Share system audio”. Window shares — and Firefox — can't capture audio.
+          </span>
+          <button
+            onClick={() => useCall.getState().dismissScreenAudioHint()}
+            aria-label="Dismiss"
+            className="ml-auto grid size-7 shrink-0 place-items-center rounded-control text-ink-faint hover:bg-field hover:text-ink"
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Control tray — Stack tokens (no white-on-dark blobs in dark mode). */}
       <div className="flex h-16 shrink-0 items-center justify-center gap-2 border-t border-line bg-paper px-4">
