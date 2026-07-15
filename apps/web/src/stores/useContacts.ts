@@ -44,6 +44,8 @@ interface ContactsState {
   refresh: () => Promise<void>;
   /** Add a contact by their gossip userId; the SDK fetches their public key from the relay. */
   add: (userId: string, name: string) => Promise<{ ok: boolean; error?: string }>;
+  /** Set your local nickname for a contact (T3) — what all your DM UI shows. */
+  rename: (userId: string, name: string) => Promise<{ ok: boolean; error?: string }>;
   subscribe: () => () => void;
 }
 
@@ -87,6 +89,18 @@ export const useContacts = create<ContactsState>((set, get) => ({
       return { ok: true };
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : "Couldn't start the chat (is their key published?)" };
+    }
+  },
+
+  rename: async (userId, name) => {
+    const next = name.trim();
+    if (!next) return { ok: false, error: "Nickname can't be empty." };
+    try {
+      await gossipSdk.contacts.updateName(userId, next);
+      await get().refresh();
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : "Couldn't rename the contact." };
     }
   },
 

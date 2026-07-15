@@ -18,6 +18,7 @@ import { useCall } from "@/stores/useCall";
 import { useSession } from "@/stores/useSession";
 import { useUnlockPrompt } from "@/components/UnlockDialog";
 import { useLightbox } from "@/components/ImageLightbox";
+import { UserProfileDialog } from "@/components/UserProfileDialog";
 import { useFileDrop } from "@/lib/useFileDrop";
 import { useContacts } from "@/stores/useContacts";
 import { useNotifications } from "@/stores/useNotifications";
@@ -44,6 +45,7 @@ export function RealDmView({ peerId, peerName, embedded }: { peerId: string; pee
   const [editingId, setEditingId] = useState<number | null>(null);
   const [attachNotice, setAttachNotice] = useState<string | null>(null);
   const [staged, setStaged] = useState<File[]>([]);
+  const [profileOpen, setProfileOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   // Dropping/picking images only STAGES them (consent + caption) — nothing is
   // encrypted or sent until the user hits Send.
@@ -232,7 +234,9 @@ export function RealDmView({ peerId, peerName, embedded }: { peerId: string; pee
             isSelf ? (
               <span className="grid size-7 place-items-center rounded-control bg-ink text-paper"><ShieldCheck className="size-4" /></span>
             ) : (
-              <Avatar name={peerName || peerId} id={peerId} className="!size-7 !text-[11px]" />
+              <button onClick={() => setProfileOpen(true)} title="View profile / set nickname" className="transition-transform hover:scale-105">
+                <Avatar name={peerName || peerId} id={peerId} className="!size-7 !text-[11px]" />
+              </button>
             )
           }
           title={title}
@@ -420,6 +424,10 @@ export function RealDmView({ peerId, peerName, embedded }: { peerId: string; pee
           mentionCandidates={mentionCandidates}
         />
       </div>
+
+      {profileOpen && !isSelf && (
+        <UserProfileDialog userId={peerId} name={peerName || truncateHandle(peerId, 10, 4)} onClose={() => setProfileOpen(false)} />
+      )}
     </div>
   );
 }
