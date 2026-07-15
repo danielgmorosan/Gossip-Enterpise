@@ -7,6 +7,7 @@ import { useSession } from "@/stores/useSession";
 import { useRelay } from "@/stores/useRelay";
 import { validateMnemonic } from "@/lib/sdk";
 import { peekPendingInvite } from "@/lib/invite";
+import { hasBiometricVault, unlockBiometricVault } from "@/lib/biometricVault";
 
 export function IdentityUnlock() {
   const nav = useNavigate();
@@ -94,9 +95,23 @@ export function IdentityUnlock() {
 
       <button
         type="button"
-        disabled
-        title="Available on the desktop/mobile build"
-        className="flex w-full items-center justify-center gap-2.5 rounded-control border border-line bg-field py-3 text-[14px] font-medium text-ink-mute opacity-60"
+        disabled={!hasBiometricVault() || busy}
+        title={hasBiometricVault() ? "Windows Hello / Touch ID / device PIN" : "Enable in Settings → Security after unlocking"}
+        onClick={async () => {
+          setBusy(true);
+          setError(null);
+          try {
+            const phrase = await unlockBiometricVault();
+            const ok = await unlock(phrase);
+            if (ok) goToApp();
+            else setError("Couldn't open a session. Check your connection and try again.");
+          } catch (e) {
+            setError(e instanceof Error ? e.message : "Biometric unlock failed.");
+          } finally {
+            setBusy(false);
+          }
+        }}
+        className="flex w-full items-center justify-center gap-2.5 rounded-control border border-line bg-field py-3 text-[14px] font-medium text-ink transition-colors enabled:hover:border-line-strong disabled:text-ink-mute disabled:opacity-60"
       >
         <Fingerprint className="size-5" /> Unlock with biometrics
       </button>

@@ -1,9 +1,16 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { KeyRound, ShieldCheck } from "lucide-react";
+import { Fingerprint, KeyRound, Loader2, ShieldCheck } from "lucide-react";
 import { SettingsPage } from "./SettingsLayout";
 import { SettingGroup, SettingRow } from "./parts";
 import { Button } from "@gossip/ui/stack";
 import { useSession } from "@/stores/useSession";
+import {
+  biometricsAvailable,
+  enrollBiometricVault,
+  hasBiometricVault,
+  removeBiometricVault,
+} from "@/lib/biometricVault";
 
 export function SecuritySettings() {
   const nav = useNavigate();
@@ -11,6 +18,35 @@ export function SecuritySettings() {
   const signOut = useSession((s) => s.signOut);
   const remembered = useSession((s) => s.remembered);
   const forgetDevice = useSession((s) => s.forgetDevice);
+  const mnemonic = useSession((s) => s.mnemonic);
+  const displayName = useSession((s) => s.displayName);
+
+  // Biometric vault (T3): Windows Hello / Touch ID / device PIN unlock.
+  const [bioAvailable, setBioAvailable] = useState(false);
+  const [bioEnrolled, setBioEnrolled] = useState(hasBiometricVault());
+  const [bioBusy, setBioBusy] = useState(false);
+  const [bioMsg, setBioMsg] = useState<string | null>(null);
+  useEffect(() => {
+    void biometricsAvailable().then(setBioAvailable);
+  }, []);
+
+  const enrollBio = async () => {
+    if (!mnemonic) {
+      setBioMsg("Unlock with your passphrase once in this tab, then enable biometrics.");
+      return;
+    }
+    setBioBusy(true);
+    setBioMsg(null);
+    try {
+      await enrollBiometricVault(mnemonic, displayName);
+      setBioEnrolled(true);
+      setBioMsg("Done — next unlock is one fingerprint/PIN away.");
+    } catch (e) {
+      setBioMsg(e instanceof Error ? e.message : "Couldn't set up biometric unlock.");
+    } finally {
+      setBioBusy(false);
+    }
+  };
 
   const lock = async () => {
     await signOut();
@@ -35,6 +71,45 @@ export function SecuritySettings() {
       </SettingGroup>
 
       <SettingGroup title="Session">
+        <SettingRow
+          label={
+            <span className="flex items-center gap-2">
+              Biometric unlock
+              {bioEnrolled && (
+                <span className="inline-flex items-center gap-1 rounded-control bg-field px-2 py-0.5 text-[11px] font-medium text-positive">
+                  <span className="size-1.5 rounded-full bg-positive" /> on
+                </span>
+              )}
+            </span>
+          }
+          desc={
+            bioMsg ??
+            (bioEnrolled
+              ? "Unlock with Windows Hello / Touch ID / device PIN. Your passphrase is stored encrypted — only your biometric gesture can decrypt it."
+              : bioAvailable
+                ? "Encrypt your passphrase behind Windows Hello / Touch ID / your device PIN. One touch to unlock, nothing stored in plaintext."
+                : "No platform authenticator found — set up Windows Hello (or your device's biometrics/PIN) first.")
+          }
+          control={
+            bioEnrolled ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  removeBiometricVault();
+                  setBioEnrolled(false);
+                  setBioMsg(null);
+                }}
+              >
+                Remove
+              </Button>
+            ) : (
+              <Button variant="secondary" size="sm" onClick={() => void enrollBio()} disabled={!bioAvailable || bioBusy || status !== "open"}>
+                {bioBusy ? <Loader2 className="size-4 animate-spin" /> : <Fingerprint className="size-4" />} Enable
+              </Button>
+            )
+          }
+        />
         <SettingRow
           label="Stay unlocked on this device"
           desc={

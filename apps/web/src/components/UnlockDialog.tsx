@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { create } from "zustand";
-import { Check, Loader2, LockKeyhole } from "lucide-react";
+import { Check, Fingerprint, Loader2, LockKeyhole } from "lucide-react";
 import { Button, Field, PasswordInput, StackModal, ModalBody } from "@gossip/ui/stack";
 import { useSession } from "@/stores/useSession";
 import { validateMnemonic } from "@/lib/sdk";
+import { hasBiometricVault, unlockBiometricVault } from "@/lib/biometricVault";
 import { cn } from "@/lib/utils";
 
 /**
@@ -26,6 +27,21 @@ export function UnlockDialog() {
   const [error, setError] = useState<string | null>(null);
 
   if (!open) return null;
+
+  const bioUnlock = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const phrase = await unlockBiometricVault();
+      const ok = await useSession.getState().unlock(phrase);
+      if (ok) hide();
+      else setError("Couldn't open a session. Check your connection and try again.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Biometric unlock failed.");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,6 +74,11 @@ export function UnlockDialog() {
             <p className="text-[12.5px] text-ink-mute">Your keys never leave this device.</p>
           </div>
         </div>
+        {hasBiometricVault() && (
+          <Button variant="secondary" block className="mb-4" disabled={busy} onClick={() => void bioUnlock()}>
+            <Fingerprint className="size-4" /> Unlock with biometrics
+          </Button>
+        )}
         <form onSubmit={submit} className="space-y-4">
           <Field label="Passphrase" hint="Your 12-word BIP39 recovery phrase.">
             <PasswordInput
