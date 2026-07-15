@@ -1,6 +1,14 @@
 import { DisconnectReason, Room, RoomEvent, type RoomOptions } from "livekit-client";
 import { create } from "zustand";
 import { syncNoiseGate, resetNoiseGate } from "@/lib/audioProcessing";
+import { playJoinBlip, playLeaveBlip, playCallEnd } from "@/lib/sounds";
+
+// Reloading mid-call would silently drop the call — ask first (browsers show
+// their own generic wording; registering the handler is what arms the prompt).
+function guardUnload(e: BeforeUnloadEvent) {
+  e.preventDefault();
+  e.returnValue = "";
+}
 
 /**
  * Global call session (T-14). The LiveKit `Room` lives HERE — module scope,
@@ -68,11 +76,14 @@ export const useCall = create<CallState>((set, get) => {
 
       const room = new Room(options);
       set({ room, status: "connecting", target, lastDisconnectReason: null });
+      window.addEventListener("beforeunload", guardUnload);
       room
         .on(RoomEvent.LocalTrackPublished, syncLocal)
         .on(RoomEvent.LocalTrackUnpublished, syncLocal)
         .on(RoomEvent.TrackMuted, syncLocal)
         .on(RoomEvent.TrackUnmuted, syncLocal)
+        .on(RoomEvent.ParticipantConnected, playJoinBlip)
+        .on(RoomEvent.ParticipantDisconnected, playLeaveBlip)
         .on(RoomEvent.Disconnected, (reason) => {
           // Covers every path out: dock Leave, in-call leave button, server kick.
           if (reason !== undefined && reason !== DisconnectReason.CLIENT_INITIATED) {
@@ -89,11 +100,15 @@ export const useCall = create<CallState>((set, get) => {
               lastDisconnectReason: reason ?? null,
             });
             resetNoiseGate();
+            window.removeEventListener("beforeunload", guardUnload);
+            playCallEnd();
           }
         });
       try {
         await room.connect(url, token);
-        await room.localParticipant.enableCameraAndMicrophone();
+        // Mic only on join — the camera permission prompt is intrusive, so the
+        // browser only asks when the user actually turns their camera on.
+        await room.localParticipant.setMicrophoneEnabled(true);
         // Only flip to connected if this room is still current (no race with leave()).
         if (get().room === room) {
           set({ status: "connected" });
@@ -120,13 +135,23 @@ export const useCall = create<CallState>((set, get) => {
 
     leave: async () => {
       const room = get().room;
+      const target = get().target;
+      const wasAlone = !!room && room.remoteParticipants.size === 0;
       set({ room: null, status: "idle", target: null, mic: false, cam: false, screen: false });
       resetNoiseGate();
+      window.removeEventListener("beforeunload", guardUnload);
       if (room) {
+        playCallEnd();
         try {
           await room.disconnect(); // stops all local tracks — mic light goes off
         } catch {
           /* already down */
+        }
+        // Last one out: flip the "call in progress" state immediately instead
+        // of waiting for the relay's next LiveKit reconciliation.
+        if (wasAlone && target?.kind === "channel") {
+          const { useRelay } = await import("./useRelay");
+          useRelay.getState().callEndedHint(target.workspaceId, target.channelId);
         }
       }
     },

@@ -4,13 +4,18 @@ import { RouterProvider } from "react-router-dom";
 import { router } from "./app/router";
 import { useSession } from "./stores/useSession";
 import { CallDock } from "./components/CallDock";
+import { UnlockDialog } from "./components/UnlockDialog";
 import { IncomingCallOverlay } from "./components/IncomingCallOverlay";
 import { NotificationToaster } from "./components/NotificationToaster";
 import "./lib/devLivekit";
 import "./index.css";
 
-// Warm up the SDK + load WASM early so unlock is fast (fire-and-forget).
-void useSession.getState().warmup();
+// Warm up the SDK + load WASM early, then auto-unlock if the user chose
+// "keep me unlocked on this device" (fire-and-forget).
+void useSession
+  .getState()
+  .warmup()
+  .then(() => useSession.getState().autoUnlock());
 
 // Register the notification service worker (required for OS notifications on
 // Android/PWA; harmless elsewhere — it has no fetch handler).
@@ -26,6 +31,8 @@ createRoot(document.getElementById("root")!).render(
     <CallDock />
     {/* Incoming DM call ring (T3) — outside the router so it rings on every page. */}
     <IncomingCallOverlay />
+    {/* In-place session unlock (T3) — usable from any page without navigation. */}
+    <UnlockDialog />
     {/* Live notification toasts (T2-09) — outside the router for the same reason. */}
     <NotificationToaster />
   </StrictMode>,

@@ -115,7 +115,11 @@ export function CallPage() {
       } else {
         room = `${workspaceId}:${channelId}`;
       }
-      const identity = userId ?? `guest-${Math.random().toString(36).slice(2, 8)}`;
+      // Identity = handle + per-connection suffix. LiveKit hard-kicks any
+      // existing connection with the SAME identity (DUPLICATE_IDENTITY), which
+      // booted people sharing an account or joining from two tabs. The suffix
+      // makes every connection unique; UI strips it back off for display.
+      const identity = `${userId ?? "guest"}#${Math.random().toString(36).slice(2, 8)}`;
       const res = await fetch(relayUrl("/livekit-token"), {
         method: "POST",
         headers: { "content-type": "application/json" },

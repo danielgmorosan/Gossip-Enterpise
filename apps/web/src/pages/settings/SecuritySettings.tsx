@@ -9,6 +9,8 @@ export function SecuritySettings() {
   const nav = useNavigate();
   const status = useSession((s) => s.status);
   const signOut = useSession((s) => s.signOut);
+  const remembered = useSession((s) => s.remembered);
+  const forgetDevice = useSession((s) => s.forgetDevice);
 
   const lock = async () => {
     await signOut();
@@ -33,6 +35,19 @@ export function SecuritySettings() {
       </SettingGroup>
 
       <SettingGroup title="Session">
+        <SettingRow
+          label="Stay unlocked on this device"
+          desc={
+            remembered
+              ? "Your passphrase is stored in this browser so the app opens unlocked. Forgetting it means unlocking manually after every reload."
+              : "Off — you unlock manually after each reload. Tick “Keep me unlocked” next time you unlock to turn it on."
+          }
+          control={
+            <Button variant="secondary" size="sm" onClick={forgetDevice} disabled={!remembered}>
+              Forget this device
+            </Button>
+          }
+        />
         <SettingRow
           label="Lock this session"
           desc="Closes your encrypted session on this device. You'll re-unlock with your recovery passphrase."

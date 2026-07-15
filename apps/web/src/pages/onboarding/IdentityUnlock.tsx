@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { ArrowRight, Fingerprint, Loader2 } from "lucide-react";
+import { ArrowRight, Check, Fingerprint, Loader2 } from "lucide-react";
 import { Field, PasswordInput, Button, LabeledDivider, textLinkClass } from "@gossip/ui/stack";
+import { cn } from "@/lib/utils";
 import { useSession } from "@/stores/useSession";
 import { useRelay } from "@/stores/useRelay";
 import { validateMnemonic } from "@/lib/sdk";
@@ -11,6 +12,7 @@ export function IdentityUnlock() {
   const nav = useNavigate();
   const unlock = useSession((s) => s.unlock);
   const [passphrase, setPassphrase] = useState("");
+  const [remember, setRemember] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,7 +35,7 @@ export function IdentityUnlock() {
     }
     setBusy(true);
     setError(null);
-    const ok = await unlock(phrase);
+    const ok = await unlock(phrase, remember);
     setBusy(false);
     if (ok) goToApp();
     else setError("Couldn't open a session. Check your connection and try again.");
@@ -56,6 +58,24 @@ export function IdentityUnlock() {
             invalid={!!error}
           />
         </Field>
+        <label className="flex cursor-pointer items-start gap-2.5">
+          <button
+            type="button"
+            onClick={() => setRemember((v) => !v)}
+            className={cn(
+              "mt-0.5 grid size-5 shrink-0 place-items-center rounded-[6px] border transition-colors",
+              remember ? "border-ink bg-ink text-paper" : "border-line-strong",
+            )}
+          >
+            {remember && <Check className="size-3.5" />}
+          </button>
+          <span className="text-[13px] leading-snug text-ink-mute">
+            Keep me unlocked on this device
+            <span className="block text-[11.5px] text-ink-faint">
+              Stores your passphrase in this browser so reloads don't lock you out. Turn off in Settings → Security.
+            </span>
+          </span>
+        </label>
         {error && <p className="text-sm text-negative">{error}</p>}
         <Button block size="lg" type="submit" disabled={busy}>
           {busy ? (

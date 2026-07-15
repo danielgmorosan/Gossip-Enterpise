@@ -9,6 +9,7 @@ import { useContacts, useContactsLive } from "@/stores/useContacts";
 import { useNotifications } from "@/stores/useNotifications";
 import { NewDmDialog } from "@/components/chat/NewDmDialog";
 import { CallSidebarPanel } from "@/components/CallDock";
+import { useUnlockPrompt } from "@/components/UnlockDialog";
 import { Row, GroupLabel } from "./ChannelSidebar";
 
 /** Unread pill for a DM row (T2-09). */
@@ -84,7 +85,13 @@ export function DmSidebar() {
         )}
 
         <div className="mt-2 px-2.5 py-2 font-mono text-[10px] leading-relaxed text-ink-faint">
-          {sessionStatus === "open" ? truncateHandle(useSession.getState().userId ?? "", 12, 6) : "session locked"}
+          {sessionStatus === "open" ? (
+            truncateHandle(useSession.getState().userId ?? "", 12, 6)
+          ) : (
+            <button onClick={() => useUnlockPrompt.getState().show()} className="underline underline-offset-2 hover:text-ink">
+              session locked — unlock
+            </button>
+          )}
         </div>
       </div>
 

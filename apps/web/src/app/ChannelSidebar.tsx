@@ -21,6 +21,7 @@ import { useRelay } from "@/stores/useRelay";
 import { useNotifications } from "@/stores/useNotifications";
 import { CreateChannelDialog } from "@/components/chat/CreateChannelDialog";
 import { CallSidebarPanel } from "@/components/CallDock";
+import { useUnlockPrompt } from "@/components/UnlockDialog";
 
 /** NavLink styled like the Stack kit's NavItem (kept as a real link for router semantics). */
 export function Row({
@@ -187,7 +188,13 @@ export function ChannelSidebar() {
         )}
 
         <div className="mt-2 px-2.5 py-2 font-mono text-[10px] leading-relaxed text-ink-faint">
-          {sessionStatus === "open" ? truncateHandle(useSession.getState().userId ?? "", 12, 6) : "session locked"}
+          {sessionStatus === "open" ? (
+            truncateHandle(useSession.getState().userId ?? "", 12, 6)
+          ) : (
+            <button onClick={() => useUnlockPrompt.getState().show()} className="underline underline-offset-2 hover:text-ink">
+              session locked — unlock
+            </button>
+          )}
         </div>
       </div>
 

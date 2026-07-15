@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Play } from "lucide-react";
 import { relayUrl } from "@/lib/relayBase";
 import { extractUrls, youtubeId } from "@/lib/linkify";
+import { isImageUrl } from "@/lib/media";
 import { cn } from "@/lib/utils";
 
 /**
@@ -101,6 +102,23 @@ function YouTubeCard({ url, videoId }: { url: string; videoId: string }) {
   );
 }
 
+/** Direct image/GIF link → the image itself, no card chrome. */
+function ImageCard({ url }: { url: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return null;
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer" className="block w-fit max-w-md">
+      <img
+        src={url}
+        alt=""
+        loading="lazy"
+        onError={() => setFailed(true)}
+        className="max-h-72 rounded-card border border-line object-contain"
+      />
+    </a>
+  );
+}
+
 function SiteCard({ url }: { url: string }) {
   const [data, setData] = useState<Unfurled | null>(null);
 
@@ -149,6 +167,9 @@ export function MessagePreviews({ text, e2e, className }: { text: string; e2e?: 
   if (urls.length === 0) return null;
   const cards = urls
     .map((url) => {
+      // Direct image/GIF links render inline everywhere — the browser fetches
+      // straight from the linked host, same as clicking would.
+      if (isImageUrl(url)) return <ImageCard key={url} url={url} />;
       const vid = youtubeId(url);
       if (vid) return <YouTubeCard key={url} url={url} videoId={vid} />;
       if (e2e) return null; // privacy: non-YouTube DM links stay unpreviewd

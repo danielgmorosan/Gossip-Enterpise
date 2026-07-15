@@ -13,7 +13,8 @@ import { Mic, MicOff, Video, VideoOff, MonitorUp, PhoneOff, MessageSquareText } 
 import { Tooltip } from "@gossip/ui/stack";
 import { UserAvatar } from "@/components/UserAvatar";
 import { useCall, type CallTarget } from "@/stores/useCall";
-import { CallChatPanel } from "./CallChatPanel";
+import { ChannelView } from "@/pages/ChannelView";
+import { RealDmView } from "@/components/chat/RealDmView";
 import { cn, truncateHandle } from "@/lib/utils";
 
 /**
@@ -88,7 +89,18 @@ export function CallStage({ target }: { target: CallTarget }) {
         </Tooltip>
       </div>
 
-      {chatOpen && <CallChatPanel target={target} onClose={() => setChatOpen(false)} />}
+      {/* The REAL conversation, not a mini copy (T3): full ChannelView / DM
+          view docked under the call — links, previews, threads, attachments,
+          edit/delete all behave exactly like on the normal page. */}
+      {chatOpen && (
+        <div className="flex min-h-0 flex-1 flex-col border-t border-line">
+          {target.kind === "channel" ? (
+            <ChannelView />
+          ) : (
+            <RealDmView peerId={target.peerId} peerName={target.label} />
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -103,7 +115,10 @@ function ParticipantCard({ trackRef, large }: { trackRef: TrackReferenceOrPlaceh
   const speaking = useIsSpeaking(p);
   const micMuted = useIsMuted({ participant: p, source: Track.Source.Microphone });
   const camMuted = useIsMuted(trackRef);
-  const name = p.name || truncateHandle(p.identity, 8, 4);
+  // Identity carries a per-connection suffix (duplicate-kick fix) — strip it
+  // so avatars and handles resolve to the real user.
+  const handle = p.identity.split("#")[0];
+  const name = p.name || truncateHandle(handle, 8, 4);
 
   return (
     <div
@@ -119,7 +134,7 @@ function ParticipantCard({ trackRef, large }: { trackRef: TrackReferenceOrPlaceh
         <div className="grid h-full w-full place-items-center">
           <UserAvatar
             name={name}
-            id={p.identity}
+            id={handle}
             className={cn("!rounded-full", large ? "!size-16 !text-[20px]" : "!size-12 !text-[15px]")}
           />
         </div>

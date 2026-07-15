@@ -8,17 +8,67 @@ import { MessagePreviews } from "@/components/chat/LinkPreview";
 import { MessageActionsBar, ArmDeleteButton, EditBox } from "@/components/chat/MessageActionsBar";
 import { AttachmentView } from "@/components/chat/AttachmentView";
 import { uploadAttachment } from "@/lib/uploads";
-import { StackToast, Tooltip } from "@gossip/ui/stack";
+import { Button, PasswordInput, StackToast, Tooltip } from "@gossip/ui/stack";
 import { AiSidePanel } from "@/components/chat/AiSidePanel";
 import { ThreadPanel } from "@/components/chat/ThreadPanel";
 import { ChannelMembersDialog } from "@/components/chat/ChannelMembersDialog";
+import { UserProfileDialog } from "@/components/UserProfileDialog";
 import { UserAvatar as Avatar } from "@/components/UserAvatar";
-import { useRelay } from "@/stores/useRelay";
+import { useRelay, type RelayChannel } from "@/stores/useRelay";
 import { useSession } from "@/stores/useSession";
+import { useUnlockPrompt } from "@/components/UnlockDialog";
 import { useNotifications } from "@/stores/useNotifications";
 import { useCall } from "@/stores/useCall";
 import { formatTime } from "@/lib/utils";
-import { useStartDm } from "@/lib/useStartDm";
+
+/** The "door" of a password-protected private channel (T3). */
+function LockedChannelJoin({ workspaceId, channel }: { workspaceId: string; channel: RelayChannel }) {
+  const sessionOpen = useSession((s) => s.status === "open");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const join = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sessionOpen) {
+      useUnlockPrompt.getState().show();
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    const res = await useRelay.getState().joinChannelWithPassword(workspaceId, channel.id, password.trim());
+    setBusy(false);
+    // Success: the relay's channelUpdated replaces the locked stub and this
+    // component unmounts into the real channel view.
+    if (!res.ok) setError(res.error);
+  };
+
+  return (
+    <div className="grid min-h-0 flex-1 place-items-center p-6">
+      <div className="w-full max-w-sm text-center">
+        <span className="mx-auto grid size-12 place-items-center rounded-card bg-field text-ink">
+          <Lock className="size-6" />
+        </span>
+        <h2 className="mt-3 text-xl font-bold tracking-tight text-ink">{channel.name}</h2>
+        <p className="mt-1 text-[14px] leading-relaxed text-ink-mute">
+          This private channel is password-protected. Enter the password to join.
+        </p>
+        <form onSubmit={join} className="mt-4 space-y-3 text-left">
+          <PasswordInput
+            placeholder="Channel password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            invalid={!!error}
+          />
+          {error && <p className="text-[13px] text-negative">{error}</p>}
+          <Button type="submit" block disabled={busy || (sessionOpen && !password.trim())}>
+            {sessionOpen ? "Join channel" : "Unlock session to join"}
+          </Button>
+        </form>
+      </div>
+    </div>
+  );
+}
 
 export function ChannelView() {
   const { workspaceId = "", channelId = "" } = useParams();
@@ -28,6 +78,7 @@ export function ChannelView() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [uploadNotice, setUploadNotice] = useState<string | null>(null);
   const [membersOpen, setMembersOpen] = useState(false);
+  const [profileUser, setProfileUser] = useState<{ id: string; name: string } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   /** T-13: upload each picked file to the relay, then post it as a message. */
@@ -58,7 +109,6 @@ export function ChannelView() {
   const myId = useSession((s) => s.userId);
   const myRole = workspace?.members.find((x) => x.userId === myId)?.role;
   const isAdmin = myRole === "owner" || myRole === "admin";
-  const startDm = useStartDm();
 
   // @mention picker candidates (T2-05): everyone in the workspace.
   const mentionCandidates = useMemo(
@@ -91,9 +141,11 @@ export function ChannelView() {
     if (rootId) setAiOpen(false);
   };
 
+  const isLockedStub = !!channel?.locked;
   useEffect(() => {
-    if (workspaceId && channelId) useRelay.getState().joinChannel(workspaceId, channelId);
-  }, [workspaceId, channelId]);
+    // Locked stubs (T3) have no readable history — don't subscribe until joined.
+    if (workspaceId && channelId && !isLockedStub) useRelay.getState().joinChannel(workspaceId, channelId);
+  }, [workspaceId, channelId, isLockedStub]);
 
   // T2-09: viewing the channel clears its unread badge (and keeps it clear
   // as messages stream in while it's on screen).
@@ -107,6 +159,11 @@ export function ChannelView() {
 
   const name = channel?.name ?? "channel";
   const isPrivate = channel?.type === "private";
+
+  // T3: password-protected private channel you're not in — show the door.
+  if (channel?.locked) {
+    return <LockedChannelJoin workspaceId={workspaceId} channel={channel} />;
+  }
 
   // T2-08: private channels you aren't in are filtered out of the workspace
   // snapshot server-side — a stale/shared link lands here with no channel.
@@ -219,8 +276,8 @@ export function ChannelView() {
                 <div className="w-9 shrink-0">
                   {showAuthor && (
                     <button
-                      onClick={() => startDm(m.senderId, m.senderName)}
-                      title={mine ? "Your notes" : `Message ${m.senderName}`}
+                      onClick={() => setProfileUser({ id: m.senderId, name: m.senderName })}
+                      title={`View ${mine ? "your" : `${m.senderName}'s`} profile`}
                       className="transition-transform hover:scale-105"
                     >
                       <Avatar name={m.senderName} id={m.senderId} className="!size-9 !text-[13px]" />
@@ -231,9 +288,9 @@ export function ChannelView() {
                   {showAuthor && (
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => startDm(m.senderId, m.senderName)}
+                        onClick={() => setProfileUser({ id: m.senderId, name: m.senderName })}
                         className="text-[14px] font-semibold text-ink hover:underline"
-                        title={mine ? "Your notes" : `Message ${m.senderName}`}
+                        title={`View ${mine ? "your" : `${m.senderName}'s`} profile`}
                       >
                         {m.senderName}
                       </button>
@@ -329,6 +386,9 @@ export function ChannelView() {
       )}
       {membersOpen && isPrivate && channel && (
         <ChannelMembersDialog workspaceId={workspaceId} channel={channel} onClose={() => setMembersOpen(false)} />
+      )}
+      {profileUser && (
+        <UserProfileDialog userId={profileUser.id} name={profileUser.name} onClose={() => setProfileUser(null)} />
       )}
     </div>
   );

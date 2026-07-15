@@ -54,6 +54,33 @@ export function playCallChime() {
   note(c, 988, t + 0.2, 0.26); // B5
 }
 
+/** Someone joined the call: short ascending blip (Discord-style). */
+export function playJoinBlip() {
+  const c = audioCtx();
+  if (!c) return;
+  const t = c.currentTime;
+  note(c, 523, t, 0.1, 0.06); // C5
+  note(c, 784, t + 0.07, 0.16, 0.06); // G5
+}
+
+/** Someone left the call: the same blip descending. */
+export function playLeaveBlip() {
+  const c = audioCtx();
+  if (!c) return;
+  const t = c.currentTime;
+  note(c, 784, t, 0.1, 0.06);
+  note(c, 523, t + 0.07, 0.16, 0.06);
+}
+
+/** The call ended (you hung up or were disconnected): low resolving two-tone. */
+export function playCallEnd() {
+  const c = audioCtx();
+  if (!c) return;
+  const t = c.currentTime;
+  note(c, 494, t, 0.16, 0.06); // B4
+  note(c, 330, t + 0.12, 0.3, 0.06); // E4
+}
+
 let ringTimer: ReturnType<typeof setInterval> | null = null;
 
 /** One "brrring" burst: two close tones beating against each other. */

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { cn } from "../../utils";
 
@@ -15,8 +15,25 @@ export function StackModal({
 }) {
   const widths = { md: "max-w-lg", lg: "max-w-2xl", xl: "max-w-3xl" };
 
+  // Escape closes, like every modal people know.
+  useEffect(() => {
+    if (!onClose) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/40 p-6 pt-[10vh]">
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/40 p-6 pt-[10vh]"
+      onMouseDown={(e) => {
+        // Backdrop click closes (only when the press starts on the backdrop
+        // itself — dragging out of an input never dismisses the dialog).
+        if (e.target === e.currentTarget) onClose?.();
+      }}
+    >
       <div
         role="dialog"
         aria-modal

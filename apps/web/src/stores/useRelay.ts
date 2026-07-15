@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { useSession } from "./useSession";
 import { useNotifications, mentionsUser } from "./useNotifications";
+import { useAvatars } from "./useAvatars";
 import { relayWsUrl } from "@/lib/relayBase";
 
 export interface ChannelMsg {
@@ -31,6 +32,10 @@ export interface RelayChannel {
   createdAt: number;
   /** Private channels only (T2-08): userIds allowed to see/read/post. */
   members?: string[];
+  /** T3: the channel has a join password (the password itself never leaves the relay). */
+  hasPassword?: boolean;
+  /** T3: you're NOT a member — this is a password-protected stub (no messages until you join). */
+  locked?: boolean;
 }
 /** Granular admin permissions (T2-07) — the Owner picks these at promotion. */
 export type AdminPermission = "manageChannels" | "manageMembers" | "manageRoles" | "ban" | "moderateMessages";
@@ -49,6 +54,8 @@ export interface RelayMember {
   joinedAt: number;
   /** Present on admins: the permissions the Owner granted. */
   permissions?: AdminPermission[];
+  /** Custom profile picture (small data-URI), synced via hello (T3). */
+  avatar?: string;
 }
 export interface RelayBan {
   userId: string;
@@ -97,14 +104,20 @@ interface RelayState {
   joinedChannels: Set<string>;
 
   connect: () => void;
+  /** Re-announce name/avatar to the relay (call after profile changes). */
+  syncProfile: () => void;
   rememberWorkspace: (w: MyWorkspace) => void;
   createWorkspace: (name: string) => Promise<{ ok: true; workspace: RelayWorkspace } | { ok: false; error: string }>;
   joinWorkspace: (key: string) => Promise<{ ok: true; workspace: RelayWorkspace } | { ok: false; error: string }>;
   leaveWorkspace: (workspaceId: string) => Promise<{ ok: true } | { ok: false; error: string }>;
   openWorkspace: (workspaceId: string) => Promise<RelayWorkspace | null>;
-  createChannel: (workspaceId: string, name: string, type?: "public" | "private", topic?: string) => Promise<{ ok: true; channel: RelayChannel } | { ok: false; error: string }>;
+  createChannel: (workspaceId: string, name: string, type?: "public" | "private", topic?: string, password?: string) => Promise<{ ok: true; channel: RelayChannel } | { ok: false; error: string }>;
+  /** T3: join a password-protected private channel. */
+  joinChannelWithPassword: (workspaceId: string, channelId: string, password: string) => Promise<{ ok: true } | { ok: false; error: string }>;
   joinChannel: (workspaceId: string, channelId: string) => void;
   post: (workspaceId: string, channelId: string, body: string, threadRootId?: string, attachmentId?: string) => void;
+  /** Last leaver tells the relay the call is over (verified server-side) and clears it locally. */
+  callEndedHint: (workspaceId: string, channelId: string) => void;
   editMessage: (workspaceId: string, channelId: string, messageId: string, body: string) => void;
   deleteMessage: (workspaceId: string, channelId: string, messageId: string) => void;
   /** Owner-only: promote/demote; permissions apply when role is "admin" (T2-07). */
@@ -158,7 +171,14 @@ function sendHello() {
   if (!ws || ws.readyState !== WebSocket.OPEN) return; // onopen will send hello once connected
   const s = useSession.getState();
   const name = s.displayName || (s.userId ? `user-${s.userId.slice(7, 11)}` : "Someone");
-  ws.send(JSON.stringify({ type: "hello", userId: s.userId, name }));
+  // Custom avatar rides along (small webp data-URI) so workspace members see
+  // it — null explicitly clears a previously-synced one.
+  let avatar: string | null = null;
+  if (s.userId) {
+    const o = useAvatars.getState().overrides[s.userId];
+    if (o?.kind === "image" && o.dataUrl.length <= 65536) avatar = o.dataUrl;
+  }
+  ws.send(JSON.stringify({ type: "hello", userId: s.userId, name, avatar }));
 }
 
 function request<T extends RelayMsg>(payload: object): Promise<T> {
@@ -403,7 +423,8 @@ export const useRelay = create<RelayState>((set, get) => ({
         case "callStarted": {
           // T2-09: relay signals a channel call starting (LiveKit token issued).
           const myId = useSession.getState().userId;
-          if (m.userId === myId || !m.channelId) break;
+          // Call identities carry a "#suffix" (duplicate-kick fix) — compare the base handle.
+          if (m.userId?.split("#")[0] === myId || !m.channelId) break;
           const chName = get().workspace?.channels.find((c) => c.id === m.channelId)?.name ?? "channel";
           useNotifications.getState().notify({
             type: "call",
@@ -423,6 +444,8 @@ export const useRelay = create<RelayState>((set, get) => ({
     };
     ws.onerror = () => ws?.close();
   },
+
+  syncProfile: () => sendHello(),
 
   rememberWorkspace: (w) => {
     // Keep a stable order: update in place if known, append if new (no reshuffle on open).
@@ -485,10 +508,16 @@ export const useRelay = create<RelayState>((set, get) => ({
     return null;
   },
 
-  createChannel: async (workspaceId, name, type = "public", topic = "") => {
-    const m = await request({ type: "createChannel", workspaceId, name, channelType: type, topic });
-    if (m.type === "error" || !m.channel) return { ok: false, error: m.error ?? "Failed to create channel" };
+  createChannel: async (workspaceId, name, type = "public", topic = "", password = "") => {
+    const m = await request({ type: "createChannel", workspaceId, name, channelType: type, topic, password });
+    if (m.type === "error" || !m.channel) return { ok: false, error: errText(m, "Failed to create channel") };
     return { ok: true, channel: m.channel };
+  },
+
+  joinChannelWithPassword: async (workspaceId, channelId, password) => {
+    const m = await request({ type: "joinChannelPassword", workspaceId, channelId, password });
+    if (m.type === "error") return { ok: false, error: errText(m, "Couldn't join the channel.") };
+    return { ok: true };
   },
 
   joinChannel: (workspaceId, channelId) => {
@@ -519,6 +548,19 @@ export const useRelay = create<RelayState>((set, get) => ({
         clientMsgId: crypto.randomUUID(),
       }),
     );
+  },
+
+  callEndedHint: (workspaceId, channelId) => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: "callEndedHint", workspaceId, channelId }));
+    }
+    // Optimistic: we were the last one out — don't wait for the round-trip.
+    set((st) => {
+      if (!(channelId in st.activeCallByChannel)) return st;
+      const next = { ...st.activeCallByChannel };
+      delete next[channelId];
+      return { activeCallByChannel: next };
+    });
   },
 
   editMessage: (workspaceId, channelId, messageId, body) => {

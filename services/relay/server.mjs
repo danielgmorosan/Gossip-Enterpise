@@ -274,6 +274,24 @@ function sendActiveCalls(ws, workspace, userId) {
   }
 }
 
+/** End a tracked call now (last-leaver hint or reconciliation). */
+function endActiveCall(room) {
+  const info = activeCalls.get(room);
+  if (!info) return;
+  activeCalls.delete(room);
+  broadcastCall("callEnded", info);
+}
+
+/** Live participant count for a room (0 when missing/unreachable). */
+async function roomParticipantCount(room) {
+  if (!roomSvc) return 0;
+  try {
+    return (await roomSvc.listParticipants(room)).length;
+  } catch {
+    return 0; // room doesn't exist (nobody in it) or LiveKit unreachable
+  }
+}
+
 // Reconcile with LiveKit: update participant counts, end calls whose room
 // emptied, and (re)discover rooms after a relay restart.
 if (roomSvc) {
@@ -289,9 +307,8 @@ if (roomSvc) {
       const n = live.get(room) ?? 0;
       if (n === 0) {
         // Grace period: a just-issued token may not have connected yet.
-        if (Date.now() - info.since < 30_000) continue;
-        activeCalls.delete(room);
-        broadcastCall("callEnded", info);
+        if (Date.now() - info.since < 15_000) continue;
+        endActiveCall(room);
       } else if (n !== info.count) {
         info.count = n;
         broadcastCall("callActive", info);
@@ -305,7 +322,7 @@ if (roomSvc) {
       activeCalls.set(name, info);
       broadcastCall("callActive", info);
     }
-  }, 20_000);
+  }, 10_000);
 }
 
 const shortId = (p) => p + randomUUID().replace(/-/g, "").slice(0, 8);
@@ -314,12 +331,33 @@ const genCode = () =>
 
 /** Private channels expose their member list; the stored map stays internal. */
 function serializeChannel(ch) {
-  return ch.type === "private" ? { ...ch, members: Object.keys(ch.members ?? {}) } : ch;
+  // joinPassword NEVER leaves the relay — only the fact that one exists.
+  const { joinPassword, ...pub } = ch;
+  return {
+    ...pub,
+    ...(ch.type === "private" ? { members: Object.keys(ch.members ?? {}) } : {}),
+    ...(joinPassword ? { hasPassword: true } : {}),
+  };
+}
+
+/** What a non-member sees of a password-protected private channel: the door, not the room. */
+function lockedChannelStub(ch) {
+  return {
+    id: ch.id,
+    name: ch.name,
+    type: ch.type,
+    topic: ch.topic,
+    createdBy: ch.createdBy,
+    createdAt: ch.createdAt,
+    hasPassword: true,
+    locked: true,
+  };
 }
 
 /**
  * Per-requester workspace view (T2-08): private channels are only included
- * for their members — non-members can't even see they exist.
+ * for their members — except password-protected ones (T3), which appear as
+ * locked stubs so anyone with the password can find the door.
  */
 function serializeWorkspace(ws, forUserId) {
   return {
@@ -327,9 +365,11 @@ function serializeWorkspace(ws, forUserId) {
     name: ws.name,
     code: ws.code,
     createdBy: ws.createdBy,
-    channels: Object.values(ws.channels)
-      .filter((ch) => ch.type !== "private" || (forUserId && ch.members?.[forUserId]))
-      .map(serializeChannel),
+    channels: Object.values(ws.channels).flatMap((ch) => {
+      if (ch.type !== "private" || (forUserId && ch.members?.[forUserId])) return [serializeChannel(ch)];
+      if (ch.joinPassword) return [lockedChannelStub(ch)];
+      return [];
+    }),
     members: Object.values(ws.members),
     bans: Object.values(ws.bans ?? {}),
   };
@@ -398,9 +438,10 @@ function presence(wsId, chId) {
   broadcastChannel(chKey, { type: "presence", workspaceId: wsId, channelId: chId, count: ids.size });
 }
 
-function addChannel(ws, { name, type, topic, createdBy }) {
+function addChannel(ws, { name, type, topic, createdBy, password }) {
   const id = shortId("ch_");
   const isPrivate = type === "private";
+  const joinPassword = isPrivate ? String(password ?? "").slice(0, 100) : "";
   ws.channels[id] = {
     id,
     name: String(name).replace(/[^a-z0-9-_ ]/gi, "").trim().slice(0, 40) || "channel",
@@ -410,6 +451,8 @@ function addChannel(ws, { name, type, topic, createdBy }) {
     createdAt: Date.now(),
     // T2-08: private channels are invite-only — membership starts with the creator.
     ...(isPrivate ? { members: { [createdBy]: true } } : {}),
+    // T3: optional join password — anyone in the workspace who knows it can enter.
+    ...(joinPassword ? { joinPassword } : {}),
   };
   return ws.channels[id];
 }
@@ -514,6 +557,14 @@ const httpServer = createServer(async (req, res) => {
   };
   if (req.method === "GET" && req.url === "/livekit-config") {
     return json(200, { configured: livekitConfigured, url: LIVEKIT_URL });
+  }
+  if (req.method === "GET" && req.url.startsWith("/room-count?")) {
+    // Live participant count for a call room (T3). Used by DM views: the DM
+    // room name is an opaque digest both peers derive locally, so asking for
+    // its count reveals nothing about who is talking.
+    const room = new URL(req.url, "http://relay").searchParams.get("room") ?? "";
+    if (!room || room.length > 200) return json(400, { error: "room required" });
+    return json(200, { count: await roomParticipantCount(room) });
   }
   if (req.method === "GET" && req.url.startsWith("/unfurl?")) {
     // Link previews (T3) — used for CHANNEL messages only (the client never
@@ -705,10 +756,33 @@ wss.on("connection", (ws) => {
       return;
     }
     switch (m.type) {
-      case "hello":
+      case "hello": {
         client.userId = String(m.userId ?? "").slice(0, 80) || `anon-${randomUUID().slice(0, 6)}`;
         client.name = String(m.name ?? "Someone").slice(0, 40);
+        // Optional profile avatar (T3): small data-URI image, synced onto the
+        // member record of every workspace this user belongs to so other
+        // members actually see custom profile pics.
+        const avatar =
+          typeof m.avatar === "string" && m.avatar.startsWith("data:image/") && m.avatar.length <= 65536
+            ? m.avatar
+            : m.avatar === null
+              ? null // explicit reset back to the deterministic default
+              : undefined;
+        if (avatar !== undefined && !isAnon(client.userId)) {
+          let changed = false;
+          for (const workspace of Object.values(db.workspaces)) {
+            const member = workspace.members[client.userId];
+            if (!member || (member.avatar ?? null) === avatar) continue;
+            if (avatar === null) delete member.avatar;
+            else member.avatar = avatar;
+            changed = true;
+            broadcastWorkspace(workspace.id, { type: "memberUpdated", workspaceId: workspace.id, member });
+          }
+          if (changed) save();
+          client.avatar = avatar ?? undefined;
+        }
         break;
+      }
 
       case "createWorkspace": {
         const id = shortId("ws_");
@@ -722,7 +796,7 @@ wss.on("connection", (ws) => {
           members: {},
         };
         addChannel(workspace, { name: "general", type: "public", topic: "Company-wide chatter.", createdBy: client.userId });
-        workspace.members[client.userId] = { userId: client.userId, name: client.name, role: "owner", joinedAt: Date.now() };
+        workspace.members[client.userId] = { userId: client.userId, name: client.name, role: "owner", joinedAt: Date.now(), ...(client.avatar ? { avatar: client.avatar } : {}) };
         db.workspaces[id] = workspace;
         client.wsSubs.add(id);
         save();
@@ -749,6 +823,7 @@ wss.on("connection", (ws) => {
           name: client.name,
           role: "member",
           joinedAt: Date.now(),
+          ...(client.avatar ? { avatar: client.avatar } : {}),
         };
         client.wsSubs.add(workspace.id);
         save();
@@ -771,12 +846,24 @@ wss.on("connection", (ws) => {
         // ensure membership (e.g. creator returning) — but never for anonymous
         // (locked-session) connections; those may read but aren't members.
         if (!isAnon(client.userId) && !workspace.members[client.userId]) {
-          workspace.members[client.userId] = { userId: client.userId, name: client.name, role: "member", joinedAt: Date.now() };
+          workspace.members[client.userId] = { userId: client.userId, name: client.name, role: "member", joinedAt: Date.now(), ...(client.avatar ? { avatar: client.avatar } : {}) };
           save();
           broadcastWorkspace(workspace.id, { type: "memberJoined", workspaceId: workspace.id, member: workspace.members[client.userId] });
         }
         send(ws, { type: "workspace", ref: m.ref, workspace: serializeWorkspace(workspace, client.userId) });
         sendActiveCalls(ws, workspace, client.userId); // T3: live "call in progress" state
+        break;
+      }
+
+      case "callEndedHint": {
+        // Last participant leaving tells us immediately instead of waiting for
+        // the 10s reconciliation. Verified against LiveKit — a client can't
+        // end a call other people are still in.
+        const room = `${m.workspaceId}:${m.channelId}`;
+        if (!activeCalls.has(room)) break;
+        void roomParticipantCount(room).then((n) => {
+          if (n === 0) endActiveCall(room);
+        });
         break;
       }
 
@@ -806,13 +893,54 @@ wss.on("connection", (ws) => {
           send(ws, { type: "error", ref: m.ref, message: "Only workspace members can create channels." });
           break;
         }
-        const channel = addChannel(workspace, { name: m.name, type: m.channelType, topic: m.topic, createdBy: client.userId });
+        const channel = addChannel(workspace, { name: m.name, type: m.channelType, topic: m.topic, createdBy: client.userId, password: m.password });
         save();
-        // Private channels are invisible to non-members: only the creator learns about it.
+        // Private channels are invisible to non-members — unless password-
+        // protected (T3): then everyone sees a locked stub they can unlock.
         const payload = serializeChannel(channel);
-        if (channel.type === "private") sendToUser(client.userId, { type: "channelCreated", workspaceId: workspace.id, channel: payload });
-        else broadcastWorkspace(workspace.id, { type: "channelCreated", workspaceId: workspace.id, channel: payload });
+        if (channel.type === "private") {
+          if (channel.joinPassword) {
+            broadcastWorkspace(workspace.id, { type: "channelCreated", workspaceId: workspace.id, channel: lockedChannelStub(channel) });
+          }
+          sendToUser(client.userId, { type: "channelCreated", workspaceId: workspace.id, channel: payload });
+        } else {
+          broadcastWorkspace(workspace.id, { type: "channelCreated", workspaceId: workspace.id, channel: payload });
+        }
         send(ws, { type: "channelCreated", ref: m.ref, workspaceId: workspace.id, channel: payload });
+        break;
+      }
+
+      case "joinChannelPassword": {
+        // T3: enter a password-protected private channel.
+        const workspace = db.workspaces[m.workspaceId];
+        const channel = workspace?.channels?.[m.channelId];
+        if (!workspace || !channel) {
+          send(ws, { type: "error", ref: m.ref, message: "Channel not found." });
+          break;
+        }
+        if (isBanned(workspace, client.userId) || !memberOf(workspace, client.userId)) {
+          send(ws, { type: "error", ref: m.ref, message: "Only workspace members can join channels." });
+          break;
+        }
+        if (channel.type !== "private" || !channel.joinPassword) {
+          send(ws, { type: "error", ref: m.ref, message: "This channel doesn't use a password." });
+          break;
+        }
+        if (channel.members?.[client.userId]) {
+          send(ws, { type: "channelUpdated", ref: m.ref, workspaceId: workspace.id, channel: serializeChannel(channel) });
+          break;
+        }
+        if (String(m.password ?? "") !== channel.joinPassword) {
+          send(ws, { type: "error", ref: m.ref, message: "Wrong password." });
+          break;
+        }
+        channel.members[client.userId] = true;
+        save();
+        const chPayload = serializeChannel(channel);
+        for (const uid of Object.keys(channel.members)) {
+          sendToUser(uid, { type: "channelUpdated", workspaceId: workspace.id, channel: chPayload });
+        }
+        send(ws, { type: "channelUpdated", ref: m.ref, workspaceId: workspace.id, channel: chPayload });
         break;
       }
 

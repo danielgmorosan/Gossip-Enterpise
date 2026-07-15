@@ -7,11 +7,16 @@ import { MessageBody } from "@/components/chat/MessageBody";
 import { MessagePreviews } from "@/components/chat/LinkPreview";
 import { MessageActionsBar, ArmDeleteButton, EditBox } from "@/components/chat/MessageActionsBar";
 import { Pencil } from "lucide-react";
-import { Button, Tooltip } from "@gossip/ui/stack";
+import { Button, StackToast, Tooltip } from "@gossip/ui/stack";
 import { UserAvatar as Avatar } from "@/components/UserAvatar";
 import { gossipSdk, SdkEventType, MessageDirection, MessageType, type Message } from "@/lib/sdk";
 import { parseCallSignal, callSignalLabel } from "@/lib/callSignals";
+import { parseImageMarker, imageMarkerBody, fileToDmImageDataUrl } from "@/lib/media";
+import { dmRoomName } from "@/lib/call";
+import { relayUrl } from "@/lib/relayBase";
+import { useCall } from "@/stores/useCall";
 import { useSession } from "@/stores/useSession";
+import { useUnlockPrompt } from "@/components/UnlockDialog";
 import { useContacts } from "@/stores/useContacts";
 import { useNotifications } from "@/stores/useNotifications";
 import { cn, formatTime, truncateHandle } from "@/lib/utils";
@@ -35,6 +40,7 @@ export function RealDmView({ peerId, peerName }: { peerId: string; peerName?: st
   const [messages, setMessages] = useState<Message[]>([]);
   const [sending, setSending] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [attachNotice, setAttachNotice] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // @mention picker candidates (T2-05): your contacts.
@@ -45,6 +51,32 @@ export function RealDmView({ peerId, peerName }: { peerId: string; peerName?: st
   useEffect(() => {
     if (!isSelf) useNotifications.getState().clearDmUnread(peerId);
   }, [isSelf, peerId, messages.length]);
+
+  // T3: is a call live in this DM? The room name is an opaque digest only the
+  // two peers can derive, so polling its count leaks nothing to the relay.
+  const [liveCallCount, setLiveCallCount] = useState(0);
+  const inThisCall = useCall((s) => s.status !== "idle" && s.target?.kind === "dm" && s.target.peerId === peerId);
+  useEffect(() => {
+    if (isSelf || !userId || status !== "open") return;
+    let on = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const check = async () => {
+      try {
+        const room = await dmRoomName(userId, peerId);
+        const r = await fetch(relayUrl(`/room-count?room=${encodeURIComponent(room)}`));
+        const d = await r.json();
+        if (on) setLiveCallCount(d.count ?? 0);
+      } catch {
+        /* relay unreachable — keep last state */
+      }
+      if (on) timer = setTimeout(check, 15_000);
+    };
+    void check();
+    return () => {
+      on = false;
+      clearTimeout(timer);
+    };
+  }, [isSelf, peerId, userId, status]);
 
   /** SDK marks edits via metadata.edited (set by messages.editMessage). */
   const isEdited = (m: Message): boolean =>
@@ -117,6 +149,22 @@ export function RealDmView({ peerId, peerName }: { peerId: string; peerName?: st
     }
   };
 
+  /** T3: E2E image sharing — compressed data-URI inside the encrypted message. */
+  const sendImages = async (files: FileList) => {
+    for (const file of Array.from(files)) {
+      try {
+        setAttachNotice(`Encrypting ${file.name}…`);
+        const dataUrl = await fileToDmImageDataUrl(file);
+        await send(imageMarkerBody(dataUrl));
+        setAttachNotice(null);
+      } catch (e) {
+        setAttachNotice(e instanceof Error ? e.message : "Couldn't send that image.");
+        setTimeout(() => setAttachNotice(null), 5000);
+        return;
+      }
+    }
+  };
+
   if (status !== "open") {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
@@ -128,7 +176,9 @@ export function RealDmView({ peerId, peerName }: { peerId: string; peerName?: st
             </span>
             <h2 className="mt-3 text-xl font-bold tracking-tight text-ink">Session locked</h2>
             <p className="mt-1 text-[14px] text-ink-mute">Open your encrypted session to use real messaging.</p>
-            <Link to="/identity/unlock"><Button className="mt-4">Unlock session</Button></Link>
+            <Button className="mt-4" onClick={() => useUnlockPrompt.getState().show()}>
+              Unlock session
+            </Button>
           </div>
         </div>
       </div>
@@ -162,6 +212,24 @@ export function RealDmView({ peerId, peerName }: { peerId: string; peerName?: st
         }
       />
 
+      {liveCallCount > 0 && !inThisCall && (
+        <div className="flex shrink-0 items-center gap-2.5 border-b border-line bg-paper-2 px-4 py-2">
+          <span className="relative flex size-2.5 shrink-0">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-positive opacity-60" />
+            <span className="relative inline-flex size-2.5 rounded-full bg-positive" />
+          </span>
+          <span className="min-w-0 truncate text-[13px] text-ink">
+            <span className="font-semibold">Call in progress</span>
+            <span className="text-ink-mute"> · {liveCallCount} {liveCallCount === 1 ? "person" : "people"} · E2E</span>
+          </span>
+          <Link to={`/home/call/dm/${encodeURIComponent(peerId)}?answer=1`} className="ml-auto shrink-0">
+            <span className="inline-flex items-center gap-1.5 rounded-control bg-positive px-3 py-1.5 text-[12.5px] font-semibold text-white transition-opacity hover:opacity-90">
+              <Phone className="size-3.5" /> Join
+            </span>
+          </Link>
+        </div>
+      )}
+
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
         <div className="mx-auto mb-6 flex max-w-lg flex-col items-center gap-2 rounded-card border border-line bg-paper-2 p-4 text-center">
           <span className="grid size-10 place-items-center rounded-full bg-ink text-paper"><ShieldCheck className="size-5" /></span>
@@ -188,6 +256,19 @@ export function RealDmView({ peerId, peerName }: { peerId: string; peerName?: st
           {messages.map((m, i) => {
             const mine = isSelf || m.direction === MessageDirection.OUTGOING;
             const deleted = m.type === MessageType.DELETED;
+            // T3: E2E image markers render as the image itself.
+            const image = !deleted ? parseImageMarker(m.content) : null;
+            if (image) {
+              return (
+                <div key={m.id ?? i} className={cn("group flex items-end gap-2", mine ? "justify-end" : "justify-start")}>
+                  {!mine && <div className="w-7 shrink-0"><Avatar name={peerName || peerId} id={peerId} className="!size-7 !text-[11px]" /></div>}
+                  <div className={cn("flex max-w-[68%] flex-col", mine ? "items-end" : "items-start")}>
+                    <img src={image} alt="Shared image" className="max-h-72 rounded-card border border-line object-contain" />
+                    <span className="mt-0.5 text-[10px] text-ink-faint">{formatTime(new Date(m.timestamp))} · E2E</span>
+                  </div>
+                </div>
+              );
+            }
             // T3: call markers render as event chips, never as chat bubbles.
             const signal = !deleted ? parseCallSignal(m.content) : null;
             if (signal) {
@@ -271,12 +352,17 @@ export function RealDmView({ peerId, peerName }: { peerId: string; peerName?: st
       </div>
 
       <div className="mx-auto w-full max-w-3xl">
+        {attachNotice && (
+          <div className="px-4">
+            <StackToast tone="info" message={attachNotice} onDismiss={() => setAttachNotice(null)} />
+          </div>
+        )}
         <Composer
           placeholder={isSelf ? "Message yourself, encrypted for real…" : `Message ${peerName || "contact"} (E2E)…`}
           e2e
           busy={sending}
           onSend={(text) => void send(text)}
-          attachNotice="Attachments aren't available in E2E DMs yet. The Gossip SDK doesn't support them."
+          onAttach={(files) => void sendImages(files)}
           mentionCandidates={mentionCandidates}
         />
       </div>

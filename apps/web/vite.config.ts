@@ -73,6 +73,8 @@ export default defineConfig({
       "/uploads": { target: "http://localhost:8788" },
       // Link previews (OG metadata for channel messages), served by the relay.
       "/unfurl": { target: "http://localhost:8788" },
+      // Live call-room participant counts (DM call presence), served by the relay.
+      "/room-count": { target: "http://localhost:8788" },
     },
   },
   preview: { headers: coopCoep },

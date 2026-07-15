@@ -7,6 +7,7 @@ import { SettingGroup, SettingRow } from "./parts";
 import { Button, Field, Input } from "@gossip/ui/stack";
 import { UserAvatar as Avatar } from "@/components/UserAvatar";
 import { useSession } from "@/stores/useSession";
+import { useRelay } from "@/stores/useRelay";
 import { useAvatars, type AvatarOverride } from "@/stores/useAvatars";
 import { dicebearUri, randomSeed, fileToAvatarDataUrl } from "@/lib/avatar";
 import { truncateHandle } from "@/lib/utils";
@@ -36,7 +37,16 @@ export function ProfileSettings() {
         : dicebearUri(pendingAvatar.seed);
 
   const savePendingAvatar = () => {
-    if (userId && pendingAvatar) setOverride(userId, pendingAvatar);
+    if (!userId) {
+      // Locked session = no handle to key the avatar on. Saying so beats
+      // silently dropping the upload (the old behavior).
+      setAvatarError("Unlock your session first — the avatar is stored under your handle.");
+      return;
+    }
+    if (pendingAvatar) {
+      setOverride(userId, pendingAvatar);
+      useRelay.getState().syncProfile(); // push to workspace members right away
+    }
     setPendingAvatar(null);
   };
 
