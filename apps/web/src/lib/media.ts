@@ -21,15 +21,21 @@ const IMG_SUFFIX = "]]";
 /** Keep encrypted messages lean — ~128KB of base64 after compression. */
 const MAX_MARKER_CHARS = 150_000;
 
-export function imageMarkerBody(dataUrl: string): string {
-  return `${IMG_PREFIX}${dataUrl}${IMG_SUFFIX}`;
+/** Image + optional caption on the line(s) after the marker — one E2E message. */
+export function imageMarkerBody(dataUrl: string, caption = ""): string {
+  return `${IMG_PREFIX}${dataUrl}${IMG_SUFFIX}${caption ? `\n${caption}` : ""}`;
 }
 
-/** The data-URI, if `body` is exactly a DM image marker; null otherwise. */
-export function parseImageMarker(body: string | null | undefined): string | null {
-  if (!body || !body.startsWith(IMG_PREFIX) || !body.endsWith(IMG_SUFFIX)) return null;
-  const uri = body.slice(IMG_PREFIX.length, -IMG_SUFFIX.length);
-  return uri.startsWith("data:image/") ? uri : null;
+/** The image + caption, if `body` starts with a DM image marker; null otherwise. */
+export function parseImageMarker(body: string | null | undefined): { dataUrl: string; caption: string } | null {
+  if (!body || !body.startsWith(IMG_PREFIX)) return null;
+  const end = body.indexOf(IMG_SUFFIX, IMG_PREFIX.length);
+  if (end === -1) return null;
+  const dataUrl = body.slice(IMG_PREFIX.length, end);
+  if (!dataUrl.startsWith("data:image/")) return null;
+  const rest = body.slice(end + IMG_SUFFIX.length);
+  if (rest !== "" && !rest.startsWith("\n")) return null; // not a clean marker
+  return { dataUrl, caption: rest.slice(1) };
 }
 
 /** Downscale + compress an image file until it fits in a DM marker. */

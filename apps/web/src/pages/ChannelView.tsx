@@ -80,19 +80,33 @@ export function ChannelView() {
   const [uploadNotice, setUploadNotice] = useState<string | null>(null);
   const [membersOpen, setMembersOpen] = useState(false);
   const [profileUser, setProfileUser] = useState<{ id: string; name: string } | null>(null);
+  const [staged, setStaged] = useState<File[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
-  // Drag files anywhere onto the channel to upload them (T3).
-  const drop = useFileDrop((files) => void handleAttach(files));
+  // Dropping or picking files only STAGES them in the composer (consent +
+  // caption). Nothing touches the relay until the user hits Send.
+  const stageFiles = (files: FileList) => setStaged((s) => [...s, ...Array.from(files)]);
+  const drop = useFileDrop(stageFiles);
 
-  /** T-13: upload each picked file to the relay, then post it as a message. */
-  const handleAttach = async (files: FileList) => {
-    for (const file of Array.from(files)) {
+  /** Send text and/or staged files (T-13): the text rides with the first file. */
+  const sendMessage = async (text: string) => {
+    const files = staged;
+    setStaged([]);
+    if (files.length === 0) {
+      if (text) useRelay.getState().post(workspaceId, channelId, text);
+      return;
+    }
+    let caption = text;
+    for (let i = 0; i < files.length; i++) {
       try {
-        setUploadNotice(`Uploading ${file.name}…`);
-        const ref = await uploadAttachment(file);
-        useRelay.getState().post(workspaceId, channelId, "", undefined, ref.id);
+        setUploadNotice(`Uploading ${files[i].name}…`);
+        const ref = await uploadAttachment(files[i]);
+        useRelay.getState().post(workspaceId, channelId, caption, undefined, ref.id);
+        caption = "";
         setUploadNotice(null);
       } catch (e) {
+        // Put the unsent files back so nothing is silently lost.
+        const remaining = files.slice(i);
+        setStaged((cur) => [...remaining, ...cur]);
         setUploadNotice(e instanceof Error ? e.message : "Upload failed.");
         setTimeout(() => setUploadNotice(null), 5000);
         return;
@@ -192,7 +206,7 @@ export function ChannelView() {
       <div className="relative flex min-w-0 flex-1 flex-col" {...drop.props}>
         {drop.dragging && (
           <div className="pointer-events-none absolute inset-2 z-30 grid place-items-center rounded-card border-2 border-dashed border-ink bg-paper/85">
-            <span className="text-[14px] font-semibold text-ink">Drop to upload to #{name}</span>
+            <span className="text-[14px] font-semibold text-ink">Drop to attach — nothing sends until you hit Send</span>
           </div>
         )}
         <PaneHeader
@@ -381,8 +395,10 @@ export function ChannelView() {
         )}
         <Composer
           placeholder={`Message #${name}`}
-          onSend={(text) => useRelay.getState().post(workspaceId, channelId, text)}
-          onAttach={(files) => void handleAttach(files)}
+          onSend={(text) => void sendMessage(text)}
+          onAttach={stageFiles}
+          staged={staged}
+          onRemoveStaged={(i) => setStaged((s) => s.filter((_, idx) => idx !== i))}
           mentionCandidates={mentionCandidates}
         />
       </div>

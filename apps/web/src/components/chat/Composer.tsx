@@ -1,4 +1,4 @@
-import { useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   SendHorizontal,
   ShieldCheck,
@@ -9,6 +9,7 @@ import {
   Italic,
   Code,
   SquareCode,
+  FileText,
 } from "lucide-react";
 import { Plus, WandSparkles, X } from "lucide-react";
 import { StackToast, Tooltip } from "@gossip/ui/stack";
@@ -53,6 +54,39 @@ function ToolBtn({
   );
 }
 
+/** A staged (not yet sent) attachment chip: image thumbnail or file card + remove. */
+function StagedFileChip({ file, onRemove }: { file: File; onRemove: () => void }) {
+  const previewUrl = useMemo(
+    () => (file.type.startsWith("image/") ? URL.createObjectURL(file) : null),
+    [file],
+  );
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+  return (
+    <div className="relative">
+      {previewUrl ? (
+        <img src={previewUrl} alt={file.name} title={file.name} className="size-16 rounded-control border border-line object-cover" />
+      ) : (
+        <div className="flex h-16 items-center gap-2 rounded-control border border-line bg-field px-3">
+          <FileText className="size-4 shrink-0 text-ink-mute" />
+          <span className="max-w-[140px] truncate text-[12px] text-ink">{file.name}</span>
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={`Remove ${file.name}`}
+        className="absolute -right-1.5 -top-1.5 grid size-5 place-items-center rounded-full bg-ink text-paper transition-colors hover:bg-negative"
+      >
+        <X className="size-3" />
+      </button>
+    </div>
+  );
+}
+
 export function Composer({
   placeholder,
   e2e,
@@ -60,6 +94,8 @@ export function Composer({
   onSend,
   onAttach,
   attachNotice,
+  staged,
+  onRemoveStaged,
   mentionCandidates,
   className,
 }: {
@@ -68,10 +104,13 @@ export function Composer({
   /** Disables send while an async send is in flight (spinner on the button). */
   busy?: boolean;
   onSend?: (text: string) => void;
-  /** Real attachment handler (T-13). Absent → honest "not available" notice. */
+  /** Stages files (T3) — nothing uploads or sends until the user hits Send. */
   onAttach?: (files: FileList) => void;
   /** Notice shown when attaching isn't available on this surface. */
   attachNotice?: string;
+  /** Files staged by the parent, rendered as removable chips above the input. */
+  staged?: File[];
+  onRemoveStaged?: (index: number) => void;
   /** Members/contacts offered by the @mention picker (T2-05). Absent → no picker. */
   mentionCandidates?: MentionCandidate[];
   className?: string;
@@ -130,9 +169,12 @@ export function Composer({
     noticeTimer.current = setTimeout(() => setNotice(null), 4000);
   };
 
+  const hasStaged = !!staged?.length;
+
   const submit = () => {
     const text = value.trim();
-    if (!text || busy) return;
+    // Staged attachments can be sent without any text (image-only message).
+    if ((!text && !hasStaged) || busy) return;
     onSend?.(text);
     setValue("");
     setMentionQuery(null);
@@ -323,6 +365,13 @@ export function Composer({
             onHover={setMentionIndex}
           />
         )}
+        {hasStaged && (
+          <div className="flex flex-wrap gap-2.5 border-b border-line px-3.5 pb-2.5 pt-3">
+            {staged!.map((f, i) => (
+              <StagedFileChip key={`${f.name}-${f.size}-${i}`} file={f} onRemove={() => onRemoveStaged?.(i)} />
+            ))}
+          </div>
+        )}
         <textarea
           ref={textareaRef}
           value={value}
@@ -379,7 +428,7 @@ export function Composer({
             }
           }}
           rows={1}
-          placeholder={placeholder}
+          placeholder={hasStaged ? "Add a message… (optional)" : placeholder}
           className="max-h-44 min-h-[44px] w-full resize-none bg-transparent px-3.5 py-2.5 text-[14px] text-ink outline-none placeholder:text-ink-faint"
         />
         <div className="flex items-center justify-between gap-2 px-3 pb-2">
@@ -435,11 +484,11 @@ export function Composer({
             <Tooltip label="Send (Enter)" className="ml-1">
               <button
                 onClick={submit}
-                disabled={!value.trim() || busy}
+                disabled={(!value.trim() && !hasStaged) || busy}
                 aria-label="Send"
                 className={cn(
                   "grid size-8 place-items-center rounded-control transition-colors",
-                  value.trim() && !busy
+                  (value.trim() || hasStaged) && !busy
                     ? "bg-ink text-paper hover:bg-ink-hover"
                     : "bg-field text-ink-faint",
                 )}

@@ -43,9 +43,19 @@ export function RealDmView({ peerId, peerName }: { peerId: string; peerName?: st
   const [sending, setSending] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [attachNotice, setAttachNotice] = useState<string | null>(null);
+  const [staged, setStaged] = useState<File[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
-  // Drag an image anywhere onto the conversation to send it (T3).
-  const drop = useFileDrop((files) => void sendImages(files));
+  // Dropping/picking images only STAGES them (consent + caption) — nothing is
+  // encrypted or sent until the user hits Send.
+  const stageImages = (files: FileList) => {
+    const images = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    if (images.length < files.length) {
+      setAttachNotice("Only images can be sent in E2E DMs for now.");
+      setTimeout(() => setAttachNotice(null), 4000);
+    }
+    if (images.length) setStaged((s) => [...s, ...images]);
+  };
+  const drop = useFileDrop(stageImages);
 
   // @mention picker candidates (T2-05): your contacts.
   const contacts = useContacts((s) => s.contacts);
@@ -139,33 +149,47 @@ export function RealDmView({ peerId, peerName }: { peerId: string; peerName?: st
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages]);
 
+  const sendBody = async (body: string) => {
+    if (isSelf) await gossipSdk.selfMessages.send(body);
+    else await gossipSdk.messages.sendText(peerId, body);
+  };
+
+  /**
+   * Send text and/or staged images (T3). Images travel as compressed
+   * data-URIs inside the encrypted message; the text rides as the first
+   * image's caption — one E2E message, rendered as image + caption.
+   */
   const send = async (text: string) => {
-    if (!text || sending) return;
+    if (sending) return;
+    const files = staged;
+    setStaged([]);
+    if (!text && files.length === 0) return;
     setSending(true);
     try {
-      if (isSelf) await gossipSdk.selfMessages.send(text);
-      else await gossipSdk.messages.sendText(peerId, text);
+      if (files.length === 0) {
+        await sendBody(text);
+      } else {
+        let caption = text;
+        for (let i = 0; i < files.length; i++) {
+          try {
+            setAttachNotice(`Encrypting ${files[i].name}…`);
+            const dataUrl = await fileToDmImageDataUrl(files[i]);
+            await sendBody(imageMarkerBody(dataUrl, caption));
+            caption = "";
+            setAttachNotice(null);
+          } catch (e) {
+            setStaged((cur) => [...files.slice(i), ...cur]); // nothing silently lost
+            setAttachNotice(e instanceof Error ? e.message : "Couldn't send that image.");
+            setTimeout(() => setAttachNotice(null), 5000);
+            return;
+          }
+        }
+      }
       await refresh();
     } catch (e) {
       console.error("send failed", e);
     } finally {
       setSending(false);
-    }
-  };
-
-  /** T3: E2E image sharing — compressed data-URI inside the encrypted message. */
-  const sendImages = async (files: FileList) => {
-    for (const file of Array.from(files)) {
-      try {
-        setAttachNotice(`Encrypting ${file.name}…`);
-        const dataUrl = await fileToDmImageDataUrl(file);
-        await send(imageMarkerBody(dataUrl));
-        setAttachNotice(null);
-      } catch (e) {
-        setAttachNotice(e instanceof Error ? e.message : "Couldn't send that image.");
-        setTimeout(() => setAttachNotice(null), 5000);
-        return;
-      }
     }
   };
 
@@ -265,7 +289,7 @@ export function RealDmView({ peerId, peerName }: { peerId: string; peerName?: st
           {messages.map((m, i) => {
             const mine = isSelf || m.direction === MessageDirection.OUTGOING;
             const deleted = m.type === MessageType.DELETED;
-            // T3: E2E image markers render as the image itself.
+            // T3: E2E image markers render as the image (+ optional caption).
             const image = !deleted ? parseImageMarker(m.content) : null;
             if (image) {
               return (
@@ -273,11 +297,21 @@ export function RealDmView({ peerId, peerName }: { peerId: string; peerName?: st
                   {!mine && <div className="w-7 shrink-0"><Avatar name={peerName || peerId} id={peerId} className="!size-7 !text-[11px]" /></div>}
                   <div className={cn("flex max-w-[68%] flex-col", mine ? "items-end" : "items-start")}>
                     <button
-                      onClick={() => useLightbox.getState().open({ src: image, alt: "Shared image (E2E)" })}
+                      onClick={() => useLightbox.getState().open({ src: image.dataUrl, alt: image.caption || "Shared image (E2E)" })}
                       className="cursor-zoom-in"
                     >
-                      <img src={image} alt="Shared image" className="max-h-72 rounded-card border border-line object-contain" />
+                      <img src={image.dataUrl} alt="Shared image" className="max-h-72 rounded-card border border-line object-contain" />
                     </button>
+                    {image.caption && (
+                      <div
+                        className={cn(
+                          "mt-1 rounded-card px-3 py-1.5 text-[14px] leading-relaxed",
+                          mine ? "rounded-tr-md bg-ink text-paper" : "rounded-tl-md bg-field text-ink",
+                        )}
+                      >
+                        <MessageBody text={image.caption} />
+                      </div>
+                    )}
                     <span className="mt-0.5 text-[10px] text-ink-faint">{formatTime(new Date(m.timestamp))} · E2E</span>
                   </div>
                 </div>
@@ -376,7 +410,9 @@ export function RealDmView({ peerId, peerName }: { peerId: string; peerName?: st
           e2e
           busy={sending}
           onSend={(text) => void send(text)}
-          onAttach={(files) => void sendImages(files)}
+          onAttach={stageImages}
+          staged={staged}
+          onRemoveStaged={(i) => setStaged((s) => s.filter((_, idx) => idx !== i))}
           mentionCandidates={mentionCandidates}
         />
       </div>
