@@ -78,8 +78,10 @@ export function CallDock() {
 
   return (
     <RoomContext.Provider value={room}>
-      {/* Remote audio keeps playing on every route. */}
-      <RoomAudioRenderer />
+      {/* Remote audio: rendered here on every route EXCEPT the call page,
+          where CallStage renders it. Two active RoomAudioRenderers play every
+          remote track twice (the echo/double-audio bug). */}
+      {!onCallPage && <RoomAudioRenderer />}
       {!onCallPage && (
         <div
           data-minicall
