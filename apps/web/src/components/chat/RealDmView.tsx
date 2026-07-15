@@ -35,7 +35,7 @@ function E2EPill() {
  * Real, SDK-backed conversation. peerId === "self" → selfMessages (Notes to Self).
  * Otherwise a real 1:1 E2E DM with a contact (messages service over the relay).
  */
-export function RealDmView({ peerId, peerName }: { peerId: string; peerName?: string }) {
+export function RealDmView({ peerId, peerName, embedded }: { peerId: string; peerName?: string; embedded?: boolean }) {
   const isSelf = peerId === "self";
   const status = useSession((s) => s.status);
   const userId = useSession((s) => s.userId);
@@ -223,27 +223,31 @@ export function RealDmView({ peerId, peerName }: { peerId: string; peerName?: st
           <span className="text-[14px] font-semibold text-ink">Drop an image to send it end-to-end encrypted</span>
         </div>
       )}
-      <PaneHeader
-        icon={
-          isSelf ? (
-            <span className="grid size-7 place-items-center rounded-control bg-ink text-paper"><ShieldCheck className="size-4" /></span>
-          ) : (
-            <Avatar name={peerName || peerId} id={peerId} className="!size-7 !text-[11px]" />
-          )
-        }
-        title={title}
-        subtitle={<span className="font-mono text-[11px]">{isSelf ? (userId ? `${userId.slice(0, 16)}…` : "") : truncateHandle(peerId, 14, 8)}</span>}
-        badge={<E2EPill />}
-        actions={
-          !isSelf ? (
-            <Link to={`/home/call/dm/${encodeURIComponent(peerId)}`}>
-              <HeaderIconButton label={`Call ${peerName || "contact"}`}>
-                <Phone className="size-4" />
-              </HeaderIconButton>
-            </Link>
-          ) : undefined
-        }
-      />
+      {/* Inside the call page the stage's header already names the contact —
+          skip this one so there's a single banner (T3). The raw gossip handle
+          is deliberately NOT shown here — it lives in the profile popup. */}
+      {!embedded && (
+        <PaneHeader
+          icon={
+            isSelf ? (
+              <span className="grid size-7 place-items-center rounded-control bg-ink text-paper"><ShieldCheck className="size-4" /></span>
+            ) : (
+              <Avatar name={peerName || peerId} id={peerId} className="!size-7 !text-[11px]" />
+            )
+          }
+          title={title}
+          badge={<E2EPill />}
+          actions={
+            !isSelf ? (
+              <Link to={`/home/call/dm/${encodeURIComponent(peerId)}`}>
+                <HeaderIconButton label={`Call ${peerName || "contact"}`}>
+                  <Phone className="size-4" />
+                </HeaderIconButton>
+              </Link>
+            ) : undefined
+          }
+        />
+      )}
 
       {liveCallCount > 0 && !inThisCall && (
         <div className="flex shrink-0 items-center gap-2.5 border-b border-line bg-paper-2 px-4 py-2">

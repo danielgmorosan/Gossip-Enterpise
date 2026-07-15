@@ -3,7 +3,6 @@ import { useParams } from "react-router-dom";
 import { Users, ShieldCheck, Plus } from "lucide-react";
 import { NavBadge } from "@gossip/ui/stack";
 import { UserAvatar as Avatar } from "@/components/UserAvatar";
-import { truncateHandle } from "@/lib/utils";
 import { useSession } from "@/stores/useSession";
 import { useContacts, useContactsLive } from "@/stores/useContacts";
 import { useNotifications } from "@/stores/useNotifications";
@@ -84,9 +83,12 @@ export function DmSidebar() {
           </button>
         )}
 
-        <div className="mt-2 px-2.5 py-2 font-mono text-[10px] leading-relaxed text-ink-faint">
+        <div className="mt-2 px-2.5 py-2 text-[11px] leading-relaxed text-ink-faint">
           {sessionStatus === "open" ? (
-            truncateHandle(useSession.getState().userId ?? "", 12, 6)
+            <span className="inline-flex items-center gap-1.5" title="Session unlocked — your full handle is in Settings → Profile">
+              <span className="size-1.5 rounded-full bg-positive" />
+              {useSession.getState().displayName || "unlocked"}
+            </span>
           ) : (
             <button onClick={() => useUnlockPrompt.getState().show()} className="underline underline-offset-2 hover:text-ink">
               session locked — unlock

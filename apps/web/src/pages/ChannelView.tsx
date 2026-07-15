@@ -71,7 +71,7 @@ function LockedChannelJoin({ workspaceId, channel }: { workspaceId: string; chan
   );
 }
 
-export function ChannelView() {
+export function ChannelView({ embedded }: { embedded?: boolean } = {}) {
   const { workspaceId = "", channelId = "" } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const threadId = searchParams.get("thread");
@@ -216,6 +216,9 @@ export function ChannelView() {
             <span className="text-[14px] font-semibold text-ink">Drop to attach — nothing sends until you hit Send</span>
           </div>
         )}
+        {/* Inside the call page the stage's header already names the channel —
+            skip this one so there's a single banner (T3). */}
+        {!embedded && (
         <PaneHeader
           icon={isPrivate ? <Lock className="size-4 text-ink-faint" /> : <Hash className="size-4 text-ink-faint" />}
           title={name}
@@ -252,6 +255,7 @@ export function ChannelView() {
             </>
           }
         />
+        )}
 
         {/* Live huddle banner (T3) — Discord-style "call in progress" strip. */}
         {activeCall && !inThisCall && (

@@ -109,9 +109,9 @@ export function CallStage({ target }: { target: CallTarget }) {
       {chatOpen && (
         <div className="flex min-h-0 flex-1 flex-col border-t border-line">
           {target.kind === "channel" ? (
-            <ChannelView />
+            <ChannelView embedded />
           ) : (
-            <RealDmView peerId={target.peerId} peerName={target.label} />
+            <RealDmView peerId={target.peerId} peerName={target.label} embedded />
           )}
         </div>
       )}

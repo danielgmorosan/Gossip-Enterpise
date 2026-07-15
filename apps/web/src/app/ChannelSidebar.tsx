@@ -14,7 +14,7 @@ import {
   Phone,
 } from "lucide-react";
 import { NavBadge, Tooltip } from "@gossip/ui/stack";
-import { cn, truncateHandle } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { inviteLink } from "@/lib/invite";
 import { useSession } from "@/stores/useSession";
 import { useRelay } from "@/stores/useRelay";
@@ -187,9 +187,12 @@ export function ChannelSidebar() {
           </button>
         )}
 
-        <div className="mt-2 px-2.5 py-2 font-mono text-[10px] leading-relaxed text-ink-faint">
+        <div className="mt-2 px-2.5 py-2 text-[11px] leading-relaxed text-ink-faint">
           {sessionStatus === "open" ? (
-            truncateHandle(useSession.getState().userId ?? "", 12, 6)
+            <span className="inline-flex items-center gap-1.5" title="Session unlocked — your full handle is in Settings → Profile">
+              <span className="size-1.5 rounded-full bg-positive" />
+              {useSession.getState().displayName || "unlocked"}
+            </span>
           ) : (
             <button onClick={() => useUnlockPrompt.getState().show()} className="underline underline-offset-2 hover:text-ink">
               session locked — unlock
