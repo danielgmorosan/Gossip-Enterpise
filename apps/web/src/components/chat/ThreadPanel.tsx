@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { X, MessagesSquare, SendHorizontal } from "lucide-react";
 import { UserAvatar as Avatar } from "@/components/UserAvatar";
 import { MessageBody } from "@/components/chat/MessageBody";
+import { MessagePreviews } from "@/components/chat/LinkPreview";
+import { isBareImageUrl } from "@/lib/media";
 import { AttachmentView } from "@/components/chat/AttachmentView";
 import { useRelay } from "@/stores/useRelay";
 import { useSession } from "@/stores/useSession";
@@ -39,9 +41,10 @@ function Row({
           <div className="text-[13px] italic text-ink-faint">message deleted</div>
         ) : (
           <div className="text-[13.5px] leading-relaxed text-ink">
-            {body && <MessageBody text={body} />}
+            {body && !isBareImageUrl(body) && <MessageBody text={body} />}
             {editedAt != null && <span className="ml-1.5 text-[11px] text-ink-faint">(edited)</span>}
             {attachment && <AttachmentView a={attachment} />}
+            {body && <MessagePreviews text={body} />}
           </div>
         )}
       </div>

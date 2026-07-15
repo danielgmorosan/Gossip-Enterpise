@@ -11,7 +11,7 @@ import { Button, StackToast, Tooltip } from "@gossip/ui/stack";
 import { UserAvatar as Avatar } from "@/components/UserAvatar";
 import { gossipSdk, SdkEventType, MessageDirection, MessageType, type Message } from "@/lib/sdk";
 import { parseCallSignal, callSignalLabel } from "@/lib/callSignals";
-import { parseImageMarker, imageMarkerBody, fileToDmImageDataUrl } from "@/lib/media";
+import { parseImageMarker, imageMarkerBody, fileToDmImageDataUrl, isBareImageUrl } from "@/lib/media";
 import { dmRoomName } from "@/lib/call";
 import { relayUrl } from "@/lib/relayBase";
 import { useCall } from "@/stores/useCall";
@@ -327,6 +327,19 @@ export function RealDmView({ peerId, peerName, embedded }: { peerId: string; pee
                         <MessageBody text={image.caption} />
                       </div>
                     )}
+                    <span className="mt-0.5 text-[10px] text-ink-faint">{formatTime(new Date(m.timestamp))} · E2E</span>
+                  </div>
+                </div>
+              );
+            }
+            // T3: a message that's just an image/GIF URL renders as the image
+            // only (no raw link + bubble).
+            if (!deleted && isBareImageUrl(m.content)) {
+              return (
+                <div key={m.id ?? i} tabIndex={0} className={cn("group flex items-end gap-2 outline-none", mine ? "justify-end" : "justify-start")}>
+                  {!mine && <div className="w-7 shrink-0"><Avatar name={peerName || peerId} id={peerId} className="!size-7 !text-[11px]" /></div>}
+                  <div className={cn("flex max-w-[68%] flex-col", mine ? "items-end" : "items-start")}>
+                    <MessagePreviews text={m.content} e2e />
                     <span className="mt-0.5 text-[10px] text-ink-faint">{formatTime(new Date(m.timestamp))} · E2E</span>
                   </div>
                 </div>

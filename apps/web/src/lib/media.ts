@@ -16,6 +16,15 @@ export function isImageUrl(url: string): boolean {
   }
 }
 
+/**
+ * The whole message is a single image/GIF URL (e.g. a picked GIF). Such
+ * messages render as just the image - the raw URL text is suppressed.
+ */
+export function isBareImageUrl(text: string): boolean {
+  const t = text.trim();
+  return /^https?:\/\/\S+$/.test(t) && isImageUrl(t);
+}
+
 const IMG_PREFIX = "[[img:";
 const IMG_SUFFIX = "]]";
 /** Keep encrypted messages lean - ~128KB of base64 after compression. */

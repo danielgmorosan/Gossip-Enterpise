@@ -1,13 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { Search, Loader2, X } from "lucide-react";
+import { Search, Loader2, X, Clock } from "lucide-react";
 import { relayUrl } from "@/lib/relayBase";
+import { useRecentGifs, type RecentGif } from "@/stores/useRecentGifs";
 import { cn } from "@/lib/utils";
 
-interface Gif {
-  id: string;
-  preview: string;
-  url: string;
-}
+type Gif = RecentGif;
 
 const memo = new Map<string, Gif[]>();
 async function searchGifs(q: string): Promise<{ gifs: Gif[]; needsKey?: boolean }> {
@@ -36,6 +33,15 @@ export function GifPicker({ onPick, onClose, className }: { onPick: (url: string
   const [gifs, setGifs] = useState<Gif[]>([]);
   const [loading, setLoading] = useState(true);
   const [needsKey, setNeedsKey] = useState(false);
+  const recent = useRecentGifs((s) => s.recent);
+  const pushRecent = useRecentGifs((s) => s.push);
+  const showRecent = !query.trim() && recent.length > 0;
+
+  const pick = (g: Gif) => {
+    pushRecent(g);
+    onPick(g.url);
+    onClose();
+  };
 
   useEffect(() => {
     let on = true;
@@ -89,7 +95,24 @@ export function GifPicker({ onPick, onClose, className }: { onPick: (url: string
         </button>
       </div>
       <div className="h-64 overflow-y-auto">
-        {loading ? (
+        {showRecent ? (
+          <>
+            <div className="mb-1.5 flex items-center gap-1.5 px-0.5 text-[11px] font-medium uppercase tracking-wider text-ink-faint">
+              <Clock className="size-3" /> Recently used
+            </div>
+            <div className="columns-2 gap-2 [&>*]:mb-2">
+              {recent.map((g) => (
+                <button
+                  key={g.id}
+                  onClick={() => pick(g)}
+                  className="block w-full overflow-hidden rounded-control border border-transparent transition-colors hover:border-line-strong"
+                >
+                  <img src={g.preview} alt="" loading="lazy" className="w-full" />
+                </button>
+              ))}
+            </div>
+          </>
+        ) : loading ? (
           <div className="grid h-full place-items-center text-ink-faint">
             <Loader2 className="size-5 animate-spin" />
           </div>
@@ -106,10 +129,7 @@ export function GifPicker({ onPick, onClose, className }: { onPick: (url: string
             {gifs.map((g) => (
               <button
                 key={g.id}
-                onClick={() => {
-                  onPick(g.url);
-                  onClose();
-                }}
+                onClick={() => pick(g)}
                 className="block w-full overflow-hidden rounded-control border border-transparent transition-colors hover:border-line-strong"
               >
                 <img src={g.preview} alt="" loading="lazy" className="w-full" />

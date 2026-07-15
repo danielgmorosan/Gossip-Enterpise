@@ -5,6 +5,7 @@ import { PaneHeader, HeaderIconButton } from "@/components/chat/PaneHeader";
 import { Composer } from "@/components/chat/Composer";
 import { MessageBody } from "@/components/chat/MessageBody";
 import { MessagePreviews } from "@/components/chat/LinkPreview";
+import { isBareImageUrl } from "@/lib/media";
 import { MessageActionsBar, ArmDeleteButton, EditBox } from "@/components/chat/MessageActionsBar";
 import { AttachmentView } from "@/components/chat/AttachmentView";
 import { uploadAttachment } from "@/lib/uploads";
@@ -404,7 +405,9 @@ export function ChannelView({ embedded }: { embedded?: boolean } = {}) {
                     />
                   ) : (
                     <div className="text-[14px] leading-relaxed text-ink">
-                      {m.body && <MessageBody text={m.body} />}
+                      {/* A message that's just a GIF/image URL renders as only
+                          the image (via MessagePreviews) - no raw link text. */}
+                      {m.body && !isBareImageUrl(m.body) && <MessageBody text={m.body} />}
                       {m.editedAt != null && <span className="ml-1.5 text-[11px] text-ink-faint">(edited)</span>}
                       {m.attachment && <AttachmentView a={m.attachment} />}
                       {m.body && <MessagePreviews text={m.body} />}
