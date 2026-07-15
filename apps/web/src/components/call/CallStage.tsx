@@ -8,7 +8,7 @@ import {
   useTracks,
   type TrackReferenceOrPlaceholder,
 } from "@livekit/components-react";
-import { Mic, MicOff, Video, VideoOff, MonitorUp, PhoneOff, MessageSquareText, VolumeX, X, Maximize } from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, MonitorUp, PhoneOff, MessageSquareText, VolumeX, X, Maximize, Minimize } from "lucide-react";
 import { Tooltip } from "@gossip/ui/stack";
 import { UserAvatar } from "@/components/UserAvatar";
 import { useCall, type CallTarget } from "@/stores/useCall";
@@ -51,6 +51,14 @@ export function CallStage({ target }: { target: CallTarget }) {
     return saved >= 15 && saved <= 75 ? saved : 38;
   });
   const shareRef = useRef<HTMLDivElement>(null);
+  // Track fullscreen so the button toggles + swaps its icon, and stays correct
+  // when the user exits with Esc/F11 (which don't go through our button).
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => {
+    const onFs = () => setIsFullscreen(document.fullscreenElement === shareRef.current);
+    document.addEventListener("fullscreenchange", onFs);
+    return () => document.removeEventListener("fullscreenchange", onFs);
+  }, []);
   const startShareResize = (e: React.PointerEvent) => {
     e.preventDefault();
     const top = shareRef.current?.getBoundingClientRect().top ?? 0;
@@ -97,12 +105,21 @@ export function CallStage({ target }: { target: CallTarget }) {
             >
               <VideoTrack trackRef={screenShare} className="h-full w-full rounded-card object-contain" />
               <button
-                onClick={() => void shareRef.current?.requestFullscreen().catch(() => {})}
-                title="Fullscreen"
-                aria-label="Fullscreen screenshare"
-                className="absolute right-5 top-5 grid size-9 place-items-center rounded-control bg-black/60 text-white opacity-0 transition-opacity hover:bg-black/80 group-hover/share:opacity-100"
+                onClick={() => {
+                  // Toggle: exit if we're already fullscreen (anywhere), else
+                  // fullscreen the share area. In fullscreen the group-hover
+                  // affordance can't fire, so this button stays visible.
+                  if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+                  else void shareRef.current?.requestFullscreen().catch(() => {});
+                }}
+                title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen screenshare"}
+                className={cn(
+                  "absolute right-5 top-5 grid size-9 place-items-center rounded-control bg-black/60 text-white transition-opacity hover:bg-black/80",
+                  isFullscreen ? "opacity-100" : "opacity-0 group-hover/share:opacity-100",
+                )}
               >
-                <Maximize className="size-4" />
+                {isFullscreen ? <Minimize className="size-4" /> : <Maximize className="size-4" />}
               </button>
             </div>
             {chatOpen && (
