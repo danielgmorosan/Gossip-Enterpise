@@ -164,6 +164,10 @@ let lastNonceSigned: string | null = null;
 export function getRelaySessionToken(): string | null {
   return relaySessionToken;
 }
+/** `Authorization` header for relay HTTP calls when authenticated, else empty (D2). */
+export function relayAuthHeader(): Record<string, string> {
+  return relaySessionToken ? { authorization: `Bearer ${relaySessionToken}` } : {};
+}
 const lastTypingSent = new Map<string, number>();
 
 interface RelayMsg {

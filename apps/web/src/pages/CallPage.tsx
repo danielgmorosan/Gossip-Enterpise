@@ -7,7 +7,7 @@ import { RoomContext } from "@livekit/components-react";
 import { Button } from "@gossip/ui/stack";
 import { CallStage } from "@/components/call/CallStage";
 import { useSession } from "@/stores/useSession";
-import { useRelay } from "@/stores/useRelay";
+import { useRelay, relayAuthHeader } from "@/stores/useRelay";
 import { useContacts } from "@/stores/useContacts";
 import { useAudioSettings } from "@/stores/useAudioSettings";
 import { useCall, sameTarget, type CallTarget } from "@/stores/useCall";
@@ -138,7 +138,7 @@ export function CallPage() {
       const identity = `${userId ?? "guest"}#${Math.random().toString(36).slice(2, 8)}`;
       const res = await fetch(relayUrl("/livekit-token"), {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...relayAuthHeader() },
         body: JSON.stringify({ room, identity, name: displayName || "Guest" }),
       });
       const data = await res.json();

@@ -1,6 +1,7 @@
 // Gossip AI client. The frontend only ever talks to the gateway (relay) over HTTP -
 // the model runs locally (Ollama) and only sees channel data, never DMs.
 import { relayUrl } from "./relayBase";
+import { relayAuthHeader } from "@/stores/useRelay";
 
 export interface AiCitation {
   channelId: string;
@@ -36,7 +37,7 @@ export async function runAiJob(req: {
 }): Promise<AiResult> {
   const res = await fetch(relayUrl("/openclaw/jobs"), {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...relayAuthHeader() },
     body: JSON.stringify(req),
   });
   const data = await res.json();

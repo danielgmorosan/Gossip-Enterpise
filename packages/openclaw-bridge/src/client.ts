@@ -3,8 +3,14 @@ import type { AiJobRequest, AiJobResult, GatewayHealth, RewriteRequest, RewriteR
 export interface OpenClawClientOptions {
   /** Base URL of the OpenClaw gateway, e.g. http://127.0.0.1:8787 */
   baseUrl: string;
-  /** Bearer/session token issued to the signed-in member. */
+  /** Bearer/session token issued to the signed-in member (static). */
   token?: string;
+  /**
+   * Resolver for a session token that changes over the connection's lifetime
+   * (e.g. the relay auth token, re-earned on every reconnect). Called per
+   * request; takes precedence over `token` when it returns a value.
+   */
+  getToken?: () => string | null | undefined;
   /** Use the in-memory mock instead of network calls (UI dev / offline). */
   mock?: boolean;
   fetchImpl?: typeof fetch;
@@ -17,12 +23,14 @@ export interface OpenClawClientOptions {
 export class OpenClawClient {
   private readonly baseUrl: string;
   private readonly token?: string;
+  private readonly getToken?: () => string | null | undefined;
   private readonly mock: boolean;
   private readonly fetchImpl: typeof fetch;
 
   constructor(opts: OpenClawClientOptions) {
     this.baseUrl = opts.baseUrl.replace(/\/$/, "");
     this.token = opts.token;
+    this.getToken = opts.getToken;
     this.mock = opts.mock ?? false;
     // Bind fetch to globalThis — storing it as a class property and calling
     // `this.fetchImpl(...)` would otherwise invoke it with `this` = the client
@@ -79,9 +87,10 @@ export class OpenClawClient {
   }
 
   private headers(): HeadersInit {
+    const token = this.getToken?.() ?? this.token;
     return {
       "content-type": "application/json",
-      ...(this.token ? { authorization: `Bearer ${this.token}` } : {}),
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
     };
   }
 

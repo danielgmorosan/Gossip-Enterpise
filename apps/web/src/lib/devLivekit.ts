@@ -1,4 +1,5 @@
 import { Room } from "livekit-client";
+import { relayAuthHeader } from "@/stores/useRelay";
 
 // Dev-only handle to drive a LiveKit connection from automation/console.
 if (import.meta.env.DEV) {
@@ -6,7 +7,7 @@ if (import.meta.env.DEV) {
     async connect(room: string, identity: string, name: string) {
       const res = await fetch("/livekit-token", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...relayAuthHeader() },
         body: JSON.stringify({ room, identity, name }),
       });
       const { token, url } = await res.json();
