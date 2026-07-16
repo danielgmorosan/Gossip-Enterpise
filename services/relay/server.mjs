@@ -231,6 +231,15 @@ setInterval(() => {
   for (const [t, r] of sessionTokens) if (r.exp < now) sessionTokens.delete(t);
 }, 60 * 60_000).unref?.();
 
+// Enforcement switch (D2 step 2). Deploy OFF; flip on with
+// `fly secrets set RELAY_REQUIRE_AUTH=1` once clients have adopted the signed
+// handshake. When ON, the AI / LiveKit / upload endpoints reject requests that
+// don't carry a valid session token, and LiveKit tokens are bound to the
+// requester's proven identity + channel membership. AI context is scoped to
+// the requester's membership whenever we know who they are, regardless of this
+// flag (strictly non-breaking — it can only remove channels they can't read).
+const RELAY_REQUIRE_AUTH = /^(1|true|yes|on)$/i.test(process.env.RELAY_REQUIRE_AUTH ?? "");
+
 const clients = new Set(); // { ws, userId, name, wsSubs:Set, chSubs:Set, authed, authKey }
 let callAnnounce = null; // room → last token ts (T2-09 call-start announce debounce)
 
@@ -631,18 +640,24 @@ function readBody(req) {
 }
 
 // ── AI helpers ───────────────────────────────────────────────────────
-function gatherChannelContext(workspaceId, channelIds) {
+function gatherChannelContext(workspaceId, channelIds, requesterId = null) {
   const ws = db.workspaces[workspaceId];
   if (!ws) return { transcript: "", channels: [], citations: [] };
+  // Scoped mode (D2): with a proven requester, they must be a non-banned member
+  // of the workspace, and context is limited to channels they can actually read
+  // (private channels they belong to are now included; ones they don't are not).
+  if (requesterId && (!memberOf(ws, requesterId) || isBanned(ws, requesterId))) {
+    return { transcript: "", channels: [], citations: [] };
+  }
   const channels = [];
   const citations = [];
   let transcript = "";
   for (const chId of channelIds) {
     const ch = ws.channels[chId];
     if (!ch) continue; // only channels that exist in this workspace
-    // T2-08: the AI jobs endpoint has no requester identity, so private
-    // channels are excluded from AI context entirely — no leak via recaps.
-    if (ch.type === "private") continue;
+    // With a requester: scope to their read access. Without one (legacy /
+    // unauthenticated): exclude every private channel so recaps can't leak them.
+    if (requesterId ? !canReadChannel(ch, requesterId) : ch.type === "private") continue;
     const msgs = (db.messages[`${workspaceId}/${chId}`] ?? []).slice(-MAX_MSGS_PER_CHANNEL);
     if (msgs.length === 0) continue;
     channels.push(ch.name);
@@ -681,8 +696,8 @@ const SYSTEM_PROMPT =
   "Answer strictly from the provided channel content. If the answer isn't there, say so. " +
   "Be concise and well-structured; use short bullets for recaps and call out decisions and action items.";
 
-async function runAiJob({ workspaceId, channelScope, type, prompt }) {
-  const { transcript, channels, citations } = gatherChannelContext(workspaceId, channelScope ?? []);
+async function runAiJob({ workspaceId, channelScope, type, prompt, requesterId }) {
+  const { transcript, channels, citations } = gatherChannelContext(workspaceId, channelScope ?? [], requesterId ?? null);
   const ask =
     type === "recap"
       ? `Recap these channels — key updates, decisions, and action items.${prompt ? " Focus: " + prompt : ""}`
@@ -792,6 +807,24 @@ const httpServer = createServer(async (req, res) => {
     try {
       const { room, identity, name } = JSON.parse((await readBody(req)) || "{}");
       if (!room || !identity) return json(400, { error: "room and identity required" });
+      // F3: don't mint call tokens for anonymous callers or for rooms the caller
+      // can't access. Enforcement is flag-gated so flag-off behavior is unchanged.
+      const proven = bearerUserId(req);
+      if (RELAY_REQUIRE_AUTH) {
+        if (!proven) return json(401, { error: "Sign in to join calls." });
+        // The minted identity must be the caller's own (identity is `${userId}#suffix`).
+        if (String(identity).split("#")[0] !== proven) return json(403, { error: "Identity mismatch." });
+        // Channel rooms are `${workspaceId}:${channelId}` — require membership.
+        // DM rooms are opaque digests only the two parties can derive, so an
+        // authenticated caller + the digest's unguessability is the guard there.
+        const [rWsId, rChId] = String(room).split(":");
+        const rWorkspace = rWsId && rChId ? db.workspaces[rWsId] : null;
+        const rChannel = rWorkspace?.channels?.[rChId];
+        if (rWorkspace && rChannel) {
+          if (!memberOf(rWorkspace, proven) || isBanned(rWorkspace, proven)) return json(403, { error: "Not a member of this workspace." });
+          if (!canReadChannel(rChannel, proven)) return json(403, { error: "Not a member of this channel." });
+        }
+      }
       const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, { identity, name: name || identity, ttl: "2h" });
       at.addGrant({ roomJoin: true, room, canPublish: true, canSubscribe: true });
       // T2-09: channel rooms are `${workspaceId}:${channelId}` — announce a
@@ -857,6 +890,7 @@ const httpServer = createServer(async (req, res) => {
     // model — a non-local route is refused outright so DM drafts can never
     // reach a cloud provider. The draft is not logged and not persisted.
     try {
+      if (RELAY_REQUIRE_AUTH && !bearerUserId(req)) return json(401, { error: "Sign in to use AI." });
       const body = JSON.parse((await readBody(req)) || "{}");
       const draft = String(body.draft ?? "").slice(0, 4000);
       if (!draft.trim()) return json(400, { error: "draft required" });
@@ -880,8 +914,13 @@ const httpServer = createServer(async (req, res) => {
   }
   if (req.method === "POST" && req.url === "/openclaw/jobs") {
     try {
+      const proven = bearerUserId(req);
+      if (RELAY_REQUIRE_AUTH && !proven) return json(401, { error: "Sign in to use AI." });
       const body = JSON.parse((await readBody(req)) || "{}");
       if (!body.workspaceId) return json(400, { error: "workspaceId required" });
+      // F2: scope AI context to the requester's membership (when known), so a
+      // bare workspaceId can no longer pull channels the caller can't read.
+      body.requesterId = proven ?? null;
       const result = await runAiJob(body);
       return json(200, result);
     } catch (e) {
@@ -893,6 +932,7 @@ const httpServer = createServer(async (req, res) => {
   if (req.method === "POST" && req.url?.startsWith("/uploads")) {
     // Channel attachment upload. Raw body; name/type via query params.
     try {
+      if (RELAY_REQUIRE_AUTH && !bearerUserId(req)) return json(401, { error: "Sign in to upload files." });
       const u = new URL(req.url, "http://x");
       const name = (u.searchParams.get("name") ?? "file").slice(0, 200).replace(/[\r\n"\\/]/g, "_");
       const type = (u.searchParams.get("type") ?? "application/octet-stream").slice(0, 100);
@@ -940,7 +980,7 @@ const httpServer = createServer(async (req, res) => {
 const wss = new WebSocketServer({ server: httpServer });
 httpServer.listen(PORT);
 console.log(
-  `[relay] http+ws on :${PORT}  (${Object.keys(db.workspaces).length} workspaces, livekit ${livekitConfigured ? "configured" : "NOT configured"})`,
+  `[relay] http+ws on :${PORT}  (${Object.keys(db.workspaces).length} workspaces, livekit ${livekitConfigured ? "configured" : "NOT configured"}, auth ${RELAY_REQUIRE_AUTH ? "REQUIRED" : "optional"})`,
 );
 
 wss.on("connection", (ws) => {
