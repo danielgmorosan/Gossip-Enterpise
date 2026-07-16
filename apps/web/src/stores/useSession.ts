@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { generateMnemonic, openSession, gossipSdk, initSdk } from "@/lib/sdk";
 import { ensureAuthKey, clearAuthKey } from "@/lib/relayAuth";
+import { removeBiometricVault } from "@/lib/biometricVault";
 
 type Status = "locked" | "opening" | "open" | "error";
 
@@ -39,6 +40,12 @@ interface SessionState {
   /** Warm up the SDK + WASM without opening a session. */
   warmup: () => Promise<void>;
   signOut: () => Promise<void>;
+  /**
+   * Wipe this identity (and its account-scoped data) from THIS device and
+   * reload into onboarding for a new one. For someone who's lost their recovery
+   * passphrase and wants a fresh account. Device prefs (theme/audio) are kept.
+   */
+  startFresh: () => Promise<void>;
 }
 
 export const useSession = create<SessionState>((set, get) => ({
@@ -116,12 +123,45 @@ export const useSession = create<SessionState>((set, get) => ({
   },
 
   signOut: async () => {
+    // Reset local session state FIRST so the lock always takes effect — even if
+    // the SDK close is slow or throws. (Previously an unhandled closeSession
+    // rejection ran before navigation, so "Lock session" silently did nothing.)
     localStorage.removeItem(REMEMBER_KEY);
+    clearAuthKey(); // D2: forget the relay-auth key on sign-out
+    set({ status: "locked", userId: null, mnemonic: null, remembered: false });
     try {
       if (gossipSdk.isSessionOpen) await gossipSdk.closeSession();
-    } finally {
-      clearAuthKey(); // D2: forget the relay-auth key on sign-out
-      set({ status: "locked", userId: null, mnemonic: null, remembered: false });
+    } catch {
+      /* best-effort — local session state is already cleared */
     }
+  },
+
+  startFresh: async () => {
+    // Remove identity- and account-scoped local state; keep device prefs
+    // (theme, audio, layout) so the new identity starts clean but familiar.
+    const PRESERVE = new Set([
+      "gossip-theme",
+      "gossip-audio-settings",
+      "gossip-advanced-audio",
+      "gossip-call-volumes",
+      "gossip-share-vh",
+      "gossip-recent-gifs",
+    ]);
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith("gossip-") && !PRESERVE.has(key)) localStorage.removeItem(key);
+    }
+    clearAuthKey();
+    try {
+      removeBiometricVault(); // clears the biometric vault (localStorage + IndexedDB)
+    } catch {
+      /* best-effort */
+    }
+    try {
+      if (gossipSdk.isSessionOpen) await gossipSdk.closeSession();
+    } catch {
+      /* best-effort */
+    }
+    // Hard reload so no in-memory store keeps stale identity data.
+    window.location.assign("/welcome");
   },
 }));

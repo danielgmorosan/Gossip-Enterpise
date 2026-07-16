@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Fingerprint, KeyRound, Loader2, ShieldCheck } from "lucide-react";
+import { Fingerprint, KeyRound, Loader2, ShieldCheck, UserPlus } from "lucide-react";
 import { SettingsPage } from "./SettingsLayout";
 import { SettingGroup, SettingRow } from "./parts";
 import { Button } from "@gossip/ui/stack";
+import { ConfirmDialog } from "@/components/ContextMenu";
 import { useSession } from "@/stores/useSession";
 import {
   biometricsAvailable,
@@ -16,6 +17,8 @@ export function SecuritySettings() {
   const nav = useNavigate();
   const status = useSession((s) => s.status);
   const signOut = useSession((s) => s.signOut);
+  const startFresh = useSession((s) => s.startFresh);
+  const [showSwitch, setShowSwitch] = useState(false);
   const remembered = useSession((s) => s.remembered);
   const forgetDevice = useSession((s) => s.forgetDevice);
   const mnemonic = useSession((s) => s.mnemonic);
@@ -136,7 +139,34 @@ export function SecuritySettings() {
             </Button>
           }
         />
+        <SettingRow
+          label="Switch account"
+          desc="Sign out and start a brand-new identity on this device. Use this if you've lost your recovery passphrase and just want a fresh account. Your device preferences (theme, audio) are kept."
+          control={
+            <Button variant="danger" size="sm" onClick={() => setShowSwitch(true)}>
+              <UserPlus className="size-4" /> New account
+            </Button>
+          }
+        />
       </SettingGroup>
+      {showSwitch && (
+        <ConfirmDialog
+          title="Start a new account?"
+          body={
+            <>
+              This removes your current identity and its data from <b>this device</b> and takes you to setup for a new
+              one.{" "}
+              <b>If you haven't saved your recovery passphrase, you won't be able to sign back into this account</b> — it
+              cannot be recovered.
+            </>
+          }
+          confirmLabel="Remove & start new"
+          onConfirm={() => {
+            void startFresh(); // wipes local identity + hard-reloads to /welcome
+          }}
+          onClose={() => setShowSwitch(false)}
+        />
+      )}
     </SettingsPage>
   );
 }
