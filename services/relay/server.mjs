@@ -746,7 +746,10 @@ const PRIVILEGED_WS_TYPES = new Set([
 const httpServer = createServer(async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", CORS_ORIGIN);
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "content-type");
+  // `authorization` must be allowed or the browser's CORS preflight blocks
+  // every authenticated cross-origin request (uploads, LiveKit, AI) — the web
+  // app (Vercel) and relay (Fly) are different origins. (D2)
+  res.setHeader("Access-Control-Allow-Headers", "content-type, authorization");
   if (req.method === "OPTIONS") {
     res.writeHead(204);
     return res.end();
