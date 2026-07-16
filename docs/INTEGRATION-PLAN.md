@@ -110,7 +110,7 @@ Modes A/B (shared relay); Mode C on loopback mostly moots the network-facing ite
 
 | # | Finding | Severity | Detail |
 |---|---|---|---|
-| F1 | **Identity is asserted, not proven.** `hello { userId }` is trusted verbatim; any client claiming a userId becomes that user — read joined channels, post as them, exercise their role (incl. owner powers). | **Critical** | The whole authz layer (roles, private channels, bans) sits on an unauthenticated identity. |
+| F1 | **Identity is asserted, not proven.** `hello { userId }` is trusted verbatim; any client claiming a userId becomes that user — read joined channels, post as them, exercise their role (incl. owner powers). | **Critical** | The whole authz layer (roles, private channels, bans) sits on an unauthenticated identity. **⏳ Step 1 shipped (2026-07-16):** identity is now cryptographically provable (§4.1 — signed-challenge handshake, key pinning, session tokens, all live on prod, backward compatible). Remaining: flip to enforcement (reject unsigned/mismatched hellos) after a migration window. |
 | F2 | **`POST /openclaw/jobs` is unauthenticated.** Anyone with a workspace id gets AI summaries of its channel content over plain HTTP. | **Critical** | `runAiJob` scopes by `workspaceId/channelScope` from the request body with no requester check. |
 | F3 | **`POST /livekit-token` mints for any room/identity.** No membership check — anyone can join any channel call, or a DM call if they learn the room digest. | **High** | Also lets outsiders trigger `callStarted` announces (spam) and inflate `activeCalls`. |
 | F4 | **Uploads: unauthenticated POST, no quota/rate limit.** Per-file cap exists (`MAX_UPLOAD_BYTES`), but nothing stops disk-filling loops. GET is capability-URL (unguessable UUID) — acceptable, but no membership binding. | **High** | Abuse/DoS vector on Mode A; storage cost risk. |
@@ -276,7 +276,7 @@ public self-host marketing on purpose.
 | Phase | Scope | Key deliverables | Rough effort |
 |---|---|---|---|
 | **D1. Desktop shell** | Electron app running the existing renderer | `apps/desktop`, hardened BrowserWindow (§4.5), native notifications, CI matrix + signed installers | ~1 week |
-| **D2. Relay auth** | F1–F4 fixes | Signed hello + challenge, session tokens on HTTP, LiveKit/AI/upload authz, rate limits, WS origin check | ~1–1.5 weeks |
+| **D2. Relay auth** | F1–F4 fixes | ✅ **Step 1 (shipped):** signed-hello challenge–response, mnemonic-derived Ed25519 keys, TOFU pinning, session tokens, upload uploader-stamping — backward compatible, live on prod. ⏳ **Step 2:** require tokens on AI/LiveKit/upload endpoints + scope AI jobs to membership + LiveKit room-membership check. ⏳ **Step 3:** enforcement flag day (reject unsigned/mismatched hellos) after an in-app migration banner; rate limits + WS origin check. | ~1–1.5 weeks |
 | **D3. Supervisor + toggle** | Mode C | `supervisor.ts`, bundled relay + livekit, Self-hosting settings panel, Ollama flow (reuse AI-engine page), URL swapping | ~1.5 weeks |
 | **D4. Org self-host** | Mode B | `deploy/` compose + caddy, key generation, invite-link origin adoption, self-host docs | ~0.5 week |
 | **D5. At-rest + retention** | F5, F8 | `DATA_KEY` encryption, scrypt channel passwords, retention settings + GC | ~0.5 week |
