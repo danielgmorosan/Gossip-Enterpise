@@ -743,8 +743,46 @@ const PRIVILEGED_WS_TYPES = new Set([
   "watchPresence", "typing", "callEndedHint",
 ]);
 
+// Real client IP behind Fly's proxy (req.socket.remoteAddress is the proxy).
+function clientIp(req) {
+  return (
+    req.headers["fly-client-ip"] ||
+    String(req.headers["x-forwarded-for"] ?? "").split(",")[0].trim() ||
+    req.socket?.remoteAddress ||
+    "unknown"
+  );
+}
+
+// Per-IP HTTP rate limit (fixed window). Generous — a chat client legitimately
+// bursts (attachment GETs, gif search, unfurls); this only stops hammering.
+const HTTP_WINDOW_MS = 10_000;
+const HTTP_MAX_PER_WINDOW = 300;
+const httpHits = new Map(); // ip -> { count, resetAt }
+function httpRateLimited(ip) {
+  const now = Date.now();
+  let e = httpHits.get(ip);
+  if (!e || e.resetAt < now) {
+    e = { count: 0, resetAt: now + HTTP_WINDOW_MS };
+    httpHits.set(ip, e);
+  }
+  return ++e.count > HTTP_MAX_PER_WINDOW;
+}
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, e] of httpHits) if (e.resetAt < now) httpHits.delete(ip);
+}, HTTP_WINDOW_MS).unref?.();
+
+// Per-socket WS message rate cap (~30/s): drop floods without killing normal
+// typing/posting bursts.
+const WS_WINDOW_MS = 10_000;
+const WS_MAX_MSGS_PER_WINDOW = 300;
+
 const httpServer = createServer(async (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", CORS_ORIGIN);
+  // Echo an allowlisted origin (Access-Control-Allow-Origin can't be a list);
+  // fall back to "*" when the allowlist is dormant.
+  const origin = req.headers.origin;
+  res.setHeader("Access-Control-Allow-Origin", WS_ALLOWED_ORIGINS ? (originAllowed(origin) ? origin || "null" : "null") : "*");
+  res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   // `authorization` must be allowed or the browser's CORS preflight blocks
   // every authenticated cross-origin request (uploads, LiveKit, AI) — the web
@@ -753,6 +791,10 @@ const httpServer = createServer(async (req, res) => {
   if (req.method === "OPTIONS") {
     res.writeHead(204);
     return res.end();
+  }
+  if (httpRateLimited(clientIp(req))) {
+    res.writeHead(429, { "content-type": "application/json", "retry-after": "10" });
+    return res.end(JSON.stringify({ error: "Too many requests — slow down." }));
   }
   const json = (code, obj) => {
     res.writeHead(code, { "content-type": "application/json" });
@@ -1001,26 +1043,31 @@ const httpServer = createServer(async (req, res) => {
   res.end();
 });
 
-const wss = new WebSocketServer({ server: httpServer });
+const wss = new WebSocketServer({
+  server: httpServer,
+  // Reject cross-origin socket upgrades before they open when an allowlist is
+  // configured (dormant while CORS_ORIGIN is "*"). Non-browser clients send no
+  // Origin and are allowed.
+  verifyClient: (info) => originAllowed(info.origin),
+});
 httpServer.listen(PORT);
 console.log(
   `[relay] http+ws on :${PORT}  (${Object.keys(db.workspaces).length} workspaces, livekit ${livekitConfigured ? "configured" : "NOT configured"}, auth ${RELAY_REQUIRE_AUTH ? "REQUIRED" : "optional"}, origin ${WS_ALLOWED_ORIGINS ? "locked" : "open"})`,
 );
 
-wss.on("connection", (ws, req) => {
-  // D2 step 3: reject cross-origin sockets when an allowlist is configured.
-  if (!originAllowed(req?.headers?.origin)) {
-    try {
-      ws.close(1008, "origin not allowed");
-    } catch {
-      /* already closing */
-    }
-    return;
-  }
-  const client = { ws, userId: null, name: "Someone", wsSubs: new Set(), chSubs: new Set(), authed: false, authKey: null, authNonce: null, claimedAuthKey: null };
+wss.on("connection", (ws) => {
+  // Origin is enforced at the upgrade (verifyClient above).
+  const client = { ws, userId: null, name: "Someone", wsSubs: new Set(), chSubs: new Set(), authed: false, authKey: null, authNonce: null, claimedAuthKey: null, msgWindowStart: 0, msgCount: 0 };
   clients.add(client);
 
   ws.on("message", (raw) => {
+    // Per-socket flood cap: drop messages past the window budget.
+    const now = Date.now();
+    if (client.msgWindowStart + WS_WINDOW_MS < now) {
+      client.msgWindowStart = now;
+      client.msgCount = 0;
+    }
+    if (++client.msgCount > WS_MAX_MSGS_PER_WINDOW) return;
     let m;
     try {
       m = JSON.parse(raw.toString());
