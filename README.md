@@ -1,7 +1,7 @@
 # Gossip Workspace
 
-A decentralized, privacy-first Slack competitor on Gossip's E2E messaging stack. See `CLAUDE.md`
-(at `~/Desktop/CLAUDE.md`) for the full product spec.
+A decentralized, privacy-first Slack competitor on Gossip's E2E messaging stack. See
+[`docs/SPEC.md`](docs/SPEC.md) for the full product spec.
 
 ## Monorepo layout (pnpm + Turborepo)
 

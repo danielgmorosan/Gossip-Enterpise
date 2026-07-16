@@ -1,13 +1,12 @@
-# Gossip Workspace — Project Spec for Claude Code
+# Gossip Workspace — Project Spec
 
 > **Codename:** Gossip Workspace (placeholder — swap freely).
 > **One-liner:** A decentralized, privacy-first competitor to Slack, built on Gossip's
 > end-to-end-encrypted messaging stack, with privacy-focused mini-app integrations and a
 > self-hosted AI assistant (OpenClaw) that can run on a local model.
 
-This file is the working brief for Claude Code. Read the **Working Agreement** section before
-writing any code. The build is sequenced into phases at the bottom — do **not** try to build
-everything at once.
+This is the working product spec. Read the **Working Agreement** section before writing any code.
+The build is sequenced into phases at the bottom — do **not** try to build everything at once.
 
 ---
 
@@ -76,7 +75,7 @@ as a workspace package.
 
 ```
 gossip-workspace/
-├── CLAUDE.md                       # this file
+├── docs/SPEC.md                    # this file
 ├── pnpm-workspace.yaml
 ├── turbo.json
 ├── vendor/
@@ -452,7 +451,7 @@ DeWeb deployment, group-E2E upgrade path (fan-out → MLS).
 
 ---
 
-## 15. Working agreement for Claude Code
+## 15. Working agreement
 - Prefer **reusing `gossip-sdk`** over re-implementing messaging. If you must imitate it, keep the
   crypto boundary identical and document why.
 - Work **phase by phase** (§13). Don't scaffold features from later phases prematurely.

@@ -8,9 +8,9 @@ import { dicebearUri } from "@/lib/avatar";
  * override, avatars are deterministic DiceBear identicons seeded by the
  * handle (so every device renders the same default for a given user).
  *
- * Known gap (flagged in ralph/PROGRESS.md): a custom upload / reseed is
- * visible only on this device until the relay/member protocol carries
- * avatars - peers still see the deterministic default.
+ * Known gap: a custom upload / reseed is visible only on this device until
+ * the relay/member protocol carries avatars - peers still see the
+ * deterministic default.
  */
 export type AvatarOverride = { kind: "seed"; seed: string } | { kind: "image"; dataUrl: string };
 

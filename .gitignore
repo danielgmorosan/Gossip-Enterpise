@@ -9,11 +9,11 @@ dist/
 
 # vendor/gossip is a git submodule (tracked via .gitmodules), not ignored.
 
+# local Claude Code settings (machine-specific, never commit)
+.claude/
+
 # relay persisted state
 services/relay/.data.json
-
-# ralph loop scratch files
-ralph/.ralph_*
 
 # relay runtime upload storage
 services/relay/uploads/
