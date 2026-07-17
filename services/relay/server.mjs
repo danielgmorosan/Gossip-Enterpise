@@ -1363,9 +1363,10 @@ wss.on("connection", (ws) => {
       }
 
       case "makeChannelPrivate": {
-        // Convert public → private (T3). Membership starts as everyone
-        // currently in the workspace, so nobody gets locked out silently;
-        // the admin can prune from there. Optional join password.
+        // Convert public → private (T3). Membership is the converter's choice:
+        // "everyone" grandfathers all current workspace members in (nobody
+        // locked out silently); "self" starts invite-only with just the
+        // converter. Optional join password.
         const workspace = db.workspaces[m.workspaceId];
         const channel = workspace?.channels?.[m.channelId];
         if (!workspace || !channel) {
@@ -1378,12 +1379,31 @@ wss.on("connection", (ws) => {
         }
         if (channel.type !== "private") {
           channel.type = "private";
-          channel.members = Object.fromEntries(Object.keys(workspace.members).map((id) => [id, true]));
+          channel.members =
+            m.membership === "self"
+              ? { [client.userId]: true }
+              : Object.fromEntries(Object.keys(workspace.members).map((id) => [id, true]));
         }
         const password = String(m.password ?? "").slice(0, 100);
         if (password) channel.joinPassword = password;
         save();
         const chPayload = serializeChannel(channel);
+        const chKey = `${workspace.id}/${channel.id}`;
+        // Workspace members left outside the new roster lose the channel:
+        // drop their live subscriptions and update their sidebars (a locked
+        // stub if there's a password to knock with, otherwise gone).
+        for (const uid of Object.keys(workspace.members)) {
+          if (channel.members?.[uid]) continue;
+          for (const c of clients) {
+            if (c.userId === uid && c.chSubs.delete(chKey)) presence(workspace.id, channel.id);
+          }
+          sendToUser(
+            uid,
+            channel.joinPassword
+              ? { type: "channelUpdated", workspaceId: workspace.id, channel: lockedChannelStub(channel) }
+              : { type: "channelRemoved", workspaceId: workspace.id, channelId: channel.id },
+          );
+        }
         for (const uid of Object.keys(channel.members ?? {})) {
           sendToUser(uid, { type: "channelUpdated", workspaceId: workspace.id, channel: chPayload });
         }

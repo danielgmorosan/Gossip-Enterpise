@@ -14,7 +14,7 @@ import { truncateHandle } from "@/lib/utils";
  */
 export function ChannelMembersDialog({
   workspaceId,
-  channel,
+  channel: channelProp,
   onClose,
 }: {
   workspaceId: string;
@@ -25,6 +25,9 @@ export function ChannelMembersDialog({
   const myId = useSession((s) => s.userId);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Callers pass a snapshot; resolve the LIVE channel from the store so the
+  // roster follows invites/removals while the dialog is open.
+  const channel = workspace?.channels.find((c) => c.id === channelProp.id) ?? channelProp;
 
   const me = workspace?.members.find((m) => m.userId === myId);
   const canManage =

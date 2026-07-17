@@ -124,7 +124,7 @@ interface RelayState {
   deleteWorkspace: (workspaceId: string) => Promise<{ ok: true } | { ok: false; error: string }>;
   /** manageChannels permission (T3). */
   deleteChannel: (workspaceId: string, channelId: string) => Promise<{ ok: true } | { ok: false; error: string }>;
-  makeChannelPrivate: (workspaceId: string, channelId: string, password?: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+  makeChannelPrivate: (workspaceId: string, channelId: string, password?: string, membership?: "everyone" | "self") => Promise<{ ok: true } | { ok: false; error: string }>;
   openWorkspace: (workspaceId: string) => Promise<RelayWorkspace | null>;
   createChannel: (workspaceId: string, name: string, type?: "public" | "private", topic?: string, password?: string) => Promise<{ ok: true; channel: RelayChannel } | { ok: false; error: string }>;
   /** T3: join a password-protected private channel. */
@@ -757,10 +757,10 @@ export const useRelay = create<RelayState>((set, get) => ({
     return { ok: true };
   },
 
-  makeChannelPrivate: async (workspaceId, channelId, password) => {
+  makeChannelPrivate: async (workspaceId, channelId, password, membership) => {
     get().connect();
     sendHello();
-    const m = await request({ type: "makeChannelPrivate", workspaceId, channelId, password });
+    const m = await request({ type: "makeChannelPrivate", workspaceId, channelId, password, membership });
     if (m.type === "error") return { ok: false, error: errText(m, "Couldn't update the channel.") };
     return { ok: true };
   },

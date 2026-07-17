@@ -20,6 +20,7 @@ import { useRelay } from "@/stores/useRelay";
 import { useNotifications } from "@/stores/useNotifications";
 import { CreateChannelDialog } from "@/components/chat/CreateChannelDialog";
 import { ChannelMembersDialog } from "@/components/chat/ChannelMembersDialog";
+import { MakePrivateDialog } from "@/components/chat/MakePrivateDialog";
 import { ContextMenu, ConfirmDialog } from "@/components/ContextMenu";
 import { CallSidebarPanel } from "@/components/CallDock";
 import { useUnlockPrompt } from "@/components/UnlockDialog";
@@ -135,6 +136,7 @@ export function ChannelSidebar() {
   const [chMenu, setChMenu] = useState<{ x: number; y: number; channel: RelayChannel } | null>(null);
   const [chDelete, setChDelete] = useState<RelayChannel | null>(null);
   const [chMembers, setChMembers] = useState<RelayChannel | null>(null);
+  const [chMakePrivate, setChMakePrivate] = useState<RelayChannel | null>(null);
 
   return (
     <aside className="flex h-full w-[264px] shrink-0 flex-col border-r border-line bg-paper-2 font-stack max-md:w-auto max-md:min-w-0 max-md:flex-1">
@@ -239,10 +241,7 @@ export function ChannelSidebar() {
                   {
                     label: "Make private",
                     icon: <Lock className="size-4" />,
-                    onClick: () => {
-                      const ch = chMenu.channel;
-                      void useRelay.getState().makeChannelPrivate(workspaceId, ch.id);
-                    },
+                    onClick: () => setChMakePrivate(chMenu.channel),
                   },
                 ]
               : [
@@ -275,6 +274,9 @@ export function ChannelSidebar() {
       )}
       {chMembers && (
         <ChannelMembersDialog workspaceId={workspaceId} channel={chMembers} onClose={() => setChMembers(null)} />
+      )}
+      {chMakePrivate && (
+        <MakePrivateDialog workspaceId={workspaceId} channel={chMakePrivate} onClose={() => setChMakePrivate(null)} />
       )}
 
       {newChannel && workspaceId && <CreateChannelDialog workspaceId={workspaceId} onClose={() => setNewChannel(false)} />}
