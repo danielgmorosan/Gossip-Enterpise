@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate, useSearchParams, Link } from "react-router-dom";
-import { DisconnectReason, RoomEvent, type RoomOptions } from "livekit-client";
+import { DisconnectReason, RoomEvent, VideoPresets, type RoomOptions } from "livekit-client";
 import { Video, Loader2, ServerCog, ArrowLeft } from "lucide-react";
 import "@livekit/components-styles";
 import { RoomContext } from "@livekit/components-react";
@@ -10,6 +10,7 @@ import { useSession } from "@/stores/useSession";
 import { useRelay, relayAuthHeader } from "@/stores/useRelay";
 import { useContacts } from "@/stores/useContacts";
 import { useAudioSettings } from "@/stores/useAudioSettings";
+import { useVideoSettings } from "@/stores/useVideoSettings";
 import { useCall, sameTarget, type CallTarget } from "@/stores/useCall";
 import { relayUrl } from "@/lib/relayBase";
 import { dmRoomName } from "@/lib/call";
@@ -79,10 +80,20 @@ export function CallPage() {
     if (sameTarget(useCall.getState().target, target)) useCall.getState().setTargetLabel(target.label);
   }, [target]);
 
-  // Persisted audio prefs (Settings → Calls & audio) → LiveKit room options.
+  // Persisted audio + video prefs (Settings → Calls & audio) → LiveKit room options.
   const audio = useAudioSettings();
+  const camPreset = useVideoSettings((s) => s.camPreset);
   const roomOptions = useMemo<RoomOptions>(
     () => ({
+      // T4: camera capture quality preset ("auto" = LiveKit's balanced 720p).
+      videoCaptureDefaults: {
+        resolution: (camPreset === "1080"
+          ? VideoPresets.h1080
+          : camPreset === "360"
+            ? VideoPresets.h360
+            : VideoPresets.h720
+        ).resolution,
+      },
       audioCaptureDefaults: {
         deviceId: audio.inputId || undefined,
         echoCancellation: audio.echoCancellation,
@@ -105,7 +116,7 @@ export function CallPage() {
         nextRetryDelayInMs: (ctx) => (ctx.elapsedMs > 150_000 ? null : Math.min(500 * 2 ** Math.min(ctx.retryCount, 5), 10_000)),
       },
     }),
-    [audio.inputId, audio.outputId, audio.echoCancellation, audio.noiseSuppression, audio.autoGainControl],
+    [audio.inputId, audio.outputId, audio.echoCancellation, audio.noiseSuppression, audio.autoGainControl, camPreset],
   );
 
   const back = () =>

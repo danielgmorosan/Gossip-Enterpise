@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { Mic, Volume2, RefreshCw, AudioWaveform } from "lucide-react";
+import { Mic, Volume2, RefreshCw, AudioWaveform, Video, MonitorUp } from "lucide-react";
 import { SettingsPage } from "./SettingsLayout";
 import { SettingGroup, SettingRow } from "./parts";
 import { Button, Toggle } from "@umbry/ui/stack";
 import { useAudioSettings } from "@/stores/useAudioSettings";
+import { useVideoSettings, type CamPreset, type ShareRes, type ShareFps } from "@/stores/useVideoSettings";
 import { useAdvancedAudio } from "@/stores/useAdvancedAudio";
 import { useCall } from "@/stores/useCall";
 import { syncNoiseGate, updateNoiseGate } from "@/lib/audioProcessing";
@@ -17,6 +18,7 @@ import { cn } from "@/lib/utils";
  */
 export function CallSettings() {
   const settings = useAudioSettings();
+  const video = useVideoSettings();
   const adv = useAdvancedAudio();
   const callRoom = useCall((s) => s.room);
   const callLive = useCall((s) => s.status === "connected");
@@ -143,6 +145,78 @@ export function CallSettings() {
         />
       </SettingGroup>
 
+      <SettingGroup title="Video">
+        <SettingRow
+          label={
+            <span className="inline-flex items-center gap-2">
+              <Video className="size-4 text-ink-faint" /> Camera quality
+            </span>
+          }
+          desc="Capture resolution for your camera. Applies when you next join a call."
+          control={
+            <QualitySelect
+              value={video.camPreset}
+              options={[
+                ["auto", "Auto (720p)"],
+                ["1080", "1080p"],
+                ["720", "720p"],
+                ["360", "360p (low bandwidth)"],
+              ]}
+              onChange={(v) => video.set({ camPreset: v as CamPreset })}
+            />
+          }
+        />
+        <SettingRow
+          label={
+            <span className="inline-flex items-center gap-2">
+              <MonitorUp className="size-4 text-ink-faint" /> Screen share resolution
+            </span>
+          }
+          desc="Applies the next time you start sharing."
+          control={
+            <QualitySelect
+              value={video.shareRes}
+              options={[
+                ["source", "Source (native)"],
+                ["1080", "1080p"],
+                ["720", "720p"],
+              ]}
+              onChange={(v) => video.set({ shareRes: v as ShareRes })}
+            />
+          }
+        />
+        <SettingRow
+          label="Screen share framerate"
+          desc="Higher is smoother but costs bandwidth. 60 fps suits gameplay; 5–15 fps suits documents."
+          control={
+            <QualitySelect
+              value={String(video.shareFps)}
+              options={[
+                ["5", "5 fps"],
+                ["15", "15 fps"],
+                ["30", "30 fps"],
+                ["60", "60 fps"],
+              ]}
+              onChange={(v) => video.set({ shareFps: Number(v) as ShareFps })}
+            />
+          }
+        />
+        <SettingRow
+          label="Optimize share for"
+          desc="Sharp text keeps documents crisp; smooth motion favors video and gameplay."
+          control={
+            <QualitySelect
+              value={video.sharePrioritize}
+              options={[
+                ["detail", "Sharp text"],
+                ["motion", "Smooth motion"],
+              ]}
+              onChange={(v) => video.set({ sharePrioritize: v as "detail" | "motion" })}
+            />
+          }
+        />
+      </SettingGroup>
+
       <SettingGroup title="Advanced: noise gate">
         <SettingRow
           label={
@@ -208,6 +282,30 @@ export function CallSettings() {
         />
       </SettingGroup>
     </SettingsPage>
+  );
+}
+
+function QualitySelect({
+  value,
+  options,
+  onChange,
+}: {
+  value: string;
+  options: [string, string][];
+  onChange: (v: string) => void;
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="min-w-[200px] max-w-[260px] rounded-control border border-line bg-field px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-line-strong focus:ring-2 focus:ring-[color:var(--st-ring)]"
+    >
+      {options.map(([v, label]) => (
+        <option key={v} value={v}>
+          {label}
+        </option>
+      ))}
+    </select>
   );
 }
 

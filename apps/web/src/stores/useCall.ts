@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { syncNoiseGate, resetNoiseGate } from "@/lib/audioProcessing";
 import { playJoinBlip, playLeaveBlip, playCallEnd } from "@/lib/sounds";
 import { useAudioSettings } from "@/stores/useAudioSettings";
+import { useVideoSettings } from "@/stores/useVideoSettings";
 
 // Reloading mid-call would silently drop the call - ask first (browsers show
 // their own generic wording; registering the handler is what arms the prompt).
@@ -308,6 +309,11 @@ export const useCall = create<CallState>((set, get) => {
       const r = get().room;
       if (!r) return;
       const enabling = !get().screen;
+      // T4: user-selected share quality (Settings → Calls). "source" keeps the
+      // native size; the resolution constraint is an ideal, so oversizing it
+      // just means "don't downscale".
+      const v = useVideoSettings.getState();
+      const dims = v.shareRes === "1080" ? { width: 1920, height: 1080 } : v.shareRes === "720" ? { width: 1280, height: 720 } : { width: 3840, height: 2160 };
       try {
         // audio: true → the browser's share picker offers "also share audio"
         // (tab audio anywhere; system audio on Windows when sharing a screen).
@@ -318,6 +324,8 @@ export const useCall = create<CallState>((set, get) => {
           selfBrowserSurface: "include",
           // Windows Chrome: pre-tick the "share system audio" option for screen shares.
           systemAudio: "include",
+          resolution: { ...dims, frameRate: v.shareFps },
+          contentHint: v.sharePrioritize === "motion" ? "motion" : "detail",
         });
       } catch {
         // User cancelled the share picker - not an error.
