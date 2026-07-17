@@ -84,6 +84,7 @@ export function CallDock() {
           every page including the call page. (CallStage no longer renders its
           own; two renderers = every track played twice = echo.) */}
       <RoomAudioRenderer />
+      <PipBridge />
       {!onCallPage && (
         <div
           data-minicall
@@ -144,6 +145,83 @@ export function CallDock() {
         </div>
       )}
     </RoomContext.Provider>
+  );
+}
+
+/**
+ * System-level Picture-in-Picture (T4): when the browser itself is
+ * backgrounded mid-call, pop the primary video into a native floating window
+ * over whatever's on screen (Meet/Discord-style). Safari auto-enters via the
+ * `autoPictureInPicture` attribute; Chrome auto-enters for video-call sites
+ * that register the mediaSession "enterpictureinpicture" handler; a
+ * visibilitychange fallback covers manual cases. Muted - RoomAudioRenderer
+ * is the one audio path.
+ */
+function PipBridge() {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const tracks = useTracks(
+    [
+      { source: Track.Source.Camera, withPlaceholder: false },
+      { source: Track.Source.ScreenShare, withPlaceholder: false },
+    ],
+    { onlySubscribed: false },
+  );
+  const refs = tracks.filter(isTrackReference);
+  const show =
+    refs.find((t) => t.source === Track.Source.ScreenShare) ??
+    refs.find((t) => t.source === Track.Source.Camera && !t.publication.isMuted);
+
+  useEffect(() => {
+    const el = videoRef.current;
+    const track = show?.publication.track;
+    if (!el || !track) return;
+    track.attach(el);
+    (el as HTMLVideoElement & { autoPictureInPicture?: boolean }).autoPictureInPicture = true; // Safari
+    return () => {
+      track.detach(el);
+    };
+  }, [show]);
+
+  useEffect(() => {
+    // Chrome: registering this handler opts the site into automatic PiP when
+    // the tab is hidden during a call.
+    try {
+      navigator.mediaSession?.setActionHandler?.("enterpictureinpicture" as MediaSessionAction, () => {
+        void videoRef.current?.requestPictureInPicture().catch(() => {});
+      });
+    } catch {
+      /* unsupported */
+    }
+    const onVis = () => {
+      const el = videoRef.current;
+      if (!el || !el.srcObject) return;
+      if (document.visibilityState === "hidden" && document.pictureInPictureEnabled && !document.pictureInPictureElement) {
+        void el.requestPictureInPicture().catch(() => {});
+      } else if (document.visibilityState === "visible" && document.pictureInPictureElement === el) {
+        void document.exitPictureInPicture().catch(() => {});
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      try {
+        navigator.mediaSession?.setActionHandler?.("enterpictureinpicture" as MediaSessionAction, null);
+      } catch {
+        /* unsupported */
+      }
+    };
+  }, []);
+
+  if (!show) return null;
+  return (
+    <video
+      ref={videoRef}
+      autoPlay
+      playsInline
+      muted
+      aria-hidden
+      className="pointer-events-none fixed bottom-0 right-0 h-px w-px opacity-0"
+    />
   );
 }
 
