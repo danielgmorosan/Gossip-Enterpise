@@ -1,6 +1,6 @@
 {
   "name": "@umbry/desktop",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Umbry desktop shell (Electron) — loads the web app in a hardened window.",
   "author": "Umbry <noreply@umbry.chat>",
