@@ -30,6 +30,9 @@ export interface ChannelMsg {
   reactions?: Record<string, string[]>;
 }
 export interface RelayChannel {
+  /** Unread count for ME, computed server-side from my read marker (T4). */
+  unread?: number;
+  lastReadTs?: number;
   id: string;
   name: string;
   type: "public" | "private";
@@ -145,6 +148,10 @@ interface RelayState {
   reactToMessage: (workspaceId: string, channelId: string, messageId: string, emoji: string) => void;
   /** Poke someone who shares a workspace with you - quacks on their end (T4). */
   poke: (userId: string) => void;
+  /** channelId → userId → read marker (T4); drives "seen by" and unread sync. */
+  readsByChannel: Record<string, Record<string, { ts: number; messageId: string }>>;
+  /** Tell the relay how far I've read a channel; clears the local badge too (T4). */
+  markChannelRead: (workspaceId: string, channelId: string) => void;
   /** Owner-only: promote/demote; permissions apply when role is "admin" (T2-07). */
   setRole: (workspaceId: string, userId: string, role: "admin" | "member", permissions?: AdminPermission[]) => Promise<{ ok: true } | { ok: false; error: string }>;
   banMember: (workspaceId: string, userId: string, reason?: string) => Promise<{ ok: true } | { ok: false; error: string }>;
@@ -216,6 +223,10 @@ interface RelayMsg {
   error?: string;
   /** Poke sender (T4). */
   from?: string;
+  /** Read receipts (T4). */
+  reads?: Record<string, { ts: number; messageId: string }>;
+  ts?: number;
+  messageId?: string;
   // D2 auth handshake frames.
   nonce?: string;
   sessionToken?: string;
@@ -303,6 +314,7 @@ export const useRelay = create<RelayState>((set, get) => ({
   typingByChannel: {},
   onlineUsers: new Set(),
   joinedChannels: new Set(),
+  readsByChannel: {},
 
   connect: () => {
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
@@ -392,8 +404,33 @@ export const useRelay = create<RelayState>((set, get) => ({
         case "workspaceCreated":
           // Fresh snapshot - the relay follows with callActive events for any
           // live huddles, so reset the map instead of carrying stale entries.
-          if (m.workspace) set({ workspace: m.workspace, activeCallByChannel: {} });
+          if (m.workspace) {
+            set({ workspace: m.workspace, activeCallByChannel: {} });
+            // T4: seed unread badges from the server-side counts so unread
+            // state survives reloads and follows you across devices.
+            const counts: Record<string, number> = {};
+            for (const ch of m.workspace.channels) {
+              if (typeof ch.unread === "number") counts[ch.id] = ch.unread;
+            }
+            useNotifications.getState().seedChannelUnread(counts);
+          }
           break;
+        case "readUpdated": {
+          // T4: someone's read marker moved. Feeds "seen by"; when it's MY
+          // marker (another of my devices read it), sync the badge away.
+          if (!m.channelId || !m.userId || !m.ts) break;
+          const chId = m.channelId;
+          set((st) => ({
+            readsByChannel: {
+              ...st.readsByChannel,
+              [chId]: { ...st.readsByChannel[chId], [m.userId!]: { ts: m.ts!, messageId: m.messageId ?? "" } },
+            },
+          }));
+          if (m.userId === useSession.getState().userId) {
+            useNotifications.getState().clearChannelUnread(chId);
+          }
+          break;
+        }
         case "channelCreated":
         case "channelUpdated": {
           // New channel, or a private channel you were invited to / whose roster changed.
@@ -531,7 +568,12 @@ export const useRelay = create<RelayState>((set, get) => ({
           break;
         }
         case "history":
-          if (m.channelId) set((st) => ({ messagesByChannel: { ...st.messagesByChannel, [m.channelId!]: m.messages ?? [] } }));
+          if (m.channelId)
+            set((st) => ({
+              messagesByChannel: { ...st.messagesByChannel, [m.channelId!]: m.messages ?? [] },
+              // T4: everyone's read markers for this channel ride along.
+              readsByChannel: { ...st.readsByChannel, [m.channelId!]: m.reads ?? {} },
+            }));
           break;
         case "message":
           if (m.message) {
@@ -887,6 +929,25 @@ export const useRelay = create<RelayState>((set, get) => ({
     get().connect();
     sendHello();
     sendReady({ type: "poke", userId });
+  },
+
+  markChannelRead: (workspaceId, channelId) => {
+    const myId = useSession.getState().userId;
+    useNotifications.getState().clearChannelUnread(channelId);
+    if (!myId || !ws || ws.readyState !== WebSocket.OPEN) return;
+    const msgs = get().messagesByChannel[channelId] ?? [];
+    const last = msgs[msgs.length - 1];
+    if (!last) return;
+    // Only tell the relay when the marker actually moves forward.
+    const mine = get().readsByChannel[channelId]?.[myId];
+    if (mine && mine.ts >= last.ts) return;
+    set((st) => ({
+      readsByChannel: {
+        ...st.readsByChannel,
+        [channelId]: { ...st.readsByChannel[channelId], [myId]: { ts: last.ts, messageId: last.id } },
+      },
+    }));
+    sendReady({ type: "markRead", workspaceId, channelId, ts: last.ts, messageId: last.id });
   },
 
   editMessage: (workspaceId, channelId, messageId, body) => {

@@ -12,6 +12,7 @@ import { UserAvatar as Avatar } from "@/components/UserAvatar";
 import { gossipSdk, SdkEventType, MessageDirection, MessageType, type Message } from "@/lib/sdk";
 import { parseCallSignal, callSignalLabel } from "@/lib/callSignals";
 import { parseDmReaction, dmReactionBody, foldDmReactions } from "@/lib/dmReactions";
+import { parseDmSeen, dmSeenBody } from "@/lib/dmSeen";
 import { ReactionChips, AddReactionButton } from "@/components/chat/ReactionChips";
 import { parseImageMarker, imageMarkerBody, fileToDmImageDataUrl, isBareImageUrl } from "@/lib/media";
 import { dmRoomName } from "@/lib/call";
@@ -179,7 +180,44 @@ export function RealDmView({ peerId, peerName, embedded }: { peerId: string; pee
       ),
     [messages, isSelf, myReactorId, peerId],
   );
-  const visibleMessages = useMemo(() => messages.filter((m) => !parseDmReaction(m.content)), [messages]);
+  const visibleMessages = useMemo(
+    () => messages.filter((m) => !parseDmReaction(m.content) && parseDmSeen(m.content) === null),
+    [messages],
+  );
+
+  // DM read receipts (T4): the peer's latest seen watermark, and ours to send.
+  const peerSeenUpTo = useMemo(() => {
+    let max = 0;
+    for (const m of messages) {
+      if (isSelf || m.direction === MessageDirection.OUTGOING) continue;
+      const n = parseDmSeen(m.content);
+      if (n && n > max) max = n;
+    }
+    return max;
+  }, [messages, isSelf]);
+  const lastOutgoingId = useMemo(() => {
+    for (let i = visibleMessages.length - 1; i >= 0; i--) {
+      const m = visibleMessages[i];
+      if ((isSelf || m.direction === MessageDirection.OUTGOING) && m.id != null) return m.id;
+    }
+    return null;
+  }, [visibleMessages, isSelf]);
+  const lastSentSeen = useRef(0);
+  useEffect(() => {
+    if (isSelf || status !== "open" || document.hidden) return;
+    // Newest incoming message we can acknowledge.
+    let maxIncoming = 0;
+    for (const m of messages) {
+      if (m.direction === MessageDirection.OUTGOING || m.id == null) continue;
+      if (parseDmReaction(m.content) || parseDmSeen(m.content) !== null) continue;
+      if (m.id > maxIncoming) maxIncoming = m.id;
+    }
+    if (maxIncoming <= lastSentSeen.current) return;
+    lastSentSeen.current = maxIncoming;
+    void gossipSdk.messages.sendText(peerId, dmSeenBody(maxIncoming)).catch(() => {
+      lastSentSeen.current = 0; // retry on the next change
+    });
+  }, [messages, isSelf, status, peerId]);
   const toggleReaction = async (messageId: number, emoji: string) => {
     if (isSelf || !gossipSdk.isSessionOpen) return;
     const current = dmReactions.get(String(messageId))?.[emoji] ?? [];
@@ -461,6 +499,10 @@ export function RealDmView({ peerId, peerName, embedded }: { peerId: string; pee
                       nameOf={dmNameOf}
                       onToggle={(emoji) => void toggleReaction(m.id!, emoji)}
                     />
+                  )}
+                  {/* T4: peer's read receipt under your newest covered message. */}
+                  {mine && !isSelf && m.id != null && m.id === lastOutgoingId && peerSeenUpTo >= m.id && (
+                    <span className="mt-0.5 text-[10px] text-ink-faint">Seen</span>
                   )}
                 </div>
                 {!mine && actions}

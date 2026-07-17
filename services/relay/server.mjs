@@ -83,13 +83,14 @@ function readBodyBinary(req, cap) {
 }
 
 /** Persistent state. */
-let db = { workspaces: {}, messages: {}, authKeys: {} }; // workspaces[id], messages[`${wsId}/${chId}`] = [], authKeys[userId]
+let db = { workspaces: {}, messages: {}, authKeys: {}, reads: {} }; // workspaces[id], messages[`${wsId}/${chId}`] = [], authKeys[userId], reads[userId]
 if (existsSync(DATA_FILE)) {
   try {
     db = JSON.parse(readFileSync(DATA_FILE, "utf8"));
     db.workspaces ??= {};
     db.messages ??= {};
     db.authKeys ??= {}; // userId -> { key: base64 raw ed25519 pubkey, pinnedAt } (D2)
+    db.reads ??= {}; // userId -> { "wsId/chId": { ts, messageId } } - read receipts (T4)
   } catch {
     /* start fresh */
   }
@@ -533,13 +534,27 @@ function withCurrentSenders(workspace, msgs) {
 }
 
 function serializeWorkspace(ws, forUserId) {
+  // Per-channel unread counts for the requester (T4): messages newer than
+  // their read marker, skipping deletions and their own posts. Seeds the
+  // client's badges so unread state survives reloads and syncs across devices.
+  const unreadFor = (ch) => {
+    if (!forUserId) return {};
+    const readTs = db.reads[forUserId]?.[`${ws.id}/${ch.id}`]?.ts ?? 0;
+    const msgs = db.messages[`${ws.id}/${ch.id}`] ?? [];
+    let unread = 0;
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].ts <= readTs) break; // history is time-ordered
+      if (!msgs[i].deleted && msgs[i].senderId !== forUserId) unread++;
+    }
+    return { unread, lastReadTs: readTs };
+  };
   return {
     id: ws.id,
     name: ws.name,
     code: ws.code,
     createdBy: ws.createdBy,
     channels: Object.values(ws.channels).flatMap((ch) => {
-      if (ch.type !== "private" || (forUserId && ch.members?.[forUserId])) return [serializeChannel(ch)];
+      if (ch.type !== "private" || (forUserId && ch.members?.[forUserId])) return [{ ...serializeChannel(ch), ...unreadFor(ch) }];
       if (ch.joinPassword) return [lockedChannelStub(ch)];
       return [];
     }),
@@ -740,7 +755,7 @@ const PRIVILEGED_WS_TYPES = new Set([
   "addChannelMember", "removeChannelMember",
   "post", "editMessage", "deleteMessage", "reactToMessage",
   "setRole", "banMember", "unbanMember",
-  "watchPresence", "typing", "callEndedHint", "poke",
+  "watchPresence", "typing", "callEndedHint", "poke", "markRead",
 ]);
 
 // Real client IP behind Fly's proxy (req.socket.remoteAddress is the proxy).
@@ -1540,7 +1555,20 @@ wss.on("connection", (ws) => {
         }
         const chKey = `${m.workspaceId}/${m.channelId}`;
         client.chSubs.add(chKey);
-        send(ws, { type: "history", workspaceId: m.workspaceId, channelId: m.channelId, messages: withCurrentSenders(db.workspaces[m.workspaceId], db.messages[chKey] ?? []) });
+        // Read markers of everyone in the workspace for this channel (T4):
+        // the client renders "seen by" from them.
+        const channelReads = {};
+        for (const uid of Object.keys(db.workspaces[m.workspaceId]?.members ?? {})) {
+          const r = db.reads[uid]?.[chKey];
+          if (r) channelReads[uid] = r;
+        }
+        send(ws, {
+          type: "history",
+          workspaceId: m.workspaceId,
+          channelId: m.channelId,
+          messages: withCurrentSenders(db.workspaces[m.workspaceId], db.messages[chKey] ?? []),
+          reads: channelReads,
+        });
         presence(m.workspaceId, m.channelId);
         break;
       }
@@ -1628,6 +1656,32 @@ wss.on("connection", (ws) => {
         msg.editedAt = Date.now();
         save();
         broadcastChannel(chKey, { type: "messageUpdated", workspaceId: m.workspaceId, channelId: m.channelId, message: msg });
+        break;
+      }
+
+      case "markRead": {
+        // Read receipts (T4): remember how far this user has read a channel,
+        // fan the marker out to channel subscribers (seen-by) - which includes
+        // the reader's OTHER devices, keeping unread badges in sync.
+        if (!client.userId || isAnon(client.userId)) break;
+        const channel = db.workspaces[m.workspaceId]?.channels?.[m.channelId];
+        if (!canReadChannel(channel ?? null, client.userId)) break;
+        const ts = Number(m.ts ?? 0);
+        if (!Number.isFinite(ts) || ts <= 0) break;
+        const chKey = `${m.workspaceId}/${m.channelId}`;
+        db.reads[client.userId] ??= {};
+        const prev = db.reads[client.userId][chKey];
+        if (prev && prev.ts >= ts) break; // only ever move forward
+        db.reads[client.userId][chKey] = { ts, messageId: String(m.messageId ?? "") };
+        save();
+        broadcastChannel(chKey, {
+          type: "readUpdated",
+          workspaceId: m.workspaceId,
+          channelId: m.channelId,
+          userId: client.userId,
+          ts,
+          messageId: String(m.messageId ?? ""),
+        });
         break;
       }
 

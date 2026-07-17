@@ -100,6 +100,8 @@ interface NotificationsState {
   markAllRead: () => void;
   clearChannelUnread: (channelId: string) => void;
   clearDmUnread: (peerId: string) => void;
+  /** Seed channel badges from the relay's server-side unread counts (T4). */
+  seedChannelUnread: (counts: Record<string, number>) => void;
   setTypeEnabled: (t: NotifType, on: boolean) => void;
   toggleMuteChannel: (channelId: string) => void;
   toggleMuteDm: (peerId: string) => void;
@@ -171,6 +173,19 @@ export const useNotifications = create<NotificationsState>((set, get) => {
         const next = { ...st.unreadByDm };
         delete next[peerId];
         return { unreadByDm: next };
+      }),
+
+    seedChannelUnread: (counts) =>
+      set((st) => {
+        // Server truth replaces the session-local counts for these channels
+        // (the channel currently on screen is immediately re-cleared by the
+        // view's markRead effect).
+        const next = { ...st.unreadByChannel };
+        for (const [chId, n] of Object.entries(counts)) {
+          if (n > 0) next[chId] = n;
+          else delete next[chId];
+        }
+        return { unreadByChannel: next };
       }),
 
     setTypeEnabled: (t, on) => savePrefs({ ...get().prefs, types: { ...get().prefs.types, [t]: on } }),

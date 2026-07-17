@@ -16,12 +16,11 @@ import { ChannelMembersDialog } from "@/components/chat/ChannelMembersDialog";
 import { ReactionChips, AddReactionButton } from "@/components/chat/ReactionChips";
 import { UserProfileDialog } from "@/components/UserProfileDialog";
 import { UserAvatar as Avatar } from "@/components/UserAvatar";
-import { useRelay, type RelayChannel } from "@/stores/useRelay";
+import { useRelay, type RelayChannel, type ChannelMsg } from "@/stores/useRelay";
 import { useSession } from "@/stores/useSession";
 import { useUnlockPrompt } from "@/components/UnlockDialog";
 import { useFileDrop } from "@/lib/useFileDrop";
 import { LiveBars } from "@/components/LiveIndicators";
-import { useNotifications } from "@/stores/useNotifications";
 import { useCall } from "@/stores/useCall";
 import { formatTime } from "@/lib/utils";
 
@@ -224,11 +223,18 @@ export function ChannelView({ embedded }: { embedded?: boolean } = {}) {
     if (workspaceId && channelId && !isLockedStub) useRelay.getState().joinChannel(workspaceId, channelId);
   }, [workspaceId, channelId, isLockedStub]);
 
-  // T2-09: viewing the channel clears its unread badge (and keeps it clear
-  // as messages stream in while it's on screen).
+  // T2-09/T4: viewing the channel clears its unread badge AND advances the
+  // server-side read marker (seen-by + cross-device unread sync) - only while
+  // the tab is actually visible.
   useEffect(() => {
-    if (channelId) useNotifications.getState().clearChannelUnread(channelId);
-  }, [channelId, messages.length]);
+    if (!channelId) return;
+    const mark = () => {
+      if (!document.hidden) useRelay.getState().markChannelRead(workspaceId, channelId);
+    };
+    mark();
+    document.addEventListener("visibilitychange", mark);
+    return () => document.removeEventListener("visibilitychange", mark);
+  }, [workspaceId, channelId, messages.length]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
@@ -497,6 +503,7 @@ export function ChannelView({ embedded }: { embedded?: boolean } = {}) {
               </div>
             );
           })}
+          <SeenByLine channelId={channelId} feed={feed} myId={myId} nameOf={nameOfMember} />
           <div className="h-4" />
         </div>
 
@@ -532,6 +539,43 @@ export function ChannelView({ embedded }: { embedded?: boolean } = {}) {
       {profileUser && (
         <UserProfileDialog userId={profileUser.id} name={profileUser.name} onClose={() => setProfileUser(null)} />
       )}
+    </div>
+  );
+}
+
+
+/**
+ * "Seen by" cluster under the newest message (T4): members other than you and
+ * the author whose relay read marker has reached it.
+ */
+function SeenByLine({
+  channelId,
+  feed,
+  myId,
+  nameOf,
+}: {
+  channelId: string;
+  feed: ChannelMsg[];
+  myId: string | null;
+  nameOf: (id: string) => string;
+}) {
+  const reads = useRelay((s) => s.readsByChannel[channelId]);
+  const last = feed[feed.length - 1];
+  if (!last || !reads) return null;
+  const seen = Object.entries(reads)
+    .filter(([uid, r]) => uid !== myId && uid !== last.senderId && r.ts >= last.ts)
+    .map(([uid]) => uid);
+  if (seen.length === 0) return null;
+  const names = seen.map(nameOf);
+  const label = names.length <= 3 ? names.join(", ") : `${names.slice(0, 3).join(", ")} +${names.length - 3}`;
+  return (
+    <div className="flex items-center justify-end gap-1.5 px-5 pt-1">
+      <div className="flex -space-x-1.5">
+        {seen.slice(0, 5).map((uid) => (
+          <Avatar key={uid} name={nameOf(uid)} id={uid} className="!size-4 !text-[8px] ring-1 ring-paper" />
+        ))}
+      </div>
+      <span className="text-[11px] text-ink-faint">Seen by {label}</span>
     </div>
   );
 }

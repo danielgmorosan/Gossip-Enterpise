@@ -7,6 +7,7 @@ import { useIncomingCall } from "@/stores/useIncomingCall";
 import { useCall } from "@/stores/useCall";
 import { parseCallSignal, RING_WINDOW_MS } from "@/lib/callSignals";
 import { parseDmReaction } from "@/lib/dmReactions";
+import { parseDmSeen } from "@/lib/dmSeen";
 import { truncateHandle } from "@/lib/utils";
 
 /**
@@ -67,8 +68,8 @@ export function useDmNotifications() {
         return;
       }
 
-      // T4: reaction markers update chips in place - no "new message" noise.
-      if (parseDmReaction(m.content)) return;
+      // T4: reaction/seen markers update UI in place - no "new message" noise.
+      if (parseDmReaction(m.content) || parseDmSeen(m.content) !== null) return;
 
       const isNew = !seenContacts.has(peerId);
       seenContacts.add(peerId);
