@@ -161,3 +161,7 @@ React 19 · TypeScript · Vite · Tailwind v4 · Zustand · Electron · LiveKit 
 
 - [`docs/SPEC.md`](docs/SPEC.md): the full product spec.
 - [`docs/INTEGRATION-PLAN.md`](docs/INTEGRATION-PLAN.md): architecture, the three deployment modes, the security audit + hardening, and the phased roadmap.
+
+## License
+
+[AGPL-3.0](LICENSE). You can run, study, modify, and self-host Umbry freely; if you offer a modified version to others over a network, you must share your changes under the same license. The vendored [Gossip SDK](https://github.com/massalabs/gossip) (`vendor/gossip`) keeps its own MIT license.

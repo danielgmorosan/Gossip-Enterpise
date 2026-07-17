@@ -1,6 +1,7 @@
 {
   "name": "@umbry/desktop",
   "version": "0.2.0",
+  "license": "AGPL-3.0-only",
   "private": true,
   "description": "Umbry desktop shell (Electron) — loads the web app in a hardened window.",
   "author": "Umbry <noreply@umbry.chat>",
