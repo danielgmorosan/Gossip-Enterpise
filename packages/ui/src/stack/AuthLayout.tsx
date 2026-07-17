@@ -1,10 +1,12 @@
-import { useId, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { cn } from "../utils";
 
-const MARK_PATH =
-  "M9.5 4.5h25c4.7 0 8.5 3.8 8.5 8.5v16.8c0 4.7-3.8 8.5-8.5 8.5H20.2L10 47.5V38H9.5c-4.7 0-8.5-3.8-8.5-8.5V13c0-4.7 3.8-8.5 8.5-8.5Z";
+const MARK_URL = "url(/umbry-icon-white.png)";
 
-/** Inline Umbry speech-bubble mark — avoids CSS-mask SVG loading issues. */
+/**
+ * The Umbry ghost mark, recolorable via `currentColor`: the white-on-transparent
+ * icon is used as an alpha mask over a currentColor fill.
+ */
 export function UmbryMarkGraphic({
   className,
   style,
@@ -13,74 +15,46 @@ export function UmbryMarkGraphic({
   style?: React.CSSProperties;
 }) {
   return (
-    <svg
-      viewBox="0 0 44 52"
-      fill="none"
+    <span
       aria-hidden
-      className={className}
-      style={style}
-    >
-      <path
-        d={MARK_PATH}
-        stroke="currentColor"
-        strokeWidth="2.4"
-        strokeLinejoin="round"
-      />
-      <circle cx="17.2" cy="21.2" r="2.9" fill="currentColor" />
-      <circle cx="26.8" cy="21.2" r="2.9" fill="currentColor" />
-    </svg>
+      className={cn("inline-block", className)}
+      style={{
+        backgroundColor: "currentColor",
+        WebkitMaskImage: MARK_URL,
+        maskImage: MARK_URL,
+        WebkitMaskRepeat: "no-repeat",
+        maskRepeat: "no-repeat",
+        WebkitMaskSize: "contain",
+        maskSize: "contain",
+        WebkitMaskPosition: "center",
+        maskPosition: "center",
+        ...style,
+      }}
+    />
   );
 }
 
-/** Staggered tile of brand marks, faded toward the centre so content stays legible. */
+/** Tile of brand marks, faded toward the centre so content stays legible. */
 function UmbryMarkPattern() {
-  const uid = useId().replace(/:/g, "");
-  const patternId = `umbry-tile-${uid}`;
-  const maskId = `umbry-fade-${uid}`;
-  const gradientId = `umbry-fade-grad-${uid}`;
-
-  const mark = (
-    <g transform="scale(0.5)">
-      <path
-        d={MARK_PATH}
-        stroke="currentColor"
-        strokeWidth="2.4"
-        strokeLinejoin="round"
-      />
-      <circle cx="17.2" cy="21.2" r="2.9" fill="currentColor" />
-      <circle cx="26.8" cy="21.2" r="2.9" fill="currentColor" />
-    </g>
-  );
-
   return (
-    <svg
-      className="absolute inset-0 h-full w-full text-ink"
+    <div
       aria-hidden
-      preserveAspectRatio="xMidYMid slice"
-    >
-      <defs>
-        <pattern
-          id={patternId}
-          width="88"
-          height="100"
-          patternUnits="userSpaceOnUse"
-        >
-          <g opacity="0.11">{mark}</g>
-          <g transform="translate(44, 50)" opacity="0.11">
-            {mark}
-          </g>
-        </pattern>
-        <radialGradient id={gradientId} cx="50%" cy="46%" r="58%">
-          <stop offset="0%" stopColor="white" stopOpacity="0.15" />
-          <stop offset="55%" stopColor="white" stopOpacity="0.9" />
-          <stop offset="100%" stopColor="white" stopOpacity="0.35" />
-        </radialGradient>
-        <mask id={maskId}>
-          <rect width="100%" height="100%" fill={`url(#${gradientId})`} />
-        </mask>
-      </defs>
-      <rect width="100%" height="100%" fill={`url(#${patternId})`} mask={`url(#${maskId})`} />
-    </svg>
+      className="absolute inset-0 text-ink"
+      style={{
+        opacity: 0.11,
+        backgroundColor: "currentColor",
+        WebkitMaskImage: `${MARK_URL}, radial-gradient(circle at 50% 46%, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.9) 55%, rgba(0,0,0,0.35) 100%)`,
+        maskImage: `${MARK_URL}, radial-gradient(circle at 50% 46%, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.9) 55%, rgba(0,0,0,0.35) 100%)`,
+        WebkitMaskRepeat: "repeat, no-repeat",
+        maskRepeat: "repeat, no-repeat",
+        WebkitMaskSize: "44px 47px, 100% 100%",
+        maskSize: "44px 47px, 100% 100%",
+        WebkitMaskPosition: "12px 14px, center",
+        maskPosition: "12px 14px, center",
+        WebkitMaskComposite: "source-in",
+        maskComposite: "intersect",
+      }}
+    />
   );
 }
 
