@@ -143,6 +143,11 @@ export function CallSettings() {
           desc="Keeps your voice at a steady volume."
           control={<Toggle checked={settings.autoGainControl} onChange={(v) => settings.set({ autoGainControl: v })} label="Auto gain control" />}
         />
+        <SettingRow
+          label="Reaction sounds"
+          desc="Play sound-reactions (like the 🦆 quack) that people send during calls."
+          control={<Toggle checked={settings.reactionSounds} onChange={(v) => settings.set({ reactionSounds: v })} label="Reaction sounds" />}
+        />
       </SettingGroup>
 
       <SettingGroup title="Video">

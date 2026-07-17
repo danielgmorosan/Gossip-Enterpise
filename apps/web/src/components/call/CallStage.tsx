@@ -9,6 +9,7 @@ import {
   type TrackReferenceOrPlaceholder,
 } from "@livekit/components-react";
 import { Mic, MicOff, Video, VideoOff, MonitorUp, PhoneOff, MessageSquareText, VolumeX, X, Maximize, Minimize, Settings2 } from "lucide-react";
+import { CallReactionOverlay, CallReactionButton } from "@/components/call/CallReactions";
 import { Tooltip } from "@umbry/ui/stack";
 import { UserAvatar } from "@/components/UserAvatar";
 import { useCall, type CallTarget } from "@/stores/useCall";
@@ -96,7 +97,8 @@ export function CallStage({ target }: { target: CallTarget }) {
           the router), so navigating never mounts/unmounts a second renderer -
           that churn caused leaked audio elements and the double-audio echo. */}
 
-      <div className={cn("flex min-h-0 flex-col bg-[#101014]", chatOpen ? "shrink-0" : "flex-1 justify-center")}>
+      <div className={cn("relative flex min-h-0 flex-col bg-[#101014]", chatOpen ? "shrink-0" : "flex-1 justify-center")}>
+        <CallReactionOverlay />
         {screenShare && (
           <>
             <div
@@ -186,6 +188,7 @@ export function CallStage({ target }: { target: CallTarget }) {
         <CallButton label={screen ? "Stop sharing" : "Share screen"} active={screen} onClick={() => void toggleScreen()}>
           <MonitorUp className="size-5" />
         </CallButton>
+        <CallReactionButton />
         <CallButton label={chatOpen ? "Hide chat" : "Show chat"} active={chatOpen} onClick={() => setChatOpen((o) => !o)}>
           <MessageSquareText className="size-5" />
         </CallButton>

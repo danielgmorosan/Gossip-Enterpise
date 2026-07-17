@@ -14,6 +14,8 @@ interface AudioSettingsState {
   echoCancellation: boolean;
   noiseSuppression: boolean;
   autoGainControl: boolean;
+  /** Play sound-reactions (🦆 etc.) other people send during calls (T4). */
+  reactionSounds: boolean;
   set: (patch: Partial<Omit<AudioSettingsState, "set">>) => void;
 }
 
@@ -25,6 +27,7 @@ export const useAudioSettings = create<AudioSettingsState>()(
       echoCancellation: true,
       noiseSuppression: true,
       autoGainControl: true,
+      reactionSounds: true,
       set: (patch) => set(patch),
     }),
     { name: "gossip-audio-settings" },
