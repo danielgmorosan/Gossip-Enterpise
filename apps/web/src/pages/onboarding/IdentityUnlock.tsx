@@ -7,7 +7,8 @@ import { useSession } from "@/stores/useSession";
 import { useRelay } from "@/stores/useRelay";
 import { validateMnemonic } from "@/lib/sdk";
 import { peekPendingInvite } from "@/lib/invite";
-import { hasBiometricVault, unlockBiometricVault } from "@/lib/biometricVault";
+import { biometricsAvailable, hasBiometricVault, unlockBiometricVault } from "@/lib/biometricVault";
+import { BiometricEnrollStep } from "@/components/BiometricEnrollStep";
 
 export function IdentityUnlock() {
   const nav = useNavigate();
@@ -27,6 +28,8 @@ export function IdentityUnlock() {
     nav(mine.length > 0 ? `/w/${mine[0].id}` : "/home");
   };
 
+  const [bioOffer, setBioOffer] = useState<string | null>(null);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const phrase = passphrase.trim();
@@ -38,9 +41,25 @@ export function IdentityUnlock() {
     setError(null);
     const ok = await unlock(phrase, remember);
     setBusy(false);
-    if (ok) goToApp();
-    else setError("Couldn't open a session. Check your connection and try again.");
+    if (!ok) {
+      setError("Couldn't open a session. Check your connection and try again.");
+      return;
+    }
+    // First passphrase login on a biometrics-capable device: offer enrollment
+    // before entering the app (T4).
+    if (!hasBiometricVault() && (await biometricsAvailable())) setBioOffer(phrase);
+    else goToApp();
   };
+
+  if (bioOffer) {
+    return (
+      <BiometricEnrollStep
+        mnemonic={bioOffer}
+        displayName={useSession.getState().displayName}
+        onDone={goToApp}
+      />
+    );
+  }
 
   return (
     <div>

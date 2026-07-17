@@ -1,14 +1,57 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { Plus, Mail, Calendar, FileText, NotebookPen, Video, Settings, LogOut, Trash2 } from "lucide-react";
+import { Plus, Mail, Calendar, FileText, NotebookPen, Video, Settings, LogOut, Trash2, Lock } from "lucide-react";
 import { BrandLogo, Tooltip } from "@umbry/ui/stack";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import { ContextMenu, ConfirmDialog } from "@/components/ContextMenu";
 import { StatusMenu } from "@/components/StatusMenu";
 import { useRelay, type MyWorkspace } from "@/stores/useRelay";
+import { useSession } from "@/stores/useSession";
+import { useUnlockPrompt } from "@/components/UnlockDialog";
 import { longPressProps } from "@/lib/longPress";
 import { useNotifications } from "@/stores/useNotifications";
 import { cn } from "@/lib/utils";
+
+/**
+ * Quick-lock (rail): double-click closes the session on the spot - the
+ * passphrase stays out of storage and the unlock prompt (biometrics or
+ * passphrase) is the only way back in. Double, not single, so a stray
+ * click can't dump you out of everything mid-flow.
+ */
+function QuickLockButton() {
+  const sessionOpen = useSession((s) => s.status === "open");
+  const [armed, setArmed] = useState(false);
+  const disarm = useRef<ReturnType<typeof setTimeout> | null>(null);
+  if (!sessionOpen) return null;
+
+  const clickOnce = () => {
+    setArmed(true);
+    if (disarm.current) clearTimeout(disarm.current);
+    disarm.current = setTimeout(() => setArmed(false), 1500);
+  };
+  const lock = () => {
+    if (disarm.current) clearTimeout(disarm.current);
+    setArmed(false);
+    void useSession.getState().signOut();
+    useUnlockPrompt.getState().show();
+  };
+
+  return (
+    <Tooltip label={armed ? "Click again to lock" : "Lock session (double-click)"} side="right">
+      <button
+        aria-label="Lock session (double-click)"
+        onClick={clickOnce}
+        onDoubleClick={lock}
+        className={cn(
+          "grid size-10 place-items-center rounded-control transition-colors",
+          armed ? "bg-negative/15 text-negative" : "text-negative/70 hover:bg-negative/10 hover:text-negative",
+        )}
+      >
+        <Lock className="size-[18px]" />
+      </button>
+    </Tooltip>
+  );
+}
 
 const dock = [
   { id: "mail", icon: Mail, label: "Mail" },
@@ -168,6 +211,7 @@ export function WorkspaceRail() {
       )}
 
       <div className="mt-auto flex flex-col items-center gap-2">
+        <QuickLockButton />
         <NotificationCenter />
         <Tooltip label="Settings" side="right">
           <Link

@@ -4,6 +4,8 @@ import { ArrowLeft, ArrowRight, Copy, RefreshCw, Check, ShieldCheck, Eye, EyeOff
 import { Button, Field, Input } from "@umbry/ui/stack";
 import { cn } from "@/lib/utils";
 import { useSession } from "@/stores/useSession";
+import { BiometricEnrollStep } from "@/components/BiometricEnrollStep";
+import { biometricsAvailable, hasBiometricVault } from "@/lib/biometricVault";
 
 export function IdentityCreate() {
   const nav = useNavigate();
@@ -20,6 +22,8 @@ export function IdentityCreate() {
   const [mnemonic, setMnemonic] = useState(() => createIdentity());
   const WORDS = mnemonic.split(/\s+/);
 
+  const [bioOffer, setBioOffer] = useState(false);
+
   const cont = async () => {
     setDisplayName(name.trim());
     setBusy(true);
@@ -29,9 +33,19 @@ export function IdentityCreate() {
     // as a guest with no identity). Turn off in Settings → Security.
     const ok = await unlock(mnemonic, true);
     setBusy(false);
-    if (ok) nav(next);
-    else setError("Couldn't open a session. Check your connection and try again.");
+    if (!ok) {
+      setError("Couldn't open a session. Check your connection and try again.");
+      return;
+    }
+    // Offer biometric unlock right here (T4): the device supports it and no
+    // vault exists yet - way more discoverable than Settings → Security.
+    if (!hasBiometricVault() && (await biometricsAvailable())) setBioOffer(true);
+    else nav(next);
   };
+
+  if (bioOffer) {
+    return <BiometricEnrollStep mnemonic={mnemonic} displayName={name.trim()} onDone={() => nav(next)} />;
+  }
 
   const copy = () => {
     navigator.clipboard?.writeText(mnemonic);
