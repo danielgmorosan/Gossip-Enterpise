@@ -843,6 +843,45 @@ const httpServer = createServer(async (req, res) => {
       return json(200, { gifs: [], error: "GIF search unavailable." });
     }
   }
+  if (req.method === "GET" && req.url.startsWith("/search?")) {
+    // Server-side search (T4): the FULL persisted channel history, not just
+    // what a client has loaded. Requires a proven identity and is scoped to
+    // the requester's actual access - private channels only when a member.
+    const requesterId = bearerUserId(req);
+    if (!requesterId) return json(401, { error: "Sign in (unlock your session) to search." });
+    const u = new URL(req.url, "http://relay");
+    const q = (u.searchParams.get("q") ?? "").trim().toLowerCase();
+    const wsId = u.searchParams.get("workspaceId") ?? "";
+    if (q.length < 2) return json(400, { error: "Type at least 2 characters." });
+    const workspace = db.workspaces[wsId];
+    if (!workspace || !workspace.members?.[requesterId]) return json(403, { error: "Not a member of this workspace." });
+    const CAP = 80;
+    const results = [];
+    for (const ch of Object.values(workspace.channels ?? {})) {
+      if (!canReadChannel(ch, requesterId)) continue;
+      const msgs = db.messages[`${wsId}/${ch.id}`] ?? [];
+      // Newest first within each channel; global sort after.
+      for (let i = msgs.length - 1; i >= 0 && results.length < CAP; i--) {
+        const msg = msgs[i];
+        if (msg.deleted) continue;
+        if (!String(msg.body ?? "").toLowerCase().includes(q)) continue;
+        results.push({
+          id: msg.id,
+          channelId: ch.id,
+          channelName: ch.name,
+          channelType: ch.type,
+          senderId: msg.senderId,
+          senderName: msg.senderName,
+          body: String(msg.body).slice(0, 300),
+          ts: msg.ts,
+          threadRootId: msg.threadRootId ?? null,
+        });
+      }
+      if (results.length >= CAP) break;
+    }
+    results.sort((a, b) => b.ts - a.ts);
+    return json(200, { results: withCurrentSenders(workspace, results) });
+  }
   if (req.method === "GET" && req.url.startsWith("/unfurl?")) {
     // Link previews (T3) — used for CHANNEL messages only (the client never
     // sends DM urls here; that would leak E2EE content to the relay).
