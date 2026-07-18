@@ -1,6 +1,6 @@
 {
   "name": "@umbry/desktop",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "license": "AGPL-3.0-only",
   "private": true,
   "description": "Umbry desktop shell (Electron) — loads the web app in a hardened window.",
@@ -11,11 +11,13 @@
     "build": "tsc -p tsconfig.json",
     "start": "electron .",
     "dev": "tsc -p tsconfig.json && electron .",
+    "dev:local": "UMBRY_DESKTOP_URL=http://localhost:5173 tsc -p tsconfig.json && electron .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "dist": "tsc -p tsconfig.json && electron-builder",
-    "dist:win": "tsc -p tsconfig.json && electron-builder --win",
-    "dist:mac": "tsc -p tsconfig.json && electron-builder --mac",
-    "dist:linux": "tsc -p tsconfig.json && electron-builder --linux"
+    "bundle:web": "pnpm --filter @umbry/web build",
+    "dist": "pnpm bundle:web && tsc -p tsconfig.json && electron-builder",
+    "dist:win": "pnpm bundle:web && tsc -p tsconfig.json && electron-builder --win",
+    "dist:mac": "pnpm bundle:web && tsc -p tsconfig.json && electron-builder --mac",
+    "dist:linux": "pnpm bundle:web && tsc -p tsconfig.json && electron-builder --linux"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

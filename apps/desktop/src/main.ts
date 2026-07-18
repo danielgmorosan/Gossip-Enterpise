@@ -1,32 +1,292 @@
 /**
  * Umbry desktop — Electron main process.
  *
- * D1: a hardened shell that loads the existing web app in a BrowserWindow.
- * By default it points at the deployed web app (whose origin the relay already
- * allowlists); set UMBRY_DESKTOP_URL to run against a local dev server
- * (http://localhost:5173) or, later, a bundled local build.
+ * A hardened shell that serves the built web app from a local `app://` scheme
+ * (bundled inside the package) instead of loading umbry.chat over the network —
+ * so the installed app starts instantly and works offline. Load precedence:
+ *   1. UMBRY_DESKTOP_URL (dev: local Vite / a remote build)
+ *   2. the on-disk bundle (app://bundle) — the shipped default
+ *   3. https://umbry.chat (only if the bundle is missing)
+ *
+ * Because the bundle runs on the app:// origin (not umbry.chat), the CORS/WS-
+ * pinned backends would reject it, so installOriginSpoof() presents the trusted
+ * Origin on backend calls and rewrites the echoed CORS header back to app://.
  *
  * Security posture (see also preload.ts):
  * - contextIsolation on, nodeIntegration off, sandbox on — the renderer never
  *   touches Node.
  * - Navigation is pinned to the app origin; everything else (external links,
  *   window.open) opens in the system browser instead of an in-app window.
- * We deliberately do NOT inject a CSP here: the renderer is our own trusted
- * origin and ships its own headers, and the app legitimately connects to the
- * relay / LiveKit / Massa. A strict CSP belongs with the bundled local build
- * (D3), where we control the content.
  */
-import { app, BrowserWindow, shell } from "electron";
+import { app, BrowserWindow, shell, session, ipcMain, systemPreferences, safeStorage, desktopCapturer, protocol } from "electron";
 import * as path from "node:path";
+import * as fs from "node:fs";
 
-const APP_URL = process.env.UMBRY_DESKTOP_URL ?? "https://umbry.chat";
+// ── Local bundle (serve the built web app from disk, not over the network) ───
+// Loading the UI remotely from umbry.chat on every launch is what makes the
+// installed app feel slow/glitchy. Instead we ship apps/web/dist inside the
+// package and serve it from a custom secure scheme, so startup is instant and
+// offline-capable. The scheme is registered as secure+standard so the crypto
+// WASM's SharedArrayBuffer (which needs cross-origin isolation) still works.
+const APP_SCHEME = "app";
+const APP_HOST = "bundle";
+const APP_ORIGIN = `${APP_SCHEME}://${APP_HOST}`;
+const TRUSTED_ORIGIN = "https://umbry.chat"; // the origin the backends allowlist
 
-function appOrigin(): string | null {
+// Where the built web app lives: packaged → resources/web (electron-builder
+// extraResources); dev run → apps/web/dist relative to this compiled file.
+function bundleDir(): string {
+  return app.isPackaged ? path.join(process.resourcesPath, "web") : path.join(__dirname, "..", "..", "web", "dist");
+}
+function hasBundle(): boolean {
   try {
-    return new URL(APP_URL).origin;
+    return fs.existsSync(path.join(bundleDir(), "index.html"));
+  } catch {
+    return false;
+  }
+}
+
+// Where to load the UI from. A dev override always wins (local Vite / remote);
+// otherwise prefer the on-disk bundle; fall back to remote only if it's missing.
+function startUrl(): string {
+  if (process.env.UMBRY_DESKTOP_URL) return process.env.UMBRY_DESKTOP_URL;
+  if (hasBundle()) return `${APP_ORIGIN}/index.html`;
+  return "https://umbry.chat";
+}
+const BUNDLE_MODE = startUrl().startsWith(`${APP_SCHEME}://`);
+
+// Register the app scheme as privileged BEFORE app "ready" (required by Electron).
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: APP_SCHEME,
+    privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true },
+  },
+]);
+
+const MIME: Record<string, string> = {
+  ".html": "text/html",
+  ".js": "text/javascript",
+  ".mjs": "text/javascript",
+  ".css": "text/css",
+  ".json": "application/json",
+  ".wasm": "application/wasm",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".avif": "image/avif",
+  ".ico": "image/x-icon",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+  ".ttf": "font/ttf",
+  ".map": "application/json",
+  ".txt": "text/plain",
+  ".webmanifest": "application/manifest+json",
+};
+
+/** Serve the bundled web app over app://, with the COOP/COEP the WASM needs. */
+function installAppProtocol(): void {
+  const root = path.resolve(bundleDir());
+  protocol.handle(APP_SCHEME, async (request) => {
+    const url = new URL(request.url);
+    const pathname = decodeURIComponent(url.pathname);
+    let filePath = path.normalize(path.join(root, pathname));
+    // Block path traversal outside the bundle root.
+    if (filePath !== root && !filePath.startsWith(root + path.sep)) {
+      return new Response("Forbidden", { status: 403 });
+    }
+    // SPA: any route without a real file (client-side routing, or a bare path)
+    // resolves to index.html so React Router can handle it.
+    if (!path.extname(filePath) || !fs.existsSync(filePath)) {
+      filePath = path.join(root, "index.html");
+    }
+    try {
+      const data = await fs.promises.readFile(filePath);
+      const ext = path.extname(filePath).toLowerCase();
+      return new Response(new Uint8Array(data), {
+        headers: {
+          "Content-Type": MIME[ext] ?? "application/octet-stream",
+          "Cross-Origin-Opener-Policy": "same-origin",
+          "Cross-Origin-Embedder-Policy": "require-corp",
+          "Cross-Origin-Resource-Policy": "same-origin",
+        },
+      });
+    } catch {
+      return new Response("Not found", { status: 404 });
+    }
+  });
+}
+
+// Backends pin CORS/WS to https://umbry.chat, so from the app:// origin they'd
+// reject us. Present the trusted Origin on outgoing requests and rewrite the
+// echoed Access-Control-Allow-Origin back to our origin so the browser's CORS
+// check passes — the same trick as the Vite dev proxy, at the network layer.
+// Only installed in bundle mode (remote/dev already run on an allowed origin).
+function installOriginSpoof(): void {
+  const sess = session.defaultSession;
+  const filter = {
+    urls: [
+      "*://api.usegossip.com/*",
+      "*://gossip-relay-danielgm.fly.dev/*",
+      "ws://gossip-relay-danielgm.fly.dev/*",
+      "wss://gossip-relay-danielgm.fly.dev/*",
+    ],
+  };
+  sess.webRequest.onBeforeSendHeaders(filter, (details, cb) => {
+    const requestHeaders = { ...details.requestHeaders, Origin: TRUSTED_ORIGIN };
+    cb({ requestHeaders });
+  });
+  sess.webRequest.onHeadersReceived(filter, (details, cb) => {
+    const responseHeaders = { ...(details.responseHeaders ?? {}) };
+    for (const k of Object.keys(responseHeaders)) {
+      if (/^access-control-allow-(origin|credentials)$/i.test(k)) delete responseHeaders[k];
+    }
+    responseHeaders["Access-Control-Allow-Origin"] = [APP_ORIGIN];
+    responseHeaders["Access-Control-Allow-Credentials"] = ["true"];
+    cb({ responseHeaders });
+  });
+}
+
+// Permissions the renderer is allowed to use. "media" covers camera + mic for
+// calls/voice; on macOS we additionally trigger the OS-level (TCC) prompt below,
+// otherwise Chromium reports the device but the system hands back empty tracks.
+// Grant what a chat/calls/local-first PWA legitimately needs; deny the rest
+// (geolocation, hid, serial, usb, midi, …). Electron otherwise defaults to
+// allowing everything, so this both fixes camera/mic and tightens the shell.
+const ALLOWED_PERMISSIONS = new Set([
+  "media", // camera + microphone (calls, voice messages)
+  "display-capture", // screen sharing
+  "fullscreen", // fullscreen a screenshare
+  "notifications", // message notifications
+  "persistent-storage", // local-first Drizzle/wa-sqlite DB
+  "clipboard-read",
+  "clipboard-sanitized-write",
+  "pointerLock",
+]);
+
+/**
+ * Wire permission handling for the app's session. Without this, Electron denies
+ * every getUserMedia request by default, so the camera/mic never turn on.
+ */
+function installPermissionHandlers(): void {
+  const sess = session.defaultSession;
+  sess.setPermissionRequestHandler((_wc, permission, callback, details) => {
+    if (!ALLOWED_PERMISSIONS.has(permission)) {
+      callback(false);
+      return;
+    }
+    if (permission === "media" && process.platform === "darwin") {
+      // Ask macOS for camera/mic access (first call shows the system prompt;
+      // later calls resolve immediately with the remembered decision) before
+      // letting Chromium proceed.
+      const mediaTypes = (details as { mediaTypes?: string[] }).mediaTypes ?? ["video", "audio"];
+      const asks: Promise<boolean>[] = [];
+      if (mediaTypes.includes("video")) asks.push(systemPreferences.askForMediaAccess("camera"));
+      if (mediaTypes.includes("audio")) asks.push(systemPreferences.askForMediaAccess("microphone"));
+      void Promise.allSettled(asks).then((results) => {
+        // Grant if the OS granted at least the devices that were asked for.
+        callback(results.every((r) => r.status === "fulfilled" && r.value));
+      });
+      return;
+    }
+    callback(true);
+  });
+  // Synchronous check used by some web APIs (e.g. enumerateDevices/permissions.query).
+  sess.setPermissionCheckHandler((_wc, permission) => ALLOWED_PERMISSIONS.has(permission));
+
+  // Screen sharing: getDisplayMedia() throws in Electron unless a display-media
+  // handler is registered, which is why "Share screen" did nothing. On macOS 14+
+  // useSystemPicker shows the native ScreenCaptureKit picker (per-screen/window
+  // choice + the OS screen-recording permission prompt); the callback below is
+  // the fallback for older systems and just shares the primary screen.
+  sess.setDisplayMediaRequestHandler(
+    (_request, callback) => {
+      desktopCapturer
+        .getSources({ types: ["screen", "window"] })
+        .then((sources) => callback(sources.length > 0 ? { video: sources[0] } : {}))
+        .catch(() => callback({}));
+    },
+    { useSystemPicker: true },
+  );
+}
+
+// ── Native biometric unlock (macOS Touch ID) ────────────────────────────────
+// Electron's Chromium exposes no platform WebAuthn authenticator, so the web
+// app's Touch ID / Hello path is unavailable inside the shell. We bridge it
+// natively: the recovery passphrase is sealed with the OS keychain (safeStorage)
+// and only returned after a successful Touch ID gesture.
+const bioVaultFile = (): string => path.join(app.getPath("userData"), "bio-vault.bin");
+
+function installBiometricHandlers(): void {
+  const nativeBioSupported = (): boolean => {
+    try {
+      return (
+        process.platform === "darwin" &&
+        systemPreferences.canPromptTouchID() &&
+        safeStorage.isEncryptionAvailable()
+      );
+    } catch {
+      return false;
+    }
+  };
+
+  ipcMain.handle("umbry:bio:available", () => nativeBioSupported());
+  ipcMain.handle("umbry:bio:has", () => {
+    try {
+      return fs.existsSync(bioVaultFile());
+    } catch {
+      return false;
+    }
+  });
+  ipcMain.handle("umbry:bio:enroll", async (_e, mnemonic: unknown) => {
+    if (typeof mnemonic !== "string" || mnemonic.length === 0 || !nativeBioSupported()) return false;
+    try {
+      await systemPreferences.promptTouchID("set up biometric unlock");
+      fs.writeFileSync(bioVaultFile(), safeStorage.encryptString(mnemonic));
+      return true;
+    } catch {
+      return false;
+    }
+  });
+  ipcMain.handle("umbry:bio:unlock", async () => {
+    try {
+      if (!fs.existsSync(bioVaultFile())) return null;
+      await systemPreferences.promptTouchID("unlock Umbry");
+      return safeStorage.decryptString(fs.readFileSync(bioVaultFile()));
+    } catch {
+      return null;
+    }
+  });
+  ipcMain.handle("umbry:bio:remove", () => {
+    try {
+      fs.rmSync(bioVaultFile(), { force: true });
+    } catch {
+      /* already gone */
+    }
+    return true;
+  });
+}
+
+// Origin of a URL, treating our custom app:// scheme (whose spec origin is
+// opaque "null") as scheme://host so navigation pinning works in bundle mode.
+function originOf(u: string): string | null {
+  if (u.startsWith(`${APP_SCHEME}://`)) {
+    try {
+      return `${APP_SCHEME}://${new URL(u).host}`;
+    } catch {
+      return null;
+    }
+  }
+  try {
+    return new URL(u).origin;
   } catch {
     return null;
   }
+}
+function appOrigin(): string | null {
+  return originOf(startUrl());
 }
 
 // Single-instance: focus the existing window instead of opening a second one.
@@ -58,8 +318,16 @@ if (!app.requestSingleInstanceLock()) {
     win.webContents.on("did-fail-load", (_e, code, desc, url) => {
       console.error(`[desktop] failed to load ${url}: ${desc} (${code})`);
     });
-
-    void win.loadURL(APP_URL);
+    // Dev-only diagnostics: forward renderer warnings/errors (CORS, WASM, …) to
+    // the shell's stdout. Off in packaged builds so nothing leaks to logs.
+    if (!app.isPackaged) {
+      win.webContents.on("did-finish-load", () => console.log(`[desktop] loaded ${startUrl()}`));
+      win.webContents.on("console-message", (_e, level, message) => {
+        if (level >= 2) console.log(`[renderer] ${message}`);
+      });
+      console.log(`[desktop] start url = ${startUrl()} (bundleMode=${BUNDLE_MODE}, dir=${bundleDir()})`);
+    }
+    void win.loadURL(startUrl());
     win.on("closed", () => {
       win = null;
     });
@@ -73,12 +341,7 @@ if (!app.requestSingleInstanceLock()) {
     });
     contents.on("will-navigate", (event, url) => {
       const origin = appOrigin();
-      let target: string | null = null;
-      try {
-        target = new URL(url).origin;
-      } catch {
-        /* invalid url */
-      }
+      const target = originOf(url);
       if (origin && target !== origin) {
         event.preventDefault();
         if (/^https?:/.test(url)) void shell.openExternal(url);
@@ -94,6 +357,10 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(() => {
+    installAppProtocol();
+    if (BUNDLE_MODE) installOriginSpoof();
+    installPermissionHandlers();
+    installBiometricHandlers();
     createWindow();
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();

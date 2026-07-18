@@ -30,6 +30,13 @@ export function IdentityUnlock() {
 
   const [bioOffer, setBioOffer] = useState<string | null>(null);
 
+  const hasVault = hasBiometricVault();
+  // When biometrics are enrolled they're the fast path - lead with them and
+  // keep the (rarely-on-hand) 12-word phrase as the fallback below. Declared
+  // here (before any early return) so hook order stays stable when the
+  // post-unlock biometric offer swaps the rendered tree.
+  const [showPhrase, setShowPhrase] = useState(!hasVault);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const phrase = passphrase.trim();
@@ -60,11 +67,6 @@ export function IdentityUnlock() {
       />
     );
   }
-
-  const hasVault = hasBiometricVault();
-  // When biometrics are enrolled they're the fast path - lead with them and
-  // keep the (rarely-on-hand) 12-word phrase as the fallback below.
-  const [showPhrase, setShowPhrase] = useState(!hasVault);
 
   const bioUnlock = async () => {
     setBusy(true);

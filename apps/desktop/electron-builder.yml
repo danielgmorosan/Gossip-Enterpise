@@ -13,6 +13,13 @@ files:
   - package.json
   - "!**/*.map"
 
+# Ship the built web app (apps/web/dist) inside the package so the shell serves
+# it locally from the app:// scheme instead of loading umbry.chat over the
+# network. Lands at <resources>/web; main.ts reads it via process.resourcesPath.
+extraResources:
+  - from: ../web/dist
+    to: web
+
 # Don't rebuild native modules (there are none) — avoids pnpm/monorepo hoisting
 # issues during packaging.
 npmRebuild: false
@@ -42,6 +49,13 @@ mac:
   # sense with real signing — add CSC_*/APPLE_* secrets to enable later.
   identity: null
   gatekeeperAssess: false
+  # macOS requires these usage strings in the app's Info.plist or the OS blocks
+  # camera/mic/screen access outright (the dev Electron binary ships its own, so
+  # this only bites the packaged build). Without them, "camera doesn't work" on
+  # the installed app.
+  extendInfo:
+    NSCameraUsageDescription: Umbry uses your camera for video calls.
+    NSMicrophoneUsageDescription: Umbry uses your microphone for calls and voice messages.
 
 linux:
   category: Network

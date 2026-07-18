@@ -1,10 +1,15 @@
 node_modules/
 dist/
+# electron-builder output (installers + unpacked apps)
+release/
 .turbo/
 *.local
 .env
 .env.*
 !.env.example
+# Tracked on purpose: non-secret production backend URLs baked into the bundled
+# desktop build (CI needs these to build a working installer). No secrets here.
+!apps/web/.env.production
 .DS_Store
 
 # vendor/gossip is a git submodule (tracked via .gitmodules), not ignored.

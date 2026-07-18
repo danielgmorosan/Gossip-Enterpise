@@ -35,17 +35,20 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      # Only the desktop workspace's deps — no web app / gossip-sdk build needed.
-      - name: Install desktop deps
-        run: pnpm install --filter @umbry/desktop... --frozen-lockfile
+      # The desktop app now bundles the built web UI (served locally from app://
+      # instead of loading umbry.chat), so we need the web workspace + its deps.
+      - name: Install workspace deps
+        run: pnpm install --frozen-lockfile
 
       - name: Build installers
         working-directory: apps/desktop
-        # electron-builder targets the host OS: win->nsis, mac->dmg, linux->AppImage+deb.
+        # bundle:web (vite build → apps/web/dist, baked with .env.production) →
+        # build (tsc main) → electron-builder packages both. electron-builder
+        # targets the host OS: win->nsis, mac->dmg, linux->AppImage+deb.
         # Signing/notarization activate only if the *_CSC / APPLE_* secrets are set;
         # otherwise the installers are unsigned (users get an "unidentified developer"
         # prompt) — fine for internal/testing distribution.
-        run: pnpm run build && pnpm exec electron-builder --publish never
+        run: pnpm run bundle:web && pnpm run build && pnpm exec electron-builder --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # No cert -> don't let electron-builder try (and fail) to auto-discover

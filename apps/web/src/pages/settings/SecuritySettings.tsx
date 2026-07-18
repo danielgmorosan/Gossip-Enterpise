@@ -46,7 +46,9 @@ export function SecuritySettings() {
       setBioMsg(
         mode === "prf"
           ? "Done - hardware-bound (PRF). Next unlock is one fingerprint/PIN away."
-          : "Done - biometric-gated mode (this browser can't do PRF, but nothing is stored in plaintext). Next unlock is one fingerprint/PIN away.",
+          : mode === "native"
+            ? "Done - your passphrase is sealed in the macOS keychain and released by Touch ID. Next unlock is one touch away."
+            : "Done - biometric-gated mode (this browser can't do PRF, but nothing is stored in plaintext). Next unlock is one fingerprint/PIN away.",
       );
     } catch (e) {
       setBioMsg(e instanceof Error ? e.message : "Couldn't set up biometric unlock.");

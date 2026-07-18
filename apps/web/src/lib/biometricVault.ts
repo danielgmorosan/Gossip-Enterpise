@@ -19,14 +19,30 @@ const VAULT_KEY = "gossip-bio-vault";
 const IDB_NAME = "gossip-bio";
 const IDB_STORE = "keys";
 
-export type VaultMode = "prf" | "gate";
+// "native": macOS Touch ID via the Electron shell. Electron's Chromium exposes
+// no platform WebAuthn authenticator, so inside the desktop app we can't use the
+// prf/gate WebAuthn flow at all - the shell seals the passphrase in the OS
+// keychain and releases it after a Touch ID gesture (see apps/desktop/main.ts).
+export type VaultMode = "prf" | "gate" | "native";
 
 interface VaultBlob {
   mode: VaultMode;
-  credentialId: string; // base64url
-  salt: string; // base64url - PRF eval input (prf mode)
-  iv: string; // base64url - AES-GCM nonce
-  ciphertext: string; // base64url - encrypted passphrase
+  credentialId?: string; // base64url (WebAuthn modes only)
+  salt?: string; // base64url - PRF eval input (prf mode)
+  iv?: string; // base64url - AES-GCM nonce (WebAuthn modes only)
+  ciphertext?: string; // base64url - encrypted passphrase (WebAuthn modes only)
+}
+
+/** The native biometric bridge exposed by the desktop shell, if present. */
+interface DesktopBiometric {
+  isAvailable: () => Promise<boolean>;
+  enroll: (mnemonic: string) => Promise<boolean>;
+  unlock: () => Promise<string | null>;
+  remove: () => Promise<boolean>;
+}
+function desktopBio(): DesktopBiometric | null {
+  const d = (window as unknown as { umbryDesktop?: { isDesktop?: boolean; biometric?: DesktopBiometric } }).umbryDesktop;
+  return d?.isDesktop && d.biometric ? d.biometric : null;
 }
 
 const b64u = {
@@ -101,8 +117,16 @@ export function biometricVaultMode(): VaultMode | null {
   return loadVault()?.mode ?? null;
 }
 
-/** WebAuthn platform authenticator available (Hello/Touch ID/PIN set up)? */
+/** Biometric unlock available (native Touch ID in the desktop shell, else WebAuthn). */
 export async function biometricsAvailable(): Promise<boolean> {
+  const bio = desktopBio();
+  if (bio) {
+    try {
+      return await bio.isAvailable();
+    } catch {
+      return false;
+    }
+  }
   try {
     if (!window.PublicKeyCredential) return false;
     return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
@@ -180,6 +204,15 @@ async function createPasskey(displayName: string, withPrf: boolean): Promise<Pub
  * or authenticator can't do PRF. Returns the mode that ended up active.
  */
 export async function enrollBiometricVault(mnemonic: string, displayName: string): Promise<VaultMode> {
+  // Desktop shell: seal the passphrase in the OS keychain behind Touch ID.
+  const bio = desktopBio();
+  if (bio) {
+    const ok = await bio.enroll(mnemonic);
+    if (!ok) throw new Error("Biometric setup was cancelled or isn't available on this device.");
+    localStorage.setItem(VAULT_KEY, JSON.stringify({ mode: "native" } satisfies VaultBlob));
+    return "native";
+  }
+
   let credential: PublicKeyCredential | null = null;
   let prfEnabled = false;
   try {
@@ -244,8 +277,18 @@ export async function enrollBiometricVault(mnemonic: string, displayName: string
 export async function unlockBiometricVault(): Promise<string> {
   const blob = loadVault();
   if (!blob) throw new Error("No biometric vault on this device.");
+  if (blob.mode === "native") {
+    const bio = desktopBio();
+    if (!bio) throw new Error("This vault was set up in the desktop app - open Umbry there to unlock.");
+    const phrase = await bio.unlock();
+    if (!phrase) throw new Error("Biometric prompt was cancelled or failed.");
+    return phrase;
+  }
   try {
     if (blob.mode === "prf") {
+      if (!blob.credentialId || !blob.salt || !blob.iv || !blob.ciphertext) {
+        throw new Error("The biometric vault is incomplete - remove and re-enable biometric unlock.");
+      }
       const prf = await assertUv(b64u.decode(blob.credentialId), b64u.decode(blob.salt));
       if (!prf) throw new Error("This browser couldn't evaluate the passkey's PRF.");
       const key = await prfToKey(prf);
@@ -257,6 +300,9 @@ export async function unlockBiometricVault(): Promise<string> {
       return new TextDecoder().decode(plain);
     }
     // Gate mode: verify the user first, then use the local key.
+    if (!blob.credentialId || !blob.iv || !blob.ciphertext) {
+      throw new Error("The biometric vault is incomplete - remove and re-enable biometric unlock.");
+    }
     await assertUv(b64u.decode(blob.credentialId));
     const gateKey = await idbGet<CryptoKey>(VAULT_KEY);
     if (!gateKey) throw new Error("The vault key is missing - remove and re-enable biometric unlock.");
@@ -272,6 +318,7 @@ export async function unlockBiometricVault(): Promise<string> {
 }
 
 export function removeBiometricVault(): void {
+  if (loadVault()?.mode === "native") void desktopBio()?.remove();
   localStorage.removeItem(VAULT_KEY);
   void idbDelete(VAULT_KEY);
 }

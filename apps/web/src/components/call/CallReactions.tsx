@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { SmilePlus } from "lucide-react";
 import { RoomEvent } from "livekit-client";
 import { useRoomContext } from "@livekit/components-react";
@@ -105,12 +106,35 @@ export function CallReactionButton() {
   const room = useRoomContext();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLSpanElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  // The control tray scrolls horizontally (overflow-x-auto), which also clips
+  // vertically - an in-flow popover above the button was invisible. Portal it
+  // to the body and position it as `fixed`, anchored to the button.
+  const [pos, setPos] = useState<{ left: number; bottom: number } | null>(null);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPos(null);
+      return;
+    }
+    const place = () => {
+      const r = wrapRef.current?.getBoundingClientRect();
+      if (!r) return;
+      const width = 256; // w-64
+      const left = Math.min(Math.max(8, r.left + r.width / 2 - width / 2), window.innerWidth - width - 8);
+      setPos({ left, bottom: window.innerHeight - r.top + 8 });
+    };
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, [open]);
 
   // Close on outside pointer-down or Escape.
   useEffect(() => {
     if (!open) return;
     const onDown = (e: PointerEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (!wrapRef.current?.contains(t) && !popRef.current?.contains(t)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
@@ -147,12 +171,16 @@ export function CallReactionButton() {
           <SmilePlus className="size-5" />
         </button>
       </Tooltip>
-      {open && (
-        <div
-          onPointerDown={(e) => e.stopPropagation()}
-          className="absolute bottom-14 left-1/2 z-30 w-64 -translate-x-1/2 rounded-card border border-line bg-paper p-2 shadow-[var(--st-shadow-card)]"
-        >
-          <div className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wider text-ink-faint">Reactions</div>
+      {open &&
+        pos &&
+        createPortal(
+          <div
+            ref={popRef}
+            onPointerDown={(e) => e.stopPropagation()}
+            style={{ left: pos.left, bottom: pos.bottom }}
+            className="fixed z-[70] w-64 rounded-card border border-line bg-paper p-2 font-stack shadow-[var(--st-shadow-card)]"
+          >
+            <div className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wider text-ink-faint">Reactions</div>
           <div className="grid grid-cols-8 gap-0.5">
             {REACTIONS.map((e) => (
               <button
@@ -180,9 +208,10 @@ export function CallReactionButton() {
                 <span className="text-[10px] font-medium text-ink-mute">{s.label}</span>
               </button>
             ))}
-          </div>
-        </div>
-      )}
+            </div>
+          </div>,
+          document.body,
+        )}
     </span>
   );
 }

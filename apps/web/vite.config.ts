@@ -14,6 +14,21 @@ const coopCoep = {
   "Cross-Origin-Embedder-Policy": "require-corp",
 };
 
+// Dev backend for the channel relay (group chats, LiveKit tokens, uploads, AI).
+// Defaults to the PRODUCTION Fly relay so local dev sees your real workspaces
+// and joins real LiveKit calls. The relay pins CORS/WS to https://umbry.chat, so
+// we proxy server-side (no browser CORS) and spoof that Origin on the forwarded
+// request. To use a relay running locally instead:
+//   RELAY_TARGET=http://localhost:8788 RELAY_ORIGIN= pnpm --filter @umbry/web dev
+const RELAY_TARGET = process.env.RELAY_TARGET ?? "https://gossip-relay-danielgm.fly.dev";
+const RELAY_ORIGIN = process.env.RELAY_ORIGIN ?? "https://umbry.chat";
+const relayHttp = {
+  target: RELAY_TARGET,
+  changeOrigin: true,
+  secure: true,
+  ...(RELAY_ORIGIN ? { headers: { Origin: RELAY_ORIGIN } } : {}),
+};
+
 export default defineConfig({
   plugins: [
     react(),
@@ -60,23 +75,24 @@ export default defineConfig({
       },
       // Our own channel relay (group chats), WebSocket — see services/relay.
       "/group-ws": {
-        target: "ws://localhost:8788",
+        ...relayHttp,
+        target: RELAY_TARGET.replace(/^http/, "ws"),
         ws: true,
         rewrite: (p) => p.replace(/^\/group-ws/, ""),
       },
       // LiveKit token (signed server-side) + config, served by the relay.
-      "/livekit-token": { target: "http://localhost:8788" },
-      "/livekit-config": { target: "http://localhost:8788" },
+      "/livekit-token": relayHttp,
+      "/livekit-config": relayHttp,
       // OpenClaw AI gateway (lives in the relay; only sees channel data, never DMs).
-      "/openclaw": { target: "http://localhost:8788" },
+      "/openclaw": relayHttp,
       // Channel attachments (upload + download), served by the relay.
-      "/uploads": { target: "http://localhost:8788" },
+      "/uploads": relayHttp,
       // Link previews (OG metadata for channel messages), served by the relay.
-      "/unfurl": { target: "http://localhost:8788" },
+      "/unfurl": relayHttp,
       // Live call-room participant counts (DM call presence), served by the relay.
-      "/room-count": { target: "http://localhost:8788" },
+      "/room-count": relayHttp,
       // GIF search proxy (keeps the API key server-side), served by the relay.
-      "/gif-search": { target: "http://localhost:8788" },
+      "/gif-search": relayHttp,
     },
   },
   preview: { headers: coopCoep },
