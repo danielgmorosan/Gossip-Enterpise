@@ -55,6 +55,17 @@ function startUrl(): string {
 }
 const BUNDLE_MODE = startUrl().startsWith(`${APP_SCHEME}://`);
 
+// Enable macOS system-audio loopback for screen sharing (macOS 13+). Without
+// these Chromium flags, `audio: "loopback"` in the display-media handler yields
+// no audio track — this is why shared screens were silent. Must be set before
+// app "ready".
+if (process.platform === "darwin") {
+  app.commandLine.appendSwitch(
+    "enable-features",
+    "MacLoopbackAudioForScreenShare,MacSckSystemAudioLoopbackOverride",
+  );
+}
+
 // Register the app scheme as privileged BEFORE app "ready" (required by Electron).
 protocol.registerSchemesAsPrivileged([
   {
@@ -197,19 +208,26 @@ function installPermissionHandlers(): void {
   sess.setPermissionCheckHandler((_wc, permission) => ALLOWED_PERMISSIONS.has(permission));
 
   // Screen sharing: getDisplayMedia() throws in Electron unless a display-media
-  // handler is registered, which is why "Share screen" did nothing. On macOS 14+
-  // useSystemPicker shows the native ScreenCaptureKit picker (per-screen/window
-  // choice + the OS screen-recording permission prompt); the callback below is
-  // the fallback for older systems and just shares the primary screen.
-  sess.setDisplayMediaRequestHandler(
-    (_request, callback) => {
-      desktopCapturer
-        .getSources({ types: ["screen", "window"] })
-        .then((sources) => callback(sources.length > 0 ? { video: sources[0] } : {}))
-        .catch(() => callback({}));
-    },
-    { useSystemPicker: true },
-  );
+  // handler is registered, which is why "Share screen" did nothing.
+  //
+  // We deliberately do NOT use the native system picker (useSystemPicker): when
+  // it's active Electron bypasses this callback, and the callback is the ONLY
+  // place we can attach audio. So instead we resolve the source here and return
+  // `audio: "loopback"` to capture system audio (needs the two Mac loopback
+  // Chromium flags set at startup). Trade-off: no per-window picker — we share a
+  // whole screen (the one requested, else the primary), which is also what makes
+  // system-audio capture meaningful.
+  sess.setDisplayMediaRequestHandler((request, callback) => {
+    desktopCapturer
+      .getSources({ types: ["screen", "window"] })
+      .then((sources) => {
+        const screen = sources.find((s) => s.id.startsWith("screen:")) ?? sources[0];
+        if (!screen) return callback({});
+        // Attach system audio when the page asked for it (LiveKit passes audio:true).
+        callback(request.audioRequested ? { video: screen, audio: "loopback" } : { video: screen });
+      })
+      .catch(() => callback({}));
+  });
 }
 
 // ── Native biometric unlock (macOS Touch ID) ────────────────────────────────
