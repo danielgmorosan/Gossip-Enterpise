@@ -48,6 +48,11 @@ export function EmojiPickerPopover({
       <EmojiPicker.Root
         onEmojiSelect={({ emoji }) => onPick(emoji)}
         columns={9}
+        // Self-hosted emojibase data (apps/web/public/emojibase). frimousse
+        // defaults to the jsdelivr CDN, which fails under the app's COEP /
+        // offline desktop constraints and violates the no-runtime-CDN rule.
+        // Served same-origin so it works everywhere, including the app:// shell.
+        emojibaseUrl="/emojibase"
         className="isolate flex h-80 w-[22rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-card border border-line bg-paper shadow-[var(--st-shadow-card)]"
       >
         <EmojiPicker.Search
