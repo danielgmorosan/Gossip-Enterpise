@@ -1,4 +1,6 @@
 import { createBrowserRouter, Navigate, useParams } from "react-router-dom";
+import { hasBiometricVault } from "@/lib/biometricVault";
+import { hasPasswordVault } from "@/lib/passwordVault";
 import { AppShell } from "./AppShell";
 import { HomeShell } from "./HomeShell";
 import { HomePage } from "@/pages/HomePage";
@@ -34,10 +36,17 @@ import { NotificationsSettings } from "@/pages/settings/NotificationsSettings";
 import { CallSettings } from "@/pages/settings/CallSettings";
 import { AppearanceSettings } from "@/pages/settings/AppearanceSettings";
 
-/** Returning visitors (identity created on this browser before) land on unlock, not welcome. */
+/** Returning visitors (identity created on this device before) land on unlock, not welcome. */
 function Entry() {
-  const hasIdentity = !!localStorage.getItem("gossip-display-name");
-  return <Navigate to={hasIdentity ? "/identity/unlock" : "/welcome"} replace />;
+  // Any sign this device has an identity: a saved name, a remembered passphrase,
+  // or an enrolled unlock vault (biometrics / password). Vaults are the strongest
+  // signal — a returning user should always reach "Welcome back", never signup.
+  const returning =
+    !!localStorage.getItem("gossip-display-name") ||
+    !!localStorage.getItem("gossip-remembered-passphrase") ||
+    hasBiometricVault() ||
+    hasPasswordVault();
+  return <Navigate to={returning ? "/identity/unlock" : "/welcome"} replace />;
 }
 
 /** DMs moved out of workspaces (/w/:id/dm/… → /home/dm/…); keep stale links working. */
@@ -111,5 +120,7 @@ export const router = createBrowserRouter([
       { path: "appearance", element: <AppearanceSettings /> },
     ],
   },
-  { path: "*", element: <Navigate to="/welcome" replace /> },
+  // Anything unmatched (incl. the desktop shell loading app://bundle/index.html)
+  // goes through Entry so returning users reach unlock, not signup.
+  { path: "*", element: <Navigate to="/" replace /> },
 ]);

@@ -52,7 +52,10 @@ function hasBundle(): boolean {
 // otherwise prefer the on-disk bundle; fall back to remote only if it's missing.
 function startUrl(): string {
   if (process.env.UMBRY_DESKTOP_URL) return process.env.UMBRY_DESKTOP_URL;
-  if (hasBundle()) return `${APP_ORIGIN}/index.html`;
+  // Load at the origin root (not /index.html) so the SPA router runs its Entry
+  // redirect (returning user -> unlock) instead of the path falling to the
+  // catch-all. The app:// handler serves index.html for "/".
+  if (hasBundle()) return `${APP_ORIGIN}/`;
   return "https://umbry.chat";
 }
 const BUNDLE_MODE = startUrl().startsWith(`${APP_SCHEME}://`);
