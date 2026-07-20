@@ -41,6 +41,11 @@ win:
   icon: build/icon.png
 
 nsis:
+  # Space-free name: the default "${productName} Setup ${version}.exe" has spaces,
+  # which GitHub rewrites to dots on the uploaded asset while electron-builder
+  # writes them as hyphens in latest.yml — the mismatch 404s auto-update
+  # ("Cannot download"). A hyphenated name keeps asset + manifest identical.
+  artifactName: ${productName}-Setup-${version}.${ext}
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
