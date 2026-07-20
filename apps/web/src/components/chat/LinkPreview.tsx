@@ -49,9 +49,16 @@ function youtubeTitle(url: string): Promise<string | null> {
   return p;
 }
 
-function YouTubeCard({ url, videoId }: { url: string; videoId: string }) {
+function YouTubeCard({ url, videoId, e2e }: { url: string; videoId: string; e2e?: boolean }) {
   const [title, setTitle] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
+  // COEP (require-corp) blocks the cross-origin i.ytimg.com thumbnail. In
+  // channels we proxy it through the relay (which adds CORP) — same host trust
+  // as the unfurl. In E2EE DMs we must NOT touch the relay, so we skip the
+  // thumbnail image (the play button still shows) rather than leak the video id.
+  const thumb = e2e
+    ? null
+    : relayUrl(`/img?url=${encodeURIComponent(`https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`)}`);
 
   useEffect(() => {
     let on = true;
@@ -81,16 +88,16 @@ function YouTubeCard({ url, videoId }: { url: string; videoId: string }) {
             title={title ?? "YouTube video"}
             allow="autoplay; encrypted-media; picture-in-picture"
             allowFullScreen
+            // Cross-origin iframes are blocked under COEP require-corp unless
+            // they opt in; `credentialless` lets the embed load (Chromium — the
+            // desktop shell + Chrome/Edge) without cookies. Non-Chromium browsers
+            // ignore it and fall back to opening the link.
+            {...{ credentialless: "" }}
             className="absolute inset-0 h-full w-full"
           />
         ) : (
           <button onClick={() => setPlaying(true)} aria-label="Play video" className="group absolute inset-0">
-            <img
-              src={`https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`}
-              alt=""
-              className="h-full w-full object-cover"
-              loading="lazy"
-            />
+            {thumb && <img src={thumb} alt="" className="h-full w-full object-cover" loading="lazy" />}
             <span className="absolute inset-0 grid place-items-center">
               <span className="grid size-12 place-items-center rounded-full bg-black/70 text-white transition-transform group-hover:scale-110">
                 <Play className="ml-0.5 size-5 fill-current" />
@@ -155,7 +162,14 @@ function SiteCard({ url }: { url: string }) {
       </div>
       {data.image && (
         <a href={url} target="_blank" rel="noopener noreferrer" className="block px-3 pb-3">
-          <img src={data.image} alt="" loading="lazy" className="max-h-56 rounded-control object-cover" />
+          {/* Proxy the og:image through the relay so it carries CORP and renders
+              under COEP require-corp (channel previews only — never DM). */}
+          <img
+            src={relayUrl(`/img?url=${encodeURIComponent(data.image)}`)}
+            alt=""
+            loading="lazy"
+            className="max-h-56 rounded-control object-cover"
+          />
         </a>
       )}
     </div>
@@ -175,7 +189,7 @@ export function MessagePreviews({ text, e2e, className }: { text: string; e2e?: 
       // straight from the linked host, same as clicking would.
       if (isImageUrl(url)) return <ImageCard key={url} url={url} />;
       const vid = youtubeId(url);
-      if (vid) return <YouTubeCard key={url} url={url} videoId={vid} />;
+      if (vid) return <YouTubeCard key={url} url={url} videoId={vid} e2e={e2e} />;
       if (e2e) return null; // privacy: non-YouTube DM links stay unpreviewd
       return <SiteCard key={url} url={url} />;
     })

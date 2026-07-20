@@ -110,7 +110,7 @@ export function CallReactionButton() {
   // The control tray scrolls horizontally (overflow-x-auto), which also clips
   // vertically - an in-flow popover above the button was invisible. Portal it
   // to the body and position it as `fixed`, anchored to the button.
-  const [pos, setPos] = useState<{ left: number; bottom: number } | null>(null);
+  const [pos, setPos] = useState<{ left: number; bottom: number; maxHeight: number } | null>(null);
 
   useLayoutEffect(() => {
     if (!open) {
@@ -122,7 +122,10 @@ export function CallReactionButton() {
       if (!r) return;
       const width = 256; // w-64
       const left = Math.min(Math.max(8, r.left + r.width / 2 - width / 2), window.innerWidth - width - 8);
-      setPos({ left, bottom: window.innerHeight - r.top + 8 });
+      // Cap the panel to the space above the button and let it scroll — the panel
+      // grows upward from the tray, so without this its top rows render above the
+      // viewport (y < 0) and get clipped with no way to reach them.
+      setPos({ left, bottom: window.innerHeight - r.top + 8, maxHeight: Math.max(120, r.top - 16) });
     };
     place();
     window.addEventListener("resize", place);
@@ -177,8 +180,8 @@ export function CallReactionButton() {
           <div
             ref={popRef}
             onPointerDown={(e) => e.stopPropagation()}
-            style={{ left: pos.left, bottom: pos.bottom }}
-            className="fixed z-[70] w-64 rounded-card border border-line bg-paper p-2 font-stack shadow-[var(--st-shadow-card)]"
+            style={{ left: pos.left, bottom: pos.bottom, maxHeight: pos.maxHeight }}
+            className="fixed z-[70] w-64 overflow-y-auto rounded-card border border-line bg-paper p-2 font-stack shadow-[var(--st-shadow-card)]"
           >
             <div className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wider text-ink-faint">Reactions</div>
           <div className="grid grid-cols-8 gap-0.5">
