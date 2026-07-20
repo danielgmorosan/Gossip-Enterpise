@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Fingerprint, KeyRound, Loader2, ShieldCheck, UserPlus } from "lucide-react";
+import { Fingerprint, KeyRound, Loader2, Lock, ShieldCheck, UserPlus } from "lucide-react";
 import { SettingsPage } from "./SettingsLayout";
 import { SettingGroup, SettingRow } from "./parts";
-import { Button } from "@umbry/ui/stack";
+import { Button, PasswordInput } from "@umbry/ui/stack";
 import { ConfirmDialog } from "@/components/ContextMenu";
 import { useSession } from "@/stores/useSession";
 import {
@@ -12,6 +12,12 @@ import {
   hasBiometricVault,
   removeBiometricVault,
 } from "@/lib/biometricVault";
+import {
+  enrollPasswordVault,
+  hasPasswordVault,
+  MIN_PASSWORD_LENGTH,
+  removePasswordVault,
+} from "@/lib/passwordVault";
 
 export function SecuritySettings() {
   const nav = useNavigate();
@@ -54,6 +60,44 @@ export function SecuritySettings() {
       setBioMsg(e instanceof Error ? e.message : "Couldn't set up biometric unlock.");
     } finally {
       setBioBusy(false);
+    }
+  };
+
+  // Password unlock vault: the universal quick-unlock (works everywhere, incl.
+  // the Windows/Linux desktop app where no platform authenticator exists).
+  const [pwEnrolled, setPwEnrolled] = useState(hasPasswordVault());
+  const [pwOpen, setPwOpen] = useState(false);
+  const [pwNew, setPwNew] = useState("");
+  const [pwConfirm, setPwConfirm] = useState("");
+  const [pwBusy, setPwBusy] = useState(false);
+  const [pwMsg, setPwMsg] = useState<string | null>(null);
+
+  const enrollPw = async () => {
+    if (!mnemonic) {
+      setPwMsg("Unlock with your passphrase once in this tab, then set a password.");
+      return;
+    }
+    if (pwNew.length < MIN_PASSWORD_LENGTH) {
+      setPwMsg(`Use at least ${MIN_PASSWORD_LENGTH} characters.`);
+      return;
+    }
+    if (pwNew !== pwConfirm) {
+      setPwMsg("The passwords don't match.");
+      return;
+    }
+    setPwBusy(true);
+    setPwMsg(null);
+    try {
+      await enrollPasswordVault(mnemonic, pwNew);
+      setPwEnrolled(true);
+      setPwOpen(false);
+      setPwNew("");
+      setPwConfirm("");
+      setPwMsg("Done - unlock with this password next time on this device.");
+    } catch (e) {
+      setPwMsg(e instanceof Error ? e.message : "Couldn't set the unlock password.");
+    } finally {
+      setPwBusy(false);
     }
   };
 
@@ -119,6 +163,68 @@ export function SecuritySettings() {
             )
           }
         />
+        <SettingRow
+          label={
+            <span className="flex items-center gap-2">
+              Unlock password
+              {pwEnrolled && (
+                <span className="inline-flex items-center gap-1 rounded-control bg-field px-2 py-0.5 text-[11px] font-medium text-positive">
+                  <span className="size-1.5 rounded-full bg-positive" /> on
+                </span>
+              )}
+            </span>
+          }
+          desc={
+            pwMsg ??
+            (pwEnrolled
+              ? "Unlock with a password instead of the 12-word phrase. Your passphrase is encrypted with it - works on every device, no biometrics needed."
+              : "Set a password to unlock on this device without the 12-word phrase. Encrypted at rest; nothing stored in plaintext. Works everywhere biometrics don't.")
+          }
+          control={
+            pwEnrolled ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  removePasswordVault();
+                  setPwEnrolled(false);
+                  setPwMsg(null);
+                }}
+              >
+                Remove
+              </Button>
+            ) : (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setPwOpen((v) => !v)}
+                disabled={status !== "open"}
+              >
+                <Lock className="size-4" /> {pwOpen ? "Cancel" : "Set password"}
+              </Button>
+            )
+          }
+        >
+          {pwOpen && !pwEnrolled && (
+            <div className="mt-3 space-y-2.5">
+              <PasswordInput
+                placeholder={`New password (${MIN_PASSWORD_LENGTH}+ characters)`}
+                autoComplete="new-password"
+                value={pwNew}
+                onChange={(e) => setPwNew(e.target.value)}
+              />
+              <PasswordInput
+                placeholder="Confirm password"
+                autoComplete="new-password"
+                value={pwConfirm}
+                onChange={(e) => setPwConfirm(e.target.value)}
+              />
+              <Button size="sm" onClick={() => void enrollPw()} disabled={pwBusy || !pwNew || !pwConfirm}>
+                {pwBusy ? <Loader2 className="size-4 animate-spin" /> : <KeyRound className="size-4" />} Save password
+              </Button>
+            </div>
+          )}
+        </SettingRow>
         <SettingRow
           label="Stay unlocked on this device"
           desc={

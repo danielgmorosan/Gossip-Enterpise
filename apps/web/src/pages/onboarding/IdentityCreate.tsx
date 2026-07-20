@@ -4,8 +4,9 @@ import { ArrowLeft, ArrowRight, Copy, RefreshCw, Check, ShieldCheck, Eye, EyeOff
 import { Button, Field, Input } from "@umbry/ui/stack";
 import { cn } from "@/lib/utils";
 import { useSession } from "@/stores/useSession";
-import { BiometricEnrollStep } from "@/components/BiometricEnrollStep";
-import { biometricsAvailable, hasBiometricVault } from "@/lib/biometricVault";
+import { QuickUnlockStep } from "@/components/QuickUnlockStep";
+import { hasBiometricVault } from "@/lib/biometricVault";
+import { hasPasswordVault } from "@/lib/passwordVault";
 
 export function IdentityCreate() {
   const nav = useNavigate();
@@ -37,14 +38,14 @@ export function IdentityCreate() {
       setError("Couldn't open a session. Check your connection and try again.");
       return;
     }
-    // Offer biometric unlock right here (T4): the device supports it and no
-    // vault exists yet - way more discoverable than Settings → Security.
-    if (!hasBiometricVault() && (await biometricsAvailable())) setBioOffer(true);
+    // Offer a quick unlock right here (T4): biometrics where supported, else a
+    // password - way more discoverable than Settings → Security.
+    if (!hasBiometricVault() && !hasPasswordVault()) setBioOffer(true);
     else nav(next);
   };
 
   if (bioOffer) {
-    return <BiometricEnrollStep mnemonic={mnemonic} displayName={name.trim()} onDone={() => nav(next)} />;
+    return <QuickUnlockStep mnemonic={mnemonic} displayName={name.trim()} onDone={() => nav(next)} />;
   }
 
   const copy = () => {
