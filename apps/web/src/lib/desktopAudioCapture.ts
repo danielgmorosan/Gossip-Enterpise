@@ -23,6 +23,7 @@ function bridge(): AudioCaptureBridge | null {
  */
 export function canCaptureDesktopAudio(): boolean {
   if (bridge() == null) return false;
+  if (import.meta.env.DEV) return true; // frictionless pipeline testing in a dev run
   try {
     return localStorage.getItem("umbry-native-share-audio") === "1";
   } catch {
