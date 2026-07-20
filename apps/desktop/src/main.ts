@@ -22,6 +22,7 @@ import { app, BrowserWindow, shell, session, ipcMain, systemPreferences, safeSto
 import * as path from "node:path";
 import * as fs from "node:fs";
 import { setupUpdater } from "./updater";
+import { winHelloAvailable, winHelloVerify } from "./winHello";
 
 // ── Local bundle (serve the built web app from disk, not over the network) ───
 // Loading the UI remotely from umbry.chat on every launch is what makes the
@@ -284,13 +285,28 @@ function installScreenSourceHandlers(): void {
 const bioVaultFile = (): string => path.join(app.getPath("userData"), "bio-vault.bin");
 
 function installBiometricHandlers(): void {
-  const nativeBioSupported = (): boolean => {
+  // Can this OS do a native unlock gesture (Touch ID on macOS, Windows Hello on
+  // Windows) AND seal secrets at rest (safeStorage / DPAPI on Windows)?
+  const nativeBioSupported = async (): Promise<boolean> => {
     try {
-      return (
-        process.platform === "darwin" &&
-        systemPreferences.canPromptTouchID() &&
-        safeStorage.isEncryptionAvailable()
-      );
+      if (!safeStorage.isEncryptionAvailable()) return false;
+      if (process.platform === "darwin") return systemPreferences.canPromptTouchID();
+      if (process.platform === "win32") return await winHelloAvailable();
+      return false;
+    } catch {
+      return false;
+    }
+  };
+
+  // Show the platform gesture; resolve true only when the user actually verified.
+  const nativeVerify = async (reason: string): Promise<boolean> => {
+    try {
+      if (process.platform === "darwin") {
+        await systemPreferences.promptTouchID(reason); // throws on cancel/fail
+        return true;
+      }
+      if (process.platform === "win32") return await winHelloVerify(reason);
+      return false;
     } catch {
       return false;
     }
@@ -305,9 +321,10 @@ function installBiometricHandlers(): void {
     }
   });
   ipcMain.handle("umbry:bio:enroll", async (_e, mnemonic: unknown) => {
-    if (typeof mnemonic !== "string" || mnemonic.length === 0 || !nativeBioSupported()) return false;
+    if (typeof mnemonic !== "string" || mnemonic.length === 0) return false;
+    if (!(await nativeBioSupported())) return false;
+    if (!(await nativeVerify("set up unlock for Umbry"))) return false;
     try {
-      await systemPreferences.promptTouchID("set up biometric unlock");
       fs.writeFileSync(bioVaultFile(), safeStorage.encryptString(mnemonic));
       return true;
     } catch {
@@ -317,7 +334,11 @@ function installBiometricHandlers(): void {
   ipcMain.handle("umbry:bio:unlock", async () => {
     try {
       if (!fs.existsSync(bioVaultFile())) return null;
-      await systemPreferences.promptTouchID("unlock Umbry");
+    } catch {
+      return null;
+    }
+    if (!(await nativeVerify("unlock Umbry"))) return null;
+    try {
       return safeStorage.decryptString(fs.readFileSync(bioVaultFile()));
     } catch {
       return null;
