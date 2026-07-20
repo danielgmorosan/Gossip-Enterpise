@@ -55,14 +55,20 @@ function startUrl(): string {
 }
 const BUNDLE_MODE = startUrl().startsWith(`${APP_SCHEME}://`);
 
-// Enable macOS system-audio loopback for screen sharing (macOS 13+). Without
-// these Chromium flags, `audio: "loopback"` in the display-media handler yields
-// no audio track — this is why shared screens were silent. Must be set before
-// app "ready".
+// Enable macOS system-audio loopback for screen sharing. Without these Chromium
+// flags `audio: "loopback"` yields a live-but-SILENT track (peak RMS 0.0) —
+// which is exactly how the shared screen was silent while looking fine.
+//
+// Chromium has two backends and the right one depends on the OS version:
+//   • macOS 13–14  → ScreenCaptureKit  (MacSckSystemAudioLoopbackOverride)
+//   • macOS 15+    → Core Audio taps   (MacCatapSystemAudioLoopbackCapture)
+// Both are listed on purpose: Catap takes precedence where it's supported, so
+// this one switch covers 13 through 26. Omitting Catap is what broke capture on
+// modern macOS. Must be set before app "ready".
 if (process.platform === "darwin") {
   app.commandLine.appendSwitch(
     "enable-features",
-    "MacLoopbackAudioForScreenShare,MacSckSystemAudioLoopbackOverride",
+    "MacLoopbackAudioForScreenShare,MacSckSystemAudioLoopbackOverride,MacCatapSystemAudioLoopbackCapture",
   );
 }
 
@@ -210,23 +216,62 @@ function installPermissionHandlers(): void {
   // Screen sharing: getDisplayMedia() throws in Electron unless a display-media
   // handler is registered, which is why "Share screen" did nothing.
   //
-  // We deliberately do NOT use the native system picker (useSystemPicker): when
-  // it's active Electron bypasses this callback, and the callback is the ONLY
-  // place we can attach audio. So instead we resolve the source here and return
-  // `audio: "loopback"` to capture system audio (needs the two Mac loopback
-  // Chromium flags set at startup). Trade-off: no per-window picker — we share a
-  // whole screen (the one requested, else the primary), which is also what makes
-  // system-audio capture meaningful.
+  // We deliberately do NOT use the native system picker (useSystemPicker): it
+  // times out on this Electron/macOS build AND, when it does work, it bypasses
+  // this callback — which is the only place we can attach audio. So the renderer
+  // draws its own picker: umbry:screen:sources → show thumbnails →
+  // umbry:screen:pick parks the choice here before calling getDisplayMedia().
+  //
+  // SCREEN-ONLY: we only ever park whole-screen source ids. Per-window capture
+  // is honoured only intermittently on this build (a window pick can silently
+  // fall back to the whole screen), so we don't offer it rather than risk
+  // over-sharing. Whole-screen capture is reliable and is also the only source
+  // that carries system audio. (True per-app video+audio would need a native
+  // ScreenCaptureKit addon, the way Discord does it — Chromium can't express it.)
   sess.setDisplayMediaRequestHandler((request, callback) => {
     desktopCapturer
-      .getSources({ types: ["screen", "window"] })
+      .getSources({ types: ["screen"] })
       .then((sources) => {
-        const screen = sources.find((s) => s.id.startsWith("screen:")) ?? sources[0];
-        if (!screen) return callback({});
-        // Attach system audio when the page asked for it (LiveKit passes audio:true).
-        callback(request.audioRequested ? { video: screen, audio: "loopback" } : { video: screen });
+        const picked = pendingSourceId ? sources.find((s) => s.id === pendingSourceId) : undefined;
+        const wantsAudio = pendingSourceId ? pendingAudio : true;
+        // Consume the pick — a later share without one falls back to the primary
+        // screen with audio, which is the pre-picker behaviour.
+        pendingSourceId = null;
+        pendingAudio = true;
+        const source = picked ?? sources[0];
+        if (!source) return callback({});
+        callback(request.audioRequested && wantsAudio ? { video: source, audio: "loopback" } : { video: source });
       })
       .catch(() => callback({}));
+  });
+}
+
+// ── Screen-share source picker ──────────────────────────────────────────────
+// Set by the renderer immediately before getDisplayMedia(); read (and cleared)
+// by the display-media handler above.
+let pendingSourceId: string | null = null;
+let pendingAudio = true;
+
+function installScreenSourceHandlers(): void {
+  ipcMain.handle("umbry:screen:sources", async () => {
+    // Screens only — window enumeration would leak titles of apps we won't
+    // offer to share, and the renderer filters them out anyway.
+    const sources = await desktopCapturer.getSources({
+      types: ["screen"],
+      thumbnailSize: { width: 320, height: 200 },
+    });
+    return sources.map((s) => ({
+      id: s.id,
+      name: s.name,
+      kind: "screen" as const,
+      thumbnail: s.thumbnail.isEmpty() ? "" : s.thumbnail.toDataURL(),
+      appIcon: "",
+    }));
+  });
+  ipcMain.handle("umbry:screen:pick", (_e, id: unknown, audio: unknown) => {
+    pendingSourceId = typeof id === "string" && id ? id : null;
+    pendingAudio = audio !== false;
+    return true;
   });
 }
 
@@ -379,6 +424,7 @@ if (!app.requestSingleInstanceLock()) {
     if (BUNDLE_MODE) installOriginSpoof();
     installPermissionHandlers();
     installBiometricHandlers();
+    installScreenSourceHandlers();
     createWindow();
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();

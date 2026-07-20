@@ -6,8 +6,9 @@ directories:
   output: release
   buildResources: build
 
-# The app loads the web UI remotely, so there are no local web assets to bundle
-# and no runtime node_modules — just the compiled main + preload. Keep it lean.
+# Package just the compiled main + preload and no runtime node_modules (there
+# are none). The web UI is shipped separately as extraResources (below), not in
+# the asar. Keep it lean.
 files:
   - dist/**/*
   - package.json
@@ -23,7 +24,13 @@ extraResources:
 # Don't rebuild native modules (there are none) — avoids pnpm/monorepo hoisting
 # issues during packaging.
 npmRebuild: false
-electronVersion: 43.1.1
+# Pinned explicitly: electron-builder's auto-detect resolves the wrong version in
+# this pnpm workspace (it can pick a stale copy from the store). MUST match
+# apps/desktop package.json's electron devDependency. Held at 38 because 39–43
+# ship a macOS regression that makes screen-share system audio a live-but-SILENT
+# track (verified by bisection on macOS 26); 38 is the newest release where
+# loopback audio actually carries samples. Revisit when Electron fixes it.
+electronVersion: 38.8.6
 
 win:
   target:

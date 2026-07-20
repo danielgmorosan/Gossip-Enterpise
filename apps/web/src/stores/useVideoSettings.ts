@@ -28,13 +28,28 @@ export const useVideoSettings = create<VideoSettingsState>()(
   persist(
     (set) => ({
       camPreset: "auto",
-      shareRes: "source",
+      // 1080/30 by default, not "source": capturing a Retina panel at its
+      // native size (up to 4K) and encoding it without ever downscaling pins
+      // the CPU. Users who want native crispness can still pick "source".
+      shareRes: "1080",
       shareFps: 30,
       sharePrioritize: "detail",
       background: "none",
       backgroundImage: "",
       set: (patch) => set(patch),
     }),
-    { name: "gossip-video-settings" },
+    {
+      name: "gossip-video-settings",
+      version: 1,
+      // v0 shipped with shareRes "source" as the default, which is what made
+      // sharing a Retina screen so expensive. Move anyone still on the old
+      // default down to 1080; an explicit "source" choice is indistinguishable
+      // from the default here, so this is a deliberate one-time reset.
+      migrate: (state, from) => {
+        const s = state as Partial<VideoSettingsState>;
+        if (from < 1 && s.shareRes === "source") s.shareRes = "1080";
+        return s as VideoSettingsState;
+      },
+    },
   ),
 );

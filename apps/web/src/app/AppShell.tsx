@@ -8,6 +8,7 @@ import { usePendingContactRedirect } from "@/lib/usePendingContactRedirect";
 import { useDmNotifications } from "@/lib/useDmNotifications";
 import { useLockGuard } from "@/lib/useLockGuard";
 import { cn } from "@/lib/utils";
+import { ScreenSourcePicker } from "@/components/call/ScreenSourcePicker";
 
 export function AppShell() {
   const { workspaceId } = useParams();
@@ -38,6 +39,9 @@ export function AppShell() {
       <main className={cn("flex min-w-0 flex-1 flex-col bg-paper", atRoot && "max-md:hidden")}>
         <Outlet />
       </main>
+      {/* Desktop-shell screen-share picker (no-op in the browser). Lives here
+          so it survives navigating away from the call view mid-share. */}
+      <ScreenSourcePicker />
     </div>
   );
 }

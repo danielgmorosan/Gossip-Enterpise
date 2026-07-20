@@ -23,4 +23,20 @@ contextBridge.exposeInMainWorld("umbryDesktop", {
     unlock: (): Promise<string | null> => ipcRenderer.invoke("umbry:bio:unlock"),
     remove: (): Promise<boolean> => ipcRenderer.invoke("umbry:bio:remove"),
   },
+  // Screen-share source picking. Electron's display-media handler can't show a
+  // native picker without giving up system-audio capture, so the web app draws
+  // its own: list() for the thumbnails, pick() to park the choice, then the
+  // usual getDisplayMedia() call resolves to it.
+  screen: {
+    list: (): Promise<ScreenSource[]> => ipcRenderer.invoke("umbry:screen:sources"),
+    pick: (id: string | null, audio: boolean): Promise<boolean> => ipcRenderer.invoke("umbry:screen:pick", id, audio),
+  },
 });
+
+interface ScreenSource {
+  id: string;
+  name: string;
+  kind: "screen" | "window";
+  thumbnail: string;
+  appIcon: string;
+}

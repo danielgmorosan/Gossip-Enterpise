@@ -23,6 +23,7 @@ import { CameraSettingsDialog } from "./CameraSettingsDialog";
 import { useCallVolumes, effectiveMicVolume } from "@/stores/useCallVolumes";
 import { longPressProps } from "@/lib/longPress";
 import { cn, truncateHandle } from "@/lib/utils";
+import { needsSourcePicker } from "@/lib/desktopScreenPicker";
 
 /**
  * Custom in-call surface (T2-06). Discord-style layout: a dark stage with a
@@ -173,8 +174,19 @@ export function CallStage({ target }: { target: CallTarget }) {
           <VolumeX className="size-4 shrink-0 text-negative" />
           <span className="min-w-0">
             <span className="font-semibold text-ink">Your share has no sound.</span>{" "}
-            To include audio: share a <span className="font-medium text-ink">browser tab</span> and tick “Also share tab
-            audio”, or your entire screen with “Share system audio”. Window shares - and Firefox - can't capture audio.
+            {needsSourcePicker() ? (
+              <>
+                Stop sharing and start again with “Share computer audio” ticked. If it stays silent, grant Umbry{" "}
+                <span className="font-medium text-ink">Screen Recording</span> access in System Settings → Privacy &
+                Security, then restart the app.
+              </>
+            ) : (
+              <>
+                To include audio: share a <span className="font-medium text-ink">browser tab</span> and tick “Also share
+                tab audio”, or your entire screen with “Share system audio”. Window shares - and Firefox - can't capture
+                audio.
+              </>
+            )}
           </span>
           <button
             onClick={() => useCall.getState().dismissScreenAudioHint()}

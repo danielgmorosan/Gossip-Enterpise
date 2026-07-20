@@ -5,6 +5,7 @@ import { playJoinBlip, playLeaveBlip, playCallEnd } from "@/lib/sounds";
 import { useAudioSettings } from "@/stores/useAudioSettings";
 import { useVideoSettings } from "@/stores/useVideoSettings";
 import { applyCameraBackground } from "@/lib/cameraBackground";
+import { pickScreenSource } from "@/lib/desktopScreenPicker";
 
 // Reloading mid-call would silently drop the call - ask first (browsers show
 // their own generic wording; registering the handler is what arms the prompt).
@@ -313,6 +314,18 @@ export const useCall = create<CallState>((set, get) => {
       const r = get().room;
       if (!r) return;
       const enabling = !get().screen;
+      // In the desktop shell the OS picker is unavailable, so ask which source
+      // to share with our own dialog first; the shell resolves getDisplayMedia
+      // to that pick. "unavailable" means we're in a browser (or enumeration
+      // failed) - let getDisplayMedia show the native picker as usual.
+      // Tracks whether audio was actually asked for, so the "no sound" hint
+      // below doesn't scold someone who deliberately unticked the box.
+      let audioWanted = true;
+      if (enabling) {
+        const pick = await pickScreenSource();
+        if (pick.status === "cancelled") return;
+        if (pick.status === "picked") audioWanted = pick.audio;
+      }
       // T4: user-selected share quality (Settings → Calls). "source" keeps the
       // native size; the resolution constraint is an ideal, so oversizing it
       // just means "don't downscale".
@@ -330,6 +343,19 @@ export const useCall = create<CallState>((set, get) => {
           systemAudio: "include",
           resolution: { ...dims, frameRate: v.shareFps },
           contentHint: v.sharePrioritize === "motion" ? "motion" : "detail",
+        }, {
+          // Cap the encode. Without an explicit ceiling the encoder chases the
+          // full captured frame, which is what made sharing feel like it was
+          // melting the laptop. Bitrate scales with the chosen resolution.
+          screenShareEncoding: {
+            maxBitrate: v.shareRes === "720" ? 1_500_000 : v.shareRes === "1080" ? 3_000_000 : 5_000_000,
+            maxFramerate: v.shareFps,
+            priority: "high",
+          },
+          // "detail" holds resolution and sheds frames (right for text/code);
+          // "motion" does the opposite (right for video/gameplay). Stating it
+          // explicitly stops the encoder from guessing under CPU pressure.
+          degradationPreference: v.sharePrioritize === "motion" ? "maintain-framerate" : "maintain-resolution",
         });
       } catch {
         // User cancelled the share picker - not an error.
@@ -340,7 +366,7 @@ export const useCall = create<CallState>((set, get) => {
       // sharer, so silence isn't a mystery on the other end.
       const sharingNow = get().screen;
       const hasShareAudio = !!r.localParticipant.getTrackPublication(Track.Source.ScreenShareAudio);
-      set({ screenAudioMissing: sharingNow && !hasShareAudio });
+      set({ screenAudioMissing: sharingNow && audioWanted && !hasShareAudio });
     },
   };
 });
