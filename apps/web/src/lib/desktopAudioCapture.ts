@@ -22,8 +22,14 @@ function bridge(): AudioCaptureBridge | null {
  * Enable to test: `localStorage.setItem("umbry-native-share-audio","1")`.
  */
 export function canCaptureDesktopAudio(): boolean {
-  if (bridge() == null) return false;
-  if (import.meta.env.DEV) return true; // frictionless pipeline testing in a dev run
+  const d = (window as unknown as { umbryDesktop?: { audioCapture?: unknown; platform?: string } }).umbryDesktop;
+  if (!d?.audioCapture) return false;
+  // Windows has a verified native process-loopback capturer (native/loopback),
+  // shipped with the app — use it by default (echo-free). Other desktop platforms
+  // don't have a capturer yet, so stay on the current path there unless a dev run
+  // or the override flag opts in (for pipeline testing).
+  if (d.platform === "win32") return true;
+  if (import.meta.env.DEV) return true;
   try {
     return localStorage.getItem("umbry-native-share-audio") === "1";
   } catch {

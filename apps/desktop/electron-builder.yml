@@ -35,6 +35,11 @@ npmRebuild: false
 electronVersion: 38.8.6
 
 win:
+  # Ship the native screenshare-audio capturer (built by CI) at resources root,
+  # where audioCapture.ts looks for it (process.resourcesPath/loopback.exe).
+  extraResources:
+    - from: native/loopback/loopback.exe
+      to: loopback.exe
   target:
     - target: nsis
       arch: [x64]

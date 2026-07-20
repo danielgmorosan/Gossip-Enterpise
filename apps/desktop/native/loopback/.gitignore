@@ -1,0 +1,6 @@
+# Build artifacts — the exe is compiled locally (dev) or in CI (release).
+loopback.exe
+*.obj
+*.exp
+*.lib
+*.pdb

@@ -40,6 +40,17 @@ jobs:
       - name: Install workspace deps
         run: pnpm install --frozen-lockfile
 
+      # Native screenshare-audio capturer (echo-free). Only on Windows; shipped
+      # via electron-builder win.extraResources. The runner has the Windows SDK.
+      - name: Set up MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Build native loopback capturer (Windows)
+        if: runner.os == 'Windows'
+        working-directory: apps/desktop/native/loopback
+        run: cl /nologo /std:c++17 /EHsc /O2 /DUNICODE /D_UNICODE loopback.cpp /Fe:loopback.exe /link ole32.lib mmdevapi.lib
+
       - name: Build installers
         working-directory: apps/desktop
         # bundle:web (vite build → apps/web/dist, baked with .env.production) →
