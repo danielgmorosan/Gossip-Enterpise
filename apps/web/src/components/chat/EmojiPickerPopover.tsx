@@ -53,6 +53,15 @@ export function EmojiPickerPopover({
         // offline desktop constraints and violates the no-runtime-CDN rule.
         // Served same-origin so it works everywhere, including the app:// shell.
         emojibaseUrl="/emojibase"
+        // frimousse stamps each emoji with its own --frimousse-emoji-font, a
+        // Noto-FIRST stack. Since we bundle Noto Color Emoji, that wins and
+        // renders monochrome/tofu (blank cells) — the exact reason .font-emoji
+        // lists Segoe first (see index.css). Override the var to match so the
+        // picker glyphs render in colour like the reaction chips already do.
+        style={{
+          ["--frimousse-emoji-font" as string]:
+            '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Segoe UI Symbol", sans-serif',
+        }}
         className="isolate flex h-80 w-[22rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-card border border-line bg-paper shadow-[var(--st-shadow-card)]"
       >
         <EmojiPicker.Search
