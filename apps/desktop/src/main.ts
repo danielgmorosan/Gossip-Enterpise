@@ -23,6 +23,7 @@ import * as path from "node:path";
 import * as fs from "node:fs";
 import { setupUpdater } from "./updater";
 import { winHelloAvailable, winHelloVerify } from "./winHello";
+import { setupAudioCapture } from "./audioCapture";
 
 // ── Local bundle (serve the built web app from disk, not over the network) ───
 // Loading the UI remotely from umbry.chat on every launch is what makes the
@@ -461,6 +462,9 @@ if (!app.requestSingleInstanceLock()) {
     // Auto-update: check GitHub Releases in the background and stage updates for
     // install-on-quit. In-place, keeps userData — no re-download, no re-login.
     setupUpdater(() => win);
+    // Screenshare audio pipeline (echo-free): streams native/test-tone PCM to the
+    // renderer, which publishes it as a MediaStreamTrack (docs/screenshare-audio.md).
+    setupAudioCapture(() => win?.webContents ?? null);
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });

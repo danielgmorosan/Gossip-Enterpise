@@ -46,6 +46,19 @@ contextBridge.exposeInMainWorld("umbryDesktop", {
       return () => ipcRenderer.removeListener("umbry:update:event", listener);
     },
   },
+  // Screenshare audio capture (see docs/screenshare-audio.md). start() begins a
+  // native (Phase 1: test-tone) PCM stream; onFrame delivers interleaved Float32
+  // stereo chunks the renderer turns into a MediaStreamTrack — bypassing the
+  // system-audio loopback that causes call echo.
+  audioCapture: {
+    start: (): Promise<{ sampleRate: number; channels: number }> => ipcRenderer.invoke("umbry:audio:start"),
+    stop: (): Promise<boolean> => ipcRenderer.invoke("umbry:audio:stop"),
+    onFrame: (cb: (pcm: ArrayBuffer) => void): (() => void) => {
+      const listener = (_e: unknown, buf: ArrayBuffer) => cb(buf);
+      ipcRenderer.on("umbry:audio:frame", listener);
+      return () => ipcRenderer.removeListener("umbry:audio:frame", listener);
+    },
+  },
 });
 
 interface UpdaterStatus {
