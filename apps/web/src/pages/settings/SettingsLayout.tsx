@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { NavLink, Outlet, Link, useLocation } from "react-router-dom";
-import { User, Building2, Plug, Cpu, ShieldCheck, Bell, Palette, ArrowLeft, Headphones } from "lucide-react";
+import { User, Building2, Plug, Cpu, ShieldCheck, Bell, Palette, ArrowLeft, Headphones, Server, DownloadCloud } from "lucide-react";
 import { BrandLogo } from "@umbry/ui/stack";
 import { cn } from "@/lib/utils";
 import { useRelay } from "@/stores/useRelay";
+import { isDesktopApp } from "@/lib/desktopUpdater";
 
+// `desktopOnly` items are hidden in the web build (auto-update only applies to
+// the installed desktop app); their routes still exist for direct navigation.
 const groups = [
   {
     label: "Account",
@@ -14,6 +17,7 @@ const groups = [
       { to: "notifications", icon: Bell, label: "Notifications" },
       { to: "calls", icon: Headphones, label: "Calls & audio" },
       { to: "appearance", icon: Palette, label: "Appearance" },
+      { to: "updates", icon: DownloadCloud, label: "Updates", desktopOnly: true },
     ],
   },
   {
@@ -22,12 +26,14 @@ const groups = [
       { to: "workspace", icon: Building2, label: "Workspace" },
       { to: "integrations", icon: Plug, label: "Integrations" },
       { to: "ai-engine", icon: Cpu, label: "AI Engine" },
+      { to: "self-hosting", icon: Server, label: "Self-hosting" },
     ],
   },
 ];
 
 export function SettingsLayout() {
   const myWorkspaces = useRelay((s) => s.myWorkspaces);
+  const desktop = isDesktopApp();
   const location = useLocation();
   // Where the user came from (rail links pass state.from). Captured once at
   // mount so switching settings tabs doesn't lose it; a fresh deep-link has
@@ -68,7 +74,9 @@ export function SettingsLayout() {
                 {g.label}
               </div>
               <div className="space-y-0.5 max-md:flex max-md:items-center max-md:gap-1 max-md:space-y-0">
-                {g.items.map((it) => (
+                {g.items
+                  .filter((it) => desktop || !("desktopOnly" in it && it.desktopOnly))
+                  .map((it) => (
                   <NavLink
                     key={it.to}
                     to={it.to}

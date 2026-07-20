@@ -1,6 +1,6 @@
 {
   "name": "@umbry/desktop",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "license": "AGPL-3.0-only",
   "private": true,
   "description": "Umbry desktop shell (Electron) — loads the web app in a hardened window.",
@@ -18,6 +18,9 @@
     "dist:win": "pnpm bundle:web && tsc -p tsconfig.json && electron-builder --win",
     "dist:mac": "pnpm bundle:web && tsc -p tsconfig.json && electron-builder --mac",
     "dist:linux": "pnpm bundle:web && tsc -p tsconfig.json && electron-builder --linux"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

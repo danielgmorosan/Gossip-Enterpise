@@ -1,18 +1,20 @@
 // Base URL for the relay service (group channels, LiveKit tokens, Umbry AI).
 //
-// Local dev and the old same-origin Vercel multi-service setup both leave this unset, so
-// requests stay relative and either hit the Vite dev proxy or the same host. Once web
-// (Vercel) and relay (Fly.io) are split across origins, set VITE_RELAY_URL to the relay's
-// deployed URL (e.g. https://gossip-relay.fly.dev) at build time.
-const RELAY_BASE = (import.meta.env.VITE_RELAY_URL ?? "").replace(/\/$/, "");
+// The value is resolved at RUNTIME from `endpoints.ts` (runtime override →
+// build-time VITE_RELAY_URL → same-origin), so a self-hoster can point the app
+// at their own relay from Settings → Self-hosting without a rebuild. An empty
+// base keeps requests relative — they hit the Vite dev proxy in dev, or the same
+// host on a same-origin deploy.
+import { getRelayBase } from "./endpoints";
 
 export function relayUrl(path: string): string {
-  return `${RELAY_BASE}${path}`;
+  return `${getRelayBase()}${path}`;
 }
 
 export function relayWsUrl(path: string): string {
-  if (RELAY_BASE) {
-    return `${RELAY_BASE.replace(/^http/, "ws")}${path}`;
+  const base = getRelayBase();
+  if (base) {
+    return `${base.replace(/^http/, "ws")}${path}`;
   }
   const proto = location.protocol === "https:" ? "wss" : "ws";
   return `${proto}://${location.host}${path}`;

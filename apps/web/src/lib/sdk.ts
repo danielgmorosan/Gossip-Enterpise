@@ -18,12 +18,17 @@ import {
   type Message,
   type Contact,
 } from "@massalabs/gossip-sdk";
+import { getGossipApiUrl } from "./endpoints";
 
 // In dev we route through Vite's proxy (/gossip-relay) to dodge the relay's CORS.
-// In prod use the configured URL (packaged app / self-hosted relay has no CORS issue).
-const PROTOCOL_BASE_URL = import.meta.env.DEV
-  ? "/gossip-relay"
-  : (import.meta.env.VITE_GOSSIP_API_URL ?? "https://api.usegossip.com/api");
+// In prod use the configured URL, resolved at init time from the runtime endpoint
+// store (Settings → Self-hosting override → VITE_GOSSIP_API_URL → api.usegossip.com).
+// The SDK bakes this into a single init(), so changing it takes effect on the next
+// session (a reload) — acceptable since DMs are already sovereign and this URL is
+// an advanced knob most self-hosters never touch.
+function protocolBaseUrl(): string {
+  return import.meta.env.DEV ? "/gossip-relay" : getGossipApiUrl();
+}
 
 let initPromise: Promise<unknown> | null = null;
 
@@ -31,7 +36,7 @@ let initPromise: Promise<unknown> | null = null;
 export function initSdk() {
   if (!initPromise) {
     initPromise = gossipSdk.init({
-      protocolBaseUrl: PROTOCOL_BASE_URL,
+      protocolBaseUrl: protocolBaseUrl(),
       config: { polling: { enabled: true } },
     });
   }

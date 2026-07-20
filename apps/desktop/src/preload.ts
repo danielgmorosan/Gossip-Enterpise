@@ -31,7 +31,32 @@ contextBridge.exposeInMainWorld("umbryDesktop", {
     list: (): Promise<ScreenSource[]> => ipcRenderer.invoke("umbry:screen:sources"),
     pick: (id: string | null, audio: boolean): Promise<boolean> => ipcRenderer.invoke("umbry:screen:pick", id, audio),
   },
+  // Auto-update control surface for Settings → Updates. Updates apply in-place
+  // and preserve all local data, so the app never re-downloads or re-logs-in.
+  updater: {
+    status: (): Promise<UpdaterStatus> => ipcRenderer.invoke("umbry:update:status"),
+    setEnabled: (enabled: boolean): Promise<UpdaterStatus> => ipcRenderer.invoke("umbry:update:set-enabled", enabled),
+    check: (): Promise<UpdaterStatus> => ipcRenderer.invoke("umbry:update:check"),
+    install: (): Promise<UpdaterStatus> => ipcRenderer.invoke("umbry:update:install"),
+    // Subscribe to state changes (checking / downloading / downloaded / error).
+    // Returns an unsubscribe function.
+    onEvent: (cb: (s: UpdaterStatus) => void): (() => void) => {
+      const listener = (_e: unknown, s: UpdaterStatus) => cb(s);
+      ipcRenderer.on("umbry:update:event", listener);
+      return () => ipcRenderer.removeListener("umbry:update:event", listener);
+    },
+  },
 });
+
+interface UpdaterStatus {
+  version: string;
+  enabled: boolean;
+  supported: boolean;
+  state: "idle" | "checking" | "available" | "not-available" | "downloading" | "downloaded" | "error";
+  newVersion: string | null;
+  percent: number | null;
+  error: string | null;
+}
 
 interface ScreenSource {
   id: string;

@@ -27,6 +27,8 @@ import { ProfileSettings } from "@/pages/settings/ProfileSettings";
 import { WorkspaceSettings } from "@/pages/settings/WorkspaceSettings";
 import { IntegrationsSettings } from "@/pages/settings/IntegrationsSettings";
 import { AiEngineSettings } from "@/pages/settings/AiEngineSettings";
+import { SelfHostSettings } from "@/pages/settings/SelfHostSettings";
+import { UpdatesSettings } from "@/pages/settings/UpdatesSettings";
 import { SecuritySettings } from "@/pages/settings/SecuritySettings";
 import { NotificationsSettings } from "@/pages/settings/NotificationsSettings";
 import { CallSettings } from "@/pages/settings/CallSettings";
@@ -101,6 +103,8 @@ export const router = createBrowserRouter([
       { path: "workspace", element: <WorkspaceSettings /> },
       { path: "integrations", element: <IntegrationsSettings /> },
       { path: "ai-engine", element: <AiEngineSettings /> },
+      { path: "self-hosting", element: <SelfHostSettings /> },
+      { path: "updates", element: <UpdatesSettings /> },
       { path: "security", element: <SecuritySettings /> },
       { path: "notifications", element: <NotificationsSettings /> },
       { path: "calls", element: <CallSettings /> },

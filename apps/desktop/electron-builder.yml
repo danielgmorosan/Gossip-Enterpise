@@ -6,9 +6,11 @@ directories:
   output: release
   buildResources: build
 
-# Package just the compiled main + preload and no runtime node_modules (there
-# are none). The web UI is shipped separately as extraResources (below), not in
-# the asar. Keep it lean.
+# Package the compiled main + preload plus the one production dependency
+# (electron-updater, for auto-update). electron-builder resolves the production
+# dependency tree from package.json `dependencies` and includes it automatically
+# even alongside these explicit app-file globs. The web UI is shipped separately
+# as extraResources (below), not in the asar. Keep it lean.
 files:
   - dist/**/*
   - package.json
@@ -48,6 +50,12 @@ mac:
   category: public.app-category.social-networking
   target:
     - target: dmg
+      arch: [arm64, x64]
+    # electron-updater applies macOS updates from a ZIP (not the DMG), so it must
+    # be built and published alongside for auto-update to work. NOTE: Squirrel.Mac
+    # refuses to install unsigned updates — macOS auto-update stays inert until
+    # real signing (CSC_*/APPLE_* secrets) is enabled; Windows + Linux update fine.
+    - target: zip
       arch: [arm64, x64]
   icon: build/icon.png
   # No cert: skip signing entirely (identity: null) rather than attempt the
