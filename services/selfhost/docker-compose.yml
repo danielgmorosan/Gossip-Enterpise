@@ -54,12 +54,18 @@ services:
     ports:
       - "${LIVEKIT_PORT:-7880}:7880"   # signaling (WebSocket)
       - "7881:7881"                     # RTC over TCP, the fallback when UDP is blocked
-      - "50000-50100:50000-50100/udp"   # RTC media
+      # RTC media. Deliberately a SMALL range: Docker publishes one proxy per
+      # port, and a 100-port range makes `up` crawl on Docker Desktop. 20 ports
+      # is plenty for a team-sized call; widen both this and livekit.yaml's
+      # port_range_end together if you outgrow it.
+      - "50000-50019:50000-50019/udp"
     environment:
       LIVEKIT_KEYS: "${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"
-      # Advertised address for media candidates. On a laptop this stays
-      # localhost; for teammates set UMBRY_HOST to the LAN IP or domain.
-      LIVEKIT_NODE_IP: "${UMBRY_HOST:-127.0.0.1}"
+      # Advertised address for media candidates. Must be an IP, NOT a hostname —
+      # LiveKit puts this straight into ICE candidates, and "localhost" there is
+      # not a valid candidate address. Separate from UMBRY_HOST (which is a URL
+      # host and may legitimately be a domain name).
+      LIVEKIT_NODE_IP: "${UMBRY_NODE_IP:-127.0.0.1}"
     volumes:
       - ./livekit.yaml:/etc/livekit.yaml:ro
 

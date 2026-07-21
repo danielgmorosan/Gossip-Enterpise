@@ -7,9 +7,11 @@
 port: 7880
 
 rtc:
-  # UDP is the fast path; this range is published in docker-compose.yml.
+  # UDP is the fast path; this range is published in docker-compose.yml and the
+  # two MUST match. Kept small on purpose — Docker publishes one proxy process
+  # per port, so a wide range makes `docker compose up` painfully slow.
   port_range_start: 50000
-  port_range_end: 50100
+  port_range_end: 50019
   # TCP fallback for restrictive networks (corporate firewalls, some VPNs).
   tcp_port: 7881
   # Don't probe a cloud metadata service for a public IP — this stack runs on a
