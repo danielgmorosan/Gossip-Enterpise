@@ -22,6 +22,10 @@ files:
 extraResources:
   - from: ../web/dist
     to: web
+  # The relay, esbuilt to a single file. Electron already ships a Node runtime,
+  # so self-hosting channels/files costs the user a 0 MB download.
+  - from: dist-relay/relay.mjs
+    to: relay.mjs
   # Self-host stack templates (Mode B). Copied out to userData on first start so
   # `docker compose` has a writable project dir — see src/selfhost.ts.
   - from: ../../services/selfhost

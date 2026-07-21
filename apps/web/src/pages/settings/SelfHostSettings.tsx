@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Server, ShieldCheck, CircleDot, RefreshCw, Lock, Cloud, HardDrive, Play, Square, ExternalLink, AlertTriangle } from "lucide-react";
+import { Server, ShieldCheck, CircleDot, RefreshCw, Lock, Cloud, HardDrive, Play, Square, ExternalLink, AlertTriangle, Download } from "lucide-react";
 import { SettingsPage } from "./SettingsLayout";
 import { SettingGroup, SettingRow } from "./parts";
 import { Button, Input } from "@umbry/ui/stack";
@@ -21,6 +21,17 @@ import {
   SERVICE_LABELS,
   type StackStatus,
 } from "@/lib/desktopStack";
+import {
+  canRunNative,
+  nativeStatus,
+  nativeInstall,
+  nativeStart,
+  nativeStop,
+  onNativeEvent,
+  SERVICE_META,
+  type NativeStatus,
+  type ServiceId,
+} from "@/lib/desktopNative";
 
 type Health = "unknown" | "checking" | "ok" | "down";
 
@@ -75,6 +86,154 @@ function ModeCard({
         <p className="mt-0.5 text-[12.5px] leading-relaxed text-ink-mute">{desc}</p>
       </div>
     </button>
+  );
+}
+
+/**
+ * Native stack — the default path. No Docker, no admin rights: the relay ships
+ * with the app, and the other two are optional downloads gated behind an
+ * explicit click so a 1.4GB fetch never happens by surprise.
+ */
+function NativePanel({ onUseRelay }: { onUseRelay: (url: string) => void }) {
+  const [st, setSt] = useState<NativeStatus | null>(null);
+  const [busy, setBusy] = useState<ServiceId | "all" | null>(null);
+
+  useEffect(() => {
+    void nativeStatus().then(setSt);
+    // Main process pushes download progress and process exits.
+    return onNativeEvent(setSt);
+  }, []);
+
+  const svc = (id: ServiceId) => st?.services.find((s) => s.id === id);
+
+  const doInstall = async (id: ServiceId) => {
+    setBusy(id);
+    try {
+      setSt(await nativeInstall(id));
+      setSt(await nativeStart(id));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const startAll = async () => {
+    setBusy("all");
+    try {
+      setSt(await nativeStart());
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const stop = async () => {
+    setBusy("all");
+    try {
+      setSt(await nativeStop());
+      setSt(await nativeStatus());
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const relay = svc("relay");
+
+  return (
+    <SettingGroup title="Local services">
+      <SettingRow
+        label={relay?.running ? "Running on this machine" : "Not running"}
+        desc={
+          relay?.running
+            ? "Umbry is serving your channels, files, and search itself."
+            : "Start the relay to host channels and files yourself. Nothing to install — it ships with Umbry."
+        }
+        control={
+          <div className="flex items-center gap-2">
+            {relay?.running ? (
+              <Button variant="secondary" size="sm" onClick={() => void stop()} disabled={busy !== null}>
+                <Square className="size-4" /> Stop
+              </Button>
+            ) : (
+              <Button size="sm" onClick={() => void startAll()} disabled={busy !== null}>
+                <Play className="size-4" /> {busy === "all" ? "Starting…" : "Start"}
+              </Button>
+            )}
+          </div>
+        }
+      />
+
+      {(["relay", "livekit", "ollama"] as ServiceId[]).map((id) => {
+        const s = svc(id);
+        const meta = SERVICE_META[id];
+        const downloading = s?.downloadPercent != null;
+        return (
+          <div key={id} className="px-4 py-3.5">
+            <div className="flex items-center gap-3">
+              <CircleDot
+                className={cn(
+                  "size-3.5 shrink-0",
+                  s?.running ? "text-positive" : s?.installed ? "text-ink-faint" : "text-ink-faint/50",
+                )}
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 text-[13.5px] font-medium text-ink">
+                  {meta.title}
+                  <span className="rounded-control bg-field px-1.5 py-0.5 text-[10.5px] font-normal text-ink-mute">
+                    {meta.enables}
+                  </span>
+                </div>
+                <div className="mt-0.5 text-[12px] leading-relaxed text-ink-mute">
+                  {s?.unavailable ?? meta.blurb}
+                </div>
+                {s?.error && <div className="mt-1 text-[12px] text-negative">{s.error}</div>}
+              </div>
+              <div className="shrink-0">
+                {id === "relay" ? (
+                  <span className="text-[12px] text-ink-faint">{s?.running ? "running" : "included"}</span>
+                ) : s?.unavailable ? (
+                  <span className="text-[12px] text-ink-faint">unavailable</span>
+                ) : s?.installed ? (
+                  <span className={cn("text-[12px]", s.running ? "text-positive" : "text-ink-faint")}>
+                    {s.running ? "running" : "installed"}
+                  </span>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void doInstall(id)}
+                    disabled={busy !== null || downloading}
+                  >
+                    <Download className="size-4" />
+                    {downloading
+                      ? `${Math.round((s!.downloadPercent ?? 0) * 100)}%`
+                      : `Add (${s?.downloadMb ?? "?"} MB)`}
+                  </Button>
+                )}
+              </div>
+            </div>
+            {downloading && (
+              <div className="mt-2 h-1 overflow-hidden rounded-full bg-field">
+                <div
+                  className="h-full rounded-full bg-ink transition-[width] duration-300"
+                  style={{ width: `${Math.round((s!.downloadPercent ?? 0) * 100)}%` }}
+                />
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {relay?.running && (
+        <SettingRow
+          label="Use this relay"
+          desc={`Point Umbry at the services running on this machine (${st?.relayUrl ?? LOCAL_STACK_RELAY}).`}
+          control={
+            <Button variant="secondary" size="sm" onClick={() => onUseRelay(st?.relayUrl ?? LOCAL_STACK_RELAY)}>
+              Use it
+            </Button>
+          }
+        />
+      )}
+    </SettingGroup>
   );
 }
 
@@ -245,6 +404,9 @@ export function SelfHostSettings() {
   const [relay, setRelay] = useState(saved.relayBase ?? "");
   const [gossip, setGossip] = useState(saved.gossipApiUrl ?? "");
   const [health, setHealth] = useState<Health>("unknown");
+  // Native is the default: no Docker, no admin rights. Docker stays for people
+  // standing up a shared box for their team.
+  const [runtime, setRuntime] = useState<"native" | "docker">(canRunNative() ? "native" : "docker");
 
   const selfHosted = mode === "selfhosted";
   const modeChanged = mode !== getMode();
@@ -298,7 +460,18 @@ export function SelfHostSettings() {
         />
       </div>
 
-      {selfHosted && <StackPanel onUseRelay={useStackRelay} />}
+      {selfHosted && (runtime === "native" ? <NativePanel onUseRelay={useStackRelay} /> : <StackPanel onUseRelay={useStackRelay} />)}
+
+      {selfHosted && canRunNative() && (
+        <button
+          onClick={() => setRuntime((r) => (r === "native" ? "docker" : "native"))}
+          className="self-start text-[12.5px] text-ink-faint underline underline-offset-2 hover:text-ink"
+        >
+          {runtime === "native"
+            ? "Running a shared server for your team? Use Docker instead →"
+            : "← Back to the built-in services (no Docker needed)"}
+        </button>
+      )}
 
       {selfHosted && (
         <SettingGroup title="Relay">

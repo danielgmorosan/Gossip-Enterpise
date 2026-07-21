@@ -89,12 +89,13 @@ The endgame is that **you** run the parts that hold your data. Because everythin
 |---|---|---|
 | **A. Managed** *(today)* | Us (Vercel + Fly) | Zero setup: open the app and talk. DMs still E2EE; channels/AI on our infra. |
 | **B. Org self-host** *(today)* | Your team, on one server | `docker compose up` in `services/selfhost`: relay + LiveKit + Ollama. Point clients at it; nothing touches us. |
-| **C. Fully-local desktop** *(today)* | You, on your machine | Settings → Self-hosting → **Start local stack**. The desktop app runs the same compose stack for you. |
+| **C. Fully-local desktop** *(today)* | You, on your machine | Settings → Self-hosting → **Start**. No Docker, no admin rights — the desktop app runs the services directly. |
 
 **Progress:**
 - ✅ **Hardened desktop shell + cross-platform installers** (this repo's `apps/desktop`, built via CI).
 - ✅ **Relay authentication & enforcement** (the security model above), the prerequisite for safely exposing a self-hosted relay.
-- ✅ **The self-host mode switch** (0.4.2): Managed ⇄ Self-hosted in Settings, with a one-click local stack and in-app model downloads.
+- ✅ **The self-host mode switch** (0.4.2): Managed ⇄ Self-hosted in Settings, with in-app model downloads.
+- ✅ **Docker-free self-hosting** (0.4.2): the relay is bundled (Electron already ships Node, so it costs a **0 MB** download), and LiveKit/Ollama are fetched on demand and verified against pinned checksums. Docker is still there for shared team servers.
 - 🔜 **Auto-TLS + invite links that carry the relay URL**, so teammates join a self-hosted deployment without typing one.
 
 > **Note on AI:** the model runs wherever the *relay* runs. On the managed relay there is no model — AI requires self-hosted mode. See [`services/selfhost`](services/selfhost).

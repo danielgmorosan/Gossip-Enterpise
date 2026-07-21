@@ -3,21 +3,22 @@
   "version": "0.4.2",
   "license": "AGPL-3.0-only",
   "private": true,
-  "description": "Umbry desktop shell (Electron) — loads the web app in a hardened window.",
+  "description": "Umbry desktop shell (Electron) \u2014 loads the web app in a hardened window.",
   "author": "Umbry <noreply@umbry.chat>",
   "homepage": "https://umbry.chat",
   "main": "dist/main.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "pnpm bundle:relay && tsc -p tsconfig.json",
+    "bundle:relay": "esbuild ../../services/relay/server.mjs --bundle --platform=node --format=esm --target=node20 --outfile=dist-relay/relay.mjs --external:bufferutil --external:utf-8-validate --banner:js=\"import{createRequire as __cr}from'node:module';const require=__cr(import.meta.url);\"",
     "start": "electron .",
     "dev": "tsc -p tsconfig.json && electron .",
     "dev:local": "UMBRY_DESKTOP_URL=http://localhost:5173 tsc -p tsconfig.json && electron .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "bundle:web": "pnpm --filter @umbry/web build",
-    "dist": "pnpm bundle:web && tsc -p tsconfig.json && electron-builder",
-    "dist:win": "pnpm bundle:web && tsc -p tsconfig.json && electron-builder --win",
-    "dist:mac": "pnpm bundle:web && tsc -p tsconfig.json && electron-builder --mac",
-    "dist:linux": "pnpm bundle:web && tsc -p tsconfig.json && electron-builder --linux"
+    "dist": "pnpm bundle:web && pnpm bundle:relay && tsc -p tsconfig.json && electron-builder",
+    "dist:win": "pnpm bundle:web && pnpm bundle:relay && tsc -p tsconfig.json && electron-builder --win",
+    "dist:mac": "pnpm bundle:web && pnpm bundle:relay && tsc -p tsconfig.json && electron-builder --mac",
+    "dist:linux": "pnpm bundle:web && pnpm bundle:relay && tsc -p tsconfig.json && electron-builder --linux"
   },
   "dependencies": {
     "electron-updater": "^6.3.9"
@@ -26,6 +27,7 @@
     "@types/node": "^22.10.0",
     "electron": "^38.8.6",
     "electron-builder": "^25.1.8",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "esbuild": "^0.25.0"
   }
 }

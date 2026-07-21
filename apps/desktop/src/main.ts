@@ -25,6 +25,7 @@ import { setupUpdater } from "./updater";
 import { winHelloAvailable, winHelloVerify } from "./winHello";
 import { setupAudioCapture } from "./audioCapture";
 import { setupSelfHost } from "./selfhost";
+import { setupNativeStack } from "./nativeStack";
 
 // ── Local bundle (serve the built web app from disk, not over the network) ───
 // Loading the UI remotely from umbry.chat on every launch is what makes the
@@ -497,8 +498,10 @@ if (!app.requestSingleInstanceLock()) {
     // Screenshare audio pipeline (echo-free): streams native/test-tone PCM to the
     // renderer, which publishes it as a MediaStreamTrack (docs/screenshare-audio.md).
     setupAudioCapture(() => win?.webContents ?? null);
-    // Mode B: docker compose control for the local relay + LiveKit + Ollama
-    // stack, driven from Settings → Self-hosting.
+    // Self-hosting, two ways. Native runs the services as plain child processes
+    // (no Docker, no admin rights) and is the default; Docker stays available
+    // for shared/team servers.
+    setupNativeStack(() => win?.webContents ?? null);
     setupSelfHost();
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();

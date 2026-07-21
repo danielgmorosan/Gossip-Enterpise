@@ -66,7 +66,41 @@ contextBridge.exposeInMainWorld("umbryDesktop", {
     up: (): Promise<StackStatus> => ipcRenderer.invoke("umbry:stack:up"),
     down: (): Promise<StackStatus> => ipcRenderer.invoke("umbry:stack:down"),
   },
+  // Native stack — the same three services as plain child processes, no Docker.
+  // The relay ships with the app; LiveKit and Ollama are fetched on demand and
+  // verified against pinned checksums.
+  native: {
+    status: (): Promise<NativeStatus> => ipcRenderer.invoke("umbry:native:status"),
+    install: (id: ServiceId): Promise<NativeStatus> => ipcRenderer.invoke("umbry:native:install", id),
+    start: (id?: ServiceId): Promise<NativeStatus> => ipcRenderer.invoke("umbry:native:start", id),
+    stop: (): Promise<NativeStatus> => ipcRenderer.invoke("umbry:native:stop"),
+    versions: (): Promise<Record<string, string>> => ipcRenderer.invoke("umbry:native:versions"),
+    // Download progress + service state changes.
+    onEvent: (cb: (s: NativeStatus) => void): (() => void) => {
+      const listener = (_e: unknown, s: NativeStatus) => cb(s);
+      ipcRenderer.on("umbry:native:event", listener);
+      return () => ipcRenderer.removeListener("umbry:native:event", listener);
+    },
+  },
 });
+
+type ServiceId = "relay" | "livekit" | "ollama";
+
+interface ServiceState {
+  id: ServiceId;
+  installed: boolean;
+  running: boolean;
+  downloadPercent: number | null;
+  downloadMb: number | null;
+  unavailable?: string;
+  error?: string;
+}
+
+interface NativeStatus {
+  services: ServiceState[];
+  relayUrl: string;
+  running: boolean;
+}
 
 interface StackService {
   name: string;

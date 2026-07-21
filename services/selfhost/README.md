@@ -6,11 +6,21 @@ AI — running on hardware you control.
 DMs are **not** part of this. They ride the Gossip network E2EE whether you
 self-host or not; there is nothing of ours in their path to replace.
 
-## The easy way
+## Most people don't need this
 
-In the desktop app: **Settings → Self-hosting → Self-hosted → Start local stack**.
-It writes the `.env` (generating fresh LiveKit credentials), runs the compose
-project, and shows you each service coming up. Requires Docker Desktop.
+The desktop app self-hosts **without Docker**: Settings → Self-hosting →
+Self-hosted → **Start**. The relay is bundled (Electron already ships a Node
+runtime, so it's a 0 MB download), and LiveKit (~17 MB) and Ollama are fetched
+on demand and checksum-verified. No admin rights, no WSL2, nothing installed
+system-wide. See `apps/desktop/src/nativeStack.ts`.
+
+**This compose stack is for the other case:** one shared box hosting a whole
+team, where you want the services supervised by Docker rather than by somebody's
+desktop app being open.
+
+In the desktop app you can still reach it via the "Running a shared server for
+your team?" link, which writes the `.env` (generating fresh LiveKit credentials)
+and runs the compose project for you.
 
 ## By hand
 
