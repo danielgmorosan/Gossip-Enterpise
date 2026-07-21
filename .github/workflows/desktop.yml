@@ -70,11 +70,24 @@ jobs:
           set -euo pipefail
           git clone --depth 1 --branch "$LIVEKIT_VERSION" https://github.com/livekit/livekit.git /tmp/livekit
           cd /tmp/livekit
-          CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /tmp/livekit-server ./cmd/server
-          mkdir -p "$GITHUB_WORKSPACE/apps/desktop/vendor-bin"
-          cp /tmp/livekit-server "$GITHUB_WORKSPACE/apps/desktop/vendor-bin/livekit-server"
-          chmod +x "$GITHUB_WORKSPACE/apps/desktop/vendor-bin/livekit-server"
-          /tmp/livekit-server --version
+          OUT="$GITHUB_WORKSPACE/apps/desktop/vendor-bin"
+          mkdir -p "$OUT"
+          # CGO is REQUIRED on darwin: livekit/protocol's hwstats uses
+          # go-osstat/cpu, whose macOS implementation is cgo-only (Mach host
+          # statistics). With CGO_ENABLED=0 the darwin file is excluded and the
+          # build dies on `undefined: cpu.Get`.
+          #
+          # The runner is arm64 but we ship Intel Macs too, so build BOTH and let
+          # electron-builder pick per target arch via the ${arch} macro. Without
+          # this, x64 Macs would get an arm64 binary that can't exec.
+          CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 \
+            go build -trimpath -ldflags="-s -w" -o "$OUT/livekit-server-arm64" ./cmd/server
+          CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 CC="clang -arch x86_64" \
+            go build -trimpath -ldflags="-s -w" -o "$OUT/livekit-server-x64" ./cmd/server
+          chmod +x "$OUT/livekit-server-arm64" "$OUT/livekit-server-x64"
+          # Prove each is the arch we think it is, and that the native one runs.
+          file "$OUT/livekit-server-arm64" "$OUT/livekit-server-x64"
+          "$OUT/livekit-server-arm64" --version
 
       - name: Build installers
         working-directory: apps/desktop

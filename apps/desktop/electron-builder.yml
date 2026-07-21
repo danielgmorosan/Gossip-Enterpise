@@ -82,7 +82,9 @@ mac:
   # ship it in the .app — otherwise self-hosted calls wouldn't work on Mac at
   # all. ~45MB; the runtime prefers this over any download (nativeStack.ts).
   extraResources:
-    - from: vendor-bin/livekit-server
+    # ${arch} resolves per target (arm64 / x64), so each Mac build gets the
+    # matching binary instead of one that can't exec on Intel.
+    - from: vendor-bin/livekit-server-${arch}
       to: bin/livekit-server
   target:
     - target: dmg
