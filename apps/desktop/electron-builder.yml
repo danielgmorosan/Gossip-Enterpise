@@ -78,6 +78,12 @@ nsis:
 
 mac:
   category: public.app-category.social-networking
+  # LiveKit has no upstream macOS release, so CI builds one from source and we
+  # ship it in the .app — otherwise self-hosted calls wouldn't work on Mac at
+  # all. ~45MB; the runtime prefers this over any download (nativeStack.ts).
+  extraResources:
+    - from: vendor-bin/livekit-server
+      to: bin/livekit-server
   target:
     - target: dmg
       arch: [arm64, x64]

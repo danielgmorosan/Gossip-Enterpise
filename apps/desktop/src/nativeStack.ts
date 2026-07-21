@@ -161,10 +161,27 @@ function dlFor(id: ServiceId): Download | undefined {
   return undefined;
 }
 
+/**
+ * A service binary we ship inside the app rather than download.
+ *
+ * Today that's LiveKit on macOS: upstream publishes no darwin build, so CI
+ * compiles one from source at the pinned tag (Apache-2.0) and it rides along in
+ * the .app. Bundled always wins over a download — it's already verified by
+ * virtue of being part of the signed app.
+ */
+function bundledBinary(id: ServiceId): string | null {
+  if (id !== "livekit" || process.platform !== "darwin") return null;
+  return app.isPackaged
+    ? join(process.resourcesPath, "bin", "livekit-server")
+    : join(app.getAppPath(), "vendor-bin", "livekit-server");
+}
+
 function binaryPath(id: ServiceId): string | null {
   if (id === "relay") return relayBundle();
+  const bundled = bundledBinary(id);
+  if (bundled && existsSync(bundled)) return bundled;
   const dl = dlFor(id);
-  if (!dl) return null;
+  if (!dl) return bundled;
   return join(BIN(), id, dl.binPath);
 }
 
@@ -194,6 +211,8 @@ function isInstalled(id: ServiceId): boolean {
 
 export async function install(id: ServiceId): Promise<void> {
   if (id === "relay") return;
+  // Shipped with the app (LiveKit on macOS) — nothing to fetch.
+  if (isInstalled(id)) return;
   const dl = dlFor(id);
   if (!dl) throw new Error(`No native ${id} build for this platform.`);
   delete errors[id];
@@ -366,18 +385,20 @@ export async function status(): Promise<NativeStatus> {
   const key = platformKey();
   const mk = (id: ServiceId, mb: number | null): ServiceState => {
     const dl = dlFor(id);
+    const bundled = Boolean(bundledBinary(id) && existsSync(bundledBinary(id)!));
+    // Only truly unavailable when there's neither a bundled copy nor a
+    // download for this platform.
     const unavailable =
-      id !== "relay" && !dl
-        ? id === "livekit" && process.platform === "darwin"
-          ? "No upstream macOS build — use the Docker stack for calls on macOS."
-          : "No native build for this platform — use the Docker stack."
+      id !== "relay" && !dl && !bundled
+        ? "No native build for this platform — use the Docker stack."
         : undefined;
     return {
       id,
       installed: isInstalled(id),
       running: alive(id),
       downloadPercent: progress[id] ?? null,
-      downloadMb: mb,
+      // Bundled binaries ship with the app, so there's nothing to download.
+      downloadMb: bundled ? null : mb,
       unavailable,
       error: errors[id],
     };

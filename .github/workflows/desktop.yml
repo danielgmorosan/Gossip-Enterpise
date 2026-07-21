@@ -51,6 +51,31 @@ jobs:
         working-directory: apps/desktop/native/loopback
         run: cl /nologo /std:c++17 /EHsc /O2 /DUNICODE /D_UNICODE loopback.cpp /Fe:loopback.exe /link ole32.lib mmdevapi.lib
 
+      # LiveKit publishes no macOS binary, so we build one from source at the
+      # pinned tag and ship it inside the .app (Apache-2.0 permits this). Without
+      # it, self-hosted calls would be Windows/Linux-only. Other platforms fetch
+      # the official release at runtime instead — see src/nativeManifest.ts.
+      - name: Set up Go (macOS)
+        if: runner.os == 'macOS'
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+
+      - name: Build LiveKit server (macOS)
+        if: runner.os == 'macOS'
+        env:
+          # Keep in sync with LIVEKIT_VERSION in apps/desktop/src/nativeManifest.ts.
+          LIVEKIT_VERSION: v1.13.4
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch "$LIVEKIT_VERSION" https://github.com/livekit/livekit.git /tmp/livekit
+          cd /tmp/livekit
+          CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /tmp/livekit-server ./cmd/server
+          mkdir -p "$GITHUB_WORKSPACE/apps/desktop/vendor-bin"
+          cp /tmp/livekit-server "$GITHUB_WORKSPACE/apps/desktop/vendor-bin/livekit-server"
+          chmod +x "$GITHUB_WORKSPACE/apps/desktop/vendor-bin/livekit-server"
+          /tmp/livekit-server --version
+
       - name: Build installers
         working-directory: apps/desktop
         # bundle:web (vite build → apps/web/dist, baked with .env.production) →
